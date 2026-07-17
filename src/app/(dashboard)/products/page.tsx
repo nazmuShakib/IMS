@@ -11,6 +11,7 @@ import {
   Money,
   PageHeader,
   StockCount,
+  TableViewport,
   stockLevel,
 } from '@/components/ui';
 
@@ -59,9 +60,11 @@ export default async function ProductsPage({
             : `${rows.length} products · ${lowCount} need attention`
         }
         action={
-          <Link href="/products/new">
-            <Button>Add product</Button>
-          </Link>
+          role !== 'STAFF' ? (
+            <Link href="/products/new">
+              <Button>Add product</Button>
+            </Link>
+          ) : undefined
         }
       />
 
@@ -83,7 +86,7 @@ export default async function ProductsPage({
                 : 'No products yet. Add the first one, or run `npm run seed` for demo stock.'
             }
             action={
-              !q && (
+              !q && role !== 'STAFF' && (
                 <Link href="/products/new">
                   <Button variant="ghost">Add product</Button>
                 </Link>
@@ -91,8 +94,9 @@ export default async function ProductsPage({
             }
           />
         ) : (
-          <table className="w-full">
-            <thead>
+          <TableViewport>
+            <table className="w-full">
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
                 <th className="eyebrow px-4 py-2.5 text-left">SKU</th>
                 <th className="eyebrow px-4 py-2.5 text-left">Product</th>
@@ -157,7 +161,8 @@ export default async function ProductsPage({
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </TableViewport>
         )}
       </Card>
 

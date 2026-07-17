@@ -7,7 +7,8 @@ import { z } from 'zod';
 import { db } from '@/repositories';
 import { uuidv7 } from '@/lib/ids';
 import { parseBDT } from '@/lib/money';
-import { requireRole } from '@/lib/session';
+import { requireCapability } from '@/lib/session';
+import { writeAudit } from '@/lib/audit';
 import {
   createBrandSchema,
   createCategorySchema,
@@ -19,7 +20,7 @@ import {
  * Server Actions for the catalog (PLAN.md §16, Phase 1).
  *
  * Two rules hold in every action here:
- *   1. requireRole() FIRST. A hidden button is not a permission (§9.2).
+ *   1. requireCapability() FIRST. A hidden button is not a permission (§9.2).
  *   2. Zod parses the FormData before anything touches the repository.
  */
 
@@ -67,7 +68,7 @@ export async function createProduct(
   _prev: ActionState,
   fd: FormData,
 ): Promise<ActionState> {
-  await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MANAGE_CATALOG');
 
   let input;
   try {
@@ -91,9 +92,9 @@ export async function createProduct(
     return { error: err instanceof Error ? err.message : 'Could not read the form' };
   }
 
-  let id: string;
+  let created;
   try {
-    const created = await db.products.create({
+    created = await db.products.create({
       id: uuidv7(),
       sku: input.sku,
       barcode: input.barcode ?? null,
@@ -115,20 +116,27 @@ export async function createProduct(
       createdAt: now(),
       updatedAt: now(),
     });
-    id = created.id;
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not save the product' };
   }
 
+  await writeAudit({
+    actorId: actor.id,
+    action: 'product.create',
+    entity: 'Product',
+    entityId: created.id,
+    after: created,
+  });
+
   revalidatePath('/products');
-  redirect(`/products/${id}`);
+  redirect(`/products/${created.id}`);
 }
 
 export async function updateProduct(
   _prev: ActionState,
   fd: FormData,
 ): Promise<ActionState> {
-  await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MANAGE_CATALOG');
 
   const id = str(fd, 'id');
   if (!id) return { error: 'Missing product id' };
@@ -160,7 +168,7 @@ export async function updateProduct(
   }
 
   try {
-    await db.products.update(id, {
+    const updated = await db.products.update(id, {
       sku: input.sku,
       barcode: input.barcode ?? null,
       name: input.name,
@@ -174,6 +182,14 @@ export async function updateProduct(
       // NOTE: quantityOnHand and avgCostPrice are absent on purpose. Editing a
       // product must never be able to change stock. Stock moves via the ledger.
     });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'product.update',
+      entity: 'Product',
+      entityId: id,
+      before: existing,
+      after: updated,
+    });
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not save the product' };
   }
@@ -185,21 +201,39 @@ export async function updateProduct(
 
 /** Soft delete. Movements and units reference this row forever (§6). */
 export async function archiveProduct(fd: FormData): Promise<void> {
-  await requireRole('ADMIN');
+  const actor = await requireCapability('ARCHIVE_PRODUCTS');
   const id = fd.get('id');
   if (typeof id !== 'string') throw new Error('Missing product id');
 
+  const before = await db.products.findById(id);
   await db.products.softDelete(id);
+  await writeAudit({
+    actorId: actor.id,
+    action: 'product.archive',
+    entity: 'Product',
+    entityId: id,
+    before,
+    after: before ? { ...before, isActive: false } : undefined,
+  });
   revalidatePath('/products');
   redirect('/products');
 }
 
 export async function restoreProduct(fd: FormData): Promise<void> {
-  await requireRole('ADMIN');
+  const actor = await requireCapability('ARCHIVE_PRODUCTS');
   const id = fd.get('id');
   if (typeof id !== 'string') throw new Error('Missing product id');
 
-  await db.products.update(id, { isActive: true });
+  const before = await db.products.findById(id);
+  const after = await db.products.update(id, { isActive: true });
+  await writeAudit({
+    actorId: actor.id,
+    action: 'product.restore',
+    entity: 'Product',
+    entityId: id,
+    before,
+    after,
+  });
   revalidatePath('/products');
   revalidatePath(`/products/${id}`);
 }
@@ -210,7 +244,7 @@ export async function createCategory(
   _prev: ActionState,
   fd: FormData,
 ): Promise<ActionState> {
-  await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MANAGE_CATALOG');
 
   const parsed = createCategorySchema.safeParse({
     name: str(fd, 'name') ?? '',
@@ -219,12 +253,19 @@ export async function createCategory(
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   try {
-    await db.categories.create({
+    const created = await db.categories.create({
       id: uuidv7(),
       name: parsed.data.name,
       slug: slugify(parsed.data.name),
       parentId: parsed.data.parentId ?? null,
       isActive: true,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'category.create',
+      entity: 'Category',
+      entityId: created.id,
+      after: created,
     });
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not save the category' };
@@ -235,17 +276,24 @@ export async function createCategory(
 }
 
 export async function createBrand(_prev: ActionState, fd: FormData): Promise<ActionState> {
-  await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MANAGE_CATALOG');
 
   const parsed = createBrandSchema.safeParse({ name: str(fd, 'name') ?? '' });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   try {
-    await db.brands.create({
+    const created = await db.brands.create({
       id: uuidv7(),
       name: parsed.data.name,
       slug: slugify(parsed.data.name),
       isActive: true,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'brand.create',
+      entity: 'Brand',
+      entityId: created.id,
+      after: created,
     });
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not save the brand' };
@@ -259,7 +307,7 @@ export async function createSupplier(
   _prev: ActionState,
   fd: FormData,
 ): Promise<ActionState> {
-  await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MANAGE_CATALOG');
 
   const parsed = createSupplierSchema.safeParse({
     name: str(fd, 'name') ?? '',
@@ -271,7 +319,7 @@ export async function createSupplier(
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
   try {
-    await db.suppliers.create({
+    const created = await db.suppliers.create({
       id: uuidv7(),
       name: parsed.data.name,
       phone: parsed.data.phone ?? null,
@@ -279,6 +327,13 @@ export async function createSupplier(
       address: parsed.data.address ?? null,
       note: parsed.data.note ?? null,
       isActive: true,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'supplier.create',
+      entity: 'Supplier',
+      entityId: created.id,
+      after: created,
     });
   } catch (err) {
     return { error: err instanceof Error ? err.message : 'Could not save the supplier' };

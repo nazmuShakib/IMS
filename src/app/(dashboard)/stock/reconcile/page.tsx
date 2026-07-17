@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { requireRole } from '@/lib/session';
 import { reconcile } from '@/services/stock';
-import { Card, PageHeader } from '@/components/ui';
+import { Card, PageHeader, TableViewport } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -41,8 +41,9 @@ export default async function ReconcilePage() {
         </div>
 
         {!healthy && (
-          <table className="w-full border-t border-out/20 bg-card">
-            <thead>
+          <TableViewport>
+            <table className="w-full border-t border-out/20 bg-card">
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
                 <th className="eyebrow px-4 py-2.5 text-left">Product</th>
                 <th className="eyebrow px-4 py-2.5 text-right">On hand</th>
@@ -68,7 +69,8 @@ export default async function ReconcilePage() {
                 </tr>
               ))}
             </tbody>
-          </table>
+            </table>
+          </TableViewport>
         )}
       </Card>
     </>

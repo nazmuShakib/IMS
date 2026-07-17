@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
-import type { Product } from '@/domain/types';
+import type { ProductDTO } from '@/lib/dto';
 import { formatBDT, toTaka } from '@/lib/money';
 import {
   lookupSerial,
@@ -31,7 +31,7 @@ export function StockOutForm({
   bulkProducts,
   initialSerial,
 }: {
-  bulkProducts: Product[];
+  bulkProducts: ProductDTO[];
   initialSerial?: string;
 }) {
   const [mode, setMode] = useState<'serial' | 'bulk'>('serial');
@@ -233,7 +233,7 @@ function ConfirmUnit({
 
 /* -------------------------------------------------------------------------- */
 
-function BulkFlow({ products }: { products: Product[] }) {
+function BulkFlow({ products }: { products: ProductDTO[] }) {
   const [state, formAction, pending] = useActionState<StockActionState, FormData>(
     stockOutAction,
     {},

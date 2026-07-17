@@ -2,10 +2,12 @@ import { db } from '@/repositories';
 import { createSupplier } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SuppliersPage() {
+  const { role } = await getSession();
   const suppliers = await db.suppliers.findAll();
 
   return (
@@ -15,7 +17,7 @@ export default async function SuppliersPage() {
         count={`${suppliers.length} suppliers · purchase orders are Phase 7`}
       />
 
-      <div className="mb-4">
+      {role !== 'STAFF' && <div className="mb-4">
         <QuickCreateForm
           action={createSupplier}
           submitLabel="Add supplier"
@@ -26,7 +28,7 @@ export default async function SuppliersPage() {
             { name: 'address', label: 'Address', placeholder: 'Motijheel, Dhaka' },
           ]}
         />
-      </div>
+      </div>}
 
       <Card>
         {suppliers.length === 0 ? (

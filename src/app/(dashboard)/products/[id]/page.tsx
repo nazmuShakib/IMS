@@ -15,6 +15,7 @@ import {
   PageHeader,
   SerialChip,
   StockCount,
+  TableViewport,
 } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
@@ -85,10 +86,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <Button>Receive stock</Button>
               </Link>
             )}
-            <Link href={`/products/${product.id}/edit`}>
-              <Button variant="ghost">Edit</Button>
-            </Link>
-            {product.isActive ? (
+            {role !== 'STAFF' && (
+              <Link href={`/products/${product.id}/edit`}>
+                <Button variant="ghost">Edit</Button>
+              </Link>
+            )}
+            {role === 'ADMIN' && (product.isActive ? (
               <form action={archiveProduct}>
                 <input type="hidden" name="id" value={product.id} />
                 <Button variant="danger" type="submit">
@@ -102,7 +105,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   Restore
                 </Button>
               </form>
-            )}
+            ))}
           </div>
         }
       />
@@ -213,8 +216,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               }
             />
           ) : (
-            <table className="w-full">
-              <thead>
+            <TableViewport>
+              <table className="w-full">
+              <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-rule">
                   <th className="eyebrow px-4 py-2.5 text-left">Serial / IMEI</th>
                   <th className="eyebrow px-4 py-2.5 text-left">Status</th>
@@ -286,7 +290,8 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                   );
                 })}
               </tbody>
-            </table>
+              </table>
+            </TableViewport>
           )}
         </Card>
       )}

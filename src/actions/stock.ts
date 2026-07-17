@@ -6,8 +6,9 @@ import { z } from 'zod';
 
 import { db } from '@/repositories';
 import { parseBDT } from '@/lib/money';
-import { requireRole, getSession, canSeeCosts } from '@/lib/session';
+import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
+import { writeAudit } from '@/lib/audit';
 import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
 import type { MovementReason } from '@/domain/types';
 
@@ -94,7 +95,7 @@ export async function receiveStockAction(
   _prev: StockActionState,
   fd: FormData,
 ): Promise<StockActionState> {
-  const actor = await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('MOVE_STOCK');
 
   const productId = str(fd, 'productId');
   if (!productId) return { fieldErrors: { productId: 'Choose a product' } };
@@ -128,6 +129,13 @@ export async function receiveStockAction(
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
     });
     count = movements.reduce((n, m) => n + m.quantity, 0);
+    await writeAudit({
+      actorId: actor.id,
+      action: 'stock.in',
+      entity: 'StockMovement',
+      entityId: movements[0]?.id,
+      after: { movementIds: movements.map((movement) => movement.id), productId, count },
+    });
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
     return { error: message(err) };
@@ -148,7 +156,7 @@ export async function stockOutAction(
   _prev: StockActionState,
   fd: FormData,
 ): Promise<StockActionState> {
-  const actor = await requireRole('ADMIN', 'MANAGER', 'STAFF'); // staff sell things
+  const actor = await requireCapability('MOVE_STOCK');
 
   const productId = str(fd, 'productId');
   if (!productId) return { error: 'Missing product' };
@@ -161,7 +169,7 @@ export async function stockOutAction(
   const qtyRaw = str(fd, 'quantity');
 
   try {
-    await recordStockOut({
+    const movement = await recordStockOut({
       productId,
       reason: reason as 'SALE' | 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'RETURN_TO_SUPPLIER',
       serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? undefined) : undefined,
@@ -174,6 +182,13 @@ export async function stockOutAction(
       note: str(fd, 'note'),
       actorId: actor.id,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'stock.out',
+      entity: 'StockMovement',
+      entityId: movement.id,
+      after: movement,
     });
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
@@ -201,7 +216,7 @@ export async function reverseMovementAction(
   _prev: StockActionState,
   fd: FormData,
 ): Promise<StockActionState> {
-  const actor = await requireRole('ADMIN', 'MANAGER');
+  const actor = await requireCapability('CORRECT_STOCK');
 
   const movementId = str(fd, 'movementId');
   const note = str(fd, 'note');
@@ -209,11 +224,18 @@ export async function reverseMovementAction(
   if (!note) return { fieldErrors: { note: 'Say why this is being reversed — it goes in the audit trail' } };
 
   try {
-    await correctMovement({
+    const correction = await correctMovement({
       movementId,
       note,
       actorId: actor.id,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'stock.correct',
+      entity: 'StockMovement',
+      entityId: correction.id,
+      after: correction,
     });
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
@@ -228,7 +250,7 @@ export async function reverseMovementAction(
 /* --- Reconciliation -------------------------------------------------------- */
 
 export async function runReconcile(): Promise<void> {
-  await requireRole('ADMIN', 'MANAGER');
+  await requireCapability('CORRECT_STOCK');
   revalidatePath('/stock/reconcile');
   redirect('/stock/reconcile');
 }

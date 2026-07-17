@@ -1,5 +1,5 @@
 import type { Product, ProductUnit, Role } from '@/domain/types';
-import { canSeeCosts } from '@/lib/session';
+import { canSeeCosts } from '@/lib/permissions';
 import type { Paisa } from '@/lib/money';
 
 /**

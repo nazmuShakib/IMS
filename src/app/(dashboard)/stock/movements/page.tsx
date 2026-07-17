@@ -2,7 +2,15 @@ import Link from 'next/link';
 import { db } from '@/repositories';
 import { canSeeCosts, getSession } from '@/lib/session';
 import { ReverseButton } from '@/components/stock/ReverseButton';
-import { Badge, Card, EmptyState, Money, PageHeader, SerialChip } from '@/components/ui';
+import {
+  Badge,
+  Card,
+  EmptyState,
+  Money,
+  PageHeader,
+  SerialChip,
+  TableViewport,
+} from '@/components/ui';
 import type { MovementReason } from '@/domain/types';
 
 export const dynamic = 'force-dynamic';
@@ -107,8 +115,9 @@ export default async function MovementsPage({
         {rows.length === 0 ? (
           <EmptyState title="No movements match. Stock has to be received before it can move." />
         ) : (
-          <table className="w-full">
-            <thead>
+          <TableViewport>
+            <table className="w-full">
+            <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
                 <th className="eyebrow px-4 py-2.5 text-left">When</th>
                 <th className="eyebrow px-4 py-2.5 text-left">Product</th>
@@ -221,7 +230,8 @@ export default async function MovementsPage({
                 );
               })}
             </tbody>
-          </table>
+            </table>
+          </TableViewport>
         )}
       </Card>
 

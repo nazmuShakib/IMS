@@ -1,29 +1,46 @@
-import { db } from '@/repositories';
+import { headers } from 'next/headers';
+import { redirect } from 'next/navigation';
+
 import type { Role, User } from '@/domain/types';
+import { auth } from '@/lib/auth';
+import {
+  CAPABILITY_ROLES,
+  canUseAccount,
+  type Capability,
+} from '@/lib/permissions';
+import { prisma } from '@/lib/prisma';
 
-/**
- * ⚠️ TEMPORARY. Phase 3 replaces this with Better Auth (PLAN.md §16).
- *
- * It exists now so that the DTO layer (§9.2) and the actor on every movement are
- * wired from the start. Retrofitting `actorId` and role-based field stripping
- * later means touching every action — so we don't.
- *
- * Phase 3: replace the body with Better Auth's session lookup. The signature
- * stays the same, so nothing that calls it changes.
- */
+export { canSeeCosts } from '@/lib/permissions';
+
+function toDomainUser(user: Awaited<ReturnType<typeof prisma.user.findUniqueOrThrow>>): User {
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    emailVerified: user.emailVerified,
+    image: user.image,
+    role: user.role,
+    isActive: user.isActive,
+    createdAt: user.createdAt.toISOString(),
+    updatedAt: user.updatedAt.toISOString(),
+  };
+}
+
+/** Resolve both the signed session and the current database role on every request. */
 export async function getSession(): Promise<{ user: User; role: Role }> {
-  const users = await db.users.findAll();
-  // Flip 'ADMIN' to 'STAFF' here to see the app as a staff member: cost prices,
-  // stock valuation and the profit column vanish from the payload entirely (§9.2).
-  const user = users.find((u) => u.role === 'ADMIN') ?? users[0];
+  const session = await auth.api.getSession({ headers: await headers() });
+  if (!session) redirect('/login');
 
-  if (!user) {
-    throw new Error('No users found. Run `npm run seed` first.');
+  const current = await prisma.user.findUnique({ where: { id: session.user.id } });
+  if (!current || !canUseAccount(current)) {
+    redirect('/login?error=inactive');
   }
+
+  const user = toDomainUser(current);
   return { user, role: user.role };
 }
 
-/** Throws unless the current role is allowed. Call at the TOP of every mutating action. */
+/** Throws unless the current database role is allowed. Call first in every mutation. */
 export async function requireRole(...allowed: Role[]): Promise<User> {
   const { user, role } = await getSession();
   if (!allowed.includes(role)) {
@@ -32,7 +49,7 @@ export async function requireRole(...allowed: Role[]): Promise<User> {
   return user;
 }
 
-/** STAFF must never see cost prices or margins. PLAN.md §9.2. */
-export function canSeeCosts(role: Role): boolean {
-  return role === 'ADMIN' || role === 'MANAGER';
+/** Enforce the canonical PLAN.md §9.1 capability matrix at a server boundary. */
+export async function requireCapability(capability: Capability): Promise<User> {
+  return requireRole(...CAPABILITY_ROLES[capability]);
 }

@@ -1,7 +1,8 @@
 'use client';
 
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
-import type { Product, Supplier } from '@/domain/types';
+import type { Supplier } from '@/domain/types';
+import type { ProductDTO } from '@/lib/dto';
 import { toTaka } from '@/lib/money';
 import { receiveStockAction, type StockActionState } from '@/actions/stock';
 import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
@@ -11,7 +12,7 @@ export function StockInForm({
   suppliers,
   initialProductId,
 }: {
-  products: Product[];
+  products: ProductDTO[];
   suppliers: Supplier[];
   initialProductId?: string;
 }) {
@@ -46,7 +47,11 @@ export function StockInForm({
   // the real cost is whatever the supplier charged THIS time, and it's what gets
   // written onto each unit.
   useEffect(() => {
-    if (product) setCost(String(toTaka(product.defaultCostPrice)));
+    if (product) {
+      setCost(
+        product.defaultCostPrice === undefined ? '' : String(toTaka(product.defaultCostPrice)),
+      );
+    }
   }, [product]);
 
   const serials = serialText

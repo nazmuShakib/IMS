@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { getSession } from '@/lib/session';
 import { Badge } from '@/components/ui';
+import { SignOutControl } from '@/components/auth/SignOutControl';
 import { NavLink } from '@/components/shell/NavLink';
 
 export const dynamic = 'force-dynamic'; // JSON repos read from disk per request
@@ -16,7 +17,6 @@ const STOCK = [
   { href: '/stock/in', label: 'Receive stock' },
   { href: '/stock/out', label: 'Stock out' },
   { href: '/stock/movements', label: 'Movement ledger' },
-  { href: '/stock/reconcile', label: 'Reconciliation' },
 ];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -40,6 +40,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
               {item.label}
             </NavLink>
           ))}
+          {role !== 'STAFF' && (
+            <NavLink href="/stock/reconcile">Reconciliation</NavLink>
+          )}
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Catalog</p>
           {CATALOG.map((item) => (
@@ -47,6 +50,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
               {item.label}
             </NavLink>
           ))}
+
+          {role === 'ADMIN' && (
+            <>
+              <p className="eyebrow mt-5 px-2 pb-1.5">Administration</p>
+              <NavLink href="/users">Users</NavLink>
+              <NavLink href="/audit">Audit log</NavLink>
+            </>
+          )}
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Coming next</p>
           {[
@@ -67,8 +78,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <p className="truncate text-[12px] font-medium">{user.name}</p>
           <div className="mt-1 flex items-center gap-1.5">
             <Badge tone="signal">{role}</Badge>
-            <span className="text-[10px] text-graphite">stub · Phase 3</span>
+            <span className="text-[10px] text-graphite">authenticated</span>
           </div>
+          <SignOutControl />
         </div>
       </aside>
 

@@ -125,12 +125,13 @@ DATABASE_URL="postgresql://user:pass@ep-xxx-pooler.region.aws.neon.tech/neondb?s
 
 # Neon DIRECT connection (no "-pooler") — used by `prisma migrate`.
 # ⚠️ Migrations cannot run through PgBouncer. Omitting this WILL break migrations.
-DIRECT_DATABASE_URL="postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
+DATABASE_URL_UNPOOLED="postgresql://user:pass@ep-xxx.region.aws.neon.tech/neondb?sslmode=require"
 
 BETTER_AUTH_SECRET="generate with: openssl rand -base64 32"
 BETTER_AUTH_URL="http://localhost:3000"
 
-# Phase 0 = "json", Phase 1 = "postgres"
+# Inventory: JSON through Phase 5, PostgreSQL from Phase 6.
+# Better Auth and audit logs use PostgreSQL from Phase 3.
 DATA_SOURCE="json"
 ```
 
@@ -190,7 +191,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")        // pooled
-  directUrl = env("DIRECT_DATABASE_URL") // unpooled — required by `prisma migrate`
+  directUrl = env("DATABASE_URL_UNPOOLED") // unpooled — required by `prisma migrate`
 }
 
 // ===========================================================================
@@ -250,6 +251,9 @@ model User {
   image         String?
   role          Role      @default(STAFF)
   isActive      Boolean   @default(true)
+  banned        Boolean   @default(false) // Better Auth admin plugin; mirrors !isActive
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -269,10 +273,12 @@ model Session {
   expiresAt DateTime
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
 }
 
@@ -292,6 +298,7 @@ model Account {
   updatedAt             DateTime  @updatedAt
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -303,6 +310,7 @@ model Verification {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([identifier])
   @@map("verifications")
 }
 
@@ -825,7 +833,7 @@ Nothing above this file — services, Server Actions, UI — ever imports `json/
 
 1. Create the Neon project; copy **both** the pooled and direct connection strings into `.env.local`.
 2. `npx prisma migrate dev --name init`, then apply the §7 SQL migration.
-3. Write `scripts/migrate-json-to-pg.ts`: read each JSON file, insert in FK-safe order (categories → brands → suppliers → users → products → units → movements). Because IDs were generated app-side, this is a straight insert — **no ID remapping**.
+3. Write `scripts/migrate-json-to-pg.ts`: read each JSON file and insert in FK-safe order. Catalog, unit, and movement IDs were generated app-side, so they need no remapping. Auth users already live in PostgreSQL from Phase 3; map any legacy JSON `actorId` values to Better Auth users by email before inserting old movements.
 4. **Verify before trusting it:** run the §8.4 reconciliation. `SUM(movements.quantity)` must equal on-hand for every single product. If one product disagrees, stop and find out why.
 5. Flip `DATA_SOURCE=postgres`. Delete `data/`.
 

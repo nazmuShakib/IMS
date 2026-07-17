@@ -2,10 +2,12 @@ import { db } from '@/repositories';
 import { createBrand } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BrandsPage() {
+  const { role } = await getSession();
   const [brands, products] = await Promise.all([
     db.brands.findAll(),
     db.products.findAll({ activeOnly: true }),
@@ -17,13 +19,13 @@ export default async function BrandsPage() {
     <>
       <PageHeader title="Brands" count={`${brands.length} brands`} />
 
-      <div className="mb-4">
+      {role !== 'STAFF' && <div className="mb-4">
         <QuickCreateForm
           action={createBrand}
           submitLabel="Add brand"
           fields={[{ name: 'name', label: 'Name', placeholder: 'Samsung', required: true }]}
         />
-      </div>
+      </div>}
 
       <Card>
         {brands.length === 0 ? (

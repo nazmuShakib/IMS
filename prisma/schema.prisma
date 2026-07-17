@@ -8,7 +8,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")        // pooled
-  directUrl = env("DIRECT_DATABASE_URL") // unpooled — required by `prisma migrate`
+  directUrl = env("DATABASE_URL_UNPOOLED") // unpooled — required by `prisma migrate`
 }
 
 // ===========================================================================
@@ -68,6 +68,9 @@ model User {
   image         String?
   role          Role      @default(STAFF)
   isActive      Boolean   @default(true)
+  banned        Boolean   @default(false)
+  banReason     String?
+  banExpires    DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -87,10 +90,12 @@ model Session {
   expiresAt DateTime
   ipAddress String?
   userAgent String?
+  impersonatedBy String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("sessions")
 }
 
@@ -110,6 +115,7 @@ model Account {
   updatedAt             DateTime  @updatedAt
   user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("accounts")
 }
 
@@ -121,6 +127,7 @@ model Verification {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
+  @@index([identifier])
   @@map("verifications")
 }
 

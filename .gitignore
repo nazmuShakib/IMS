@@ -8,3 +8,6 @@ node_modules/
 /data/*.tmp
 
 CLAUDE.md
+.neon
+.agents/
+skills-lock.json

@@ -1,23 +1,28 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–2 complete: the data layer, the catalog UI, and stock operations, running
-against JSON files. Full spec in `PLAN.md`.
+Phases 0–3 complete: the JSON inventory layer, catalog UI, stock operations,
+Better Auth, RBAC, user administration, and audit logging. Full spec in `PLAN.md`.
 
 ## Requirements
 
 - **Node.js 22 LTS** (https://nodejs.org). Next.js 16 needs 20.9+; 22 is recommended.
-- Nothing else. No database required for Phase 0.
+- A Neon PostgreSQL project. Auth users, sessions, and audit logs live there;
+  inventory remains in JSON until Phase 6.
 
 ## Run it
 
 ```bash
 npm install
+npx neon env pull           # writes ignored .env.local connection variables
+# Add BETTER_AUTH_SECRET and INITIAL_ADMIN_* to .env.local
+npm run auth:bootstrap      # one time only
 npm run seed                 # build demo stock: phones, laptops, cables
+npm test                     # Phase 3 RBAC, DTO, auth, and audit checks
 npx tsx scripts/verify.ts    # prove the invariants hold
 npm run dev                  # http://localhost:3000
 ```
 
-`verify` runs the five tests that matter (PLAN.md §15) — including two staff
+`verify` runs the critical inventory invariants (PLAN.md §15) — including two staff
 trying to sell the same IMEI simultaneously, where exactly one must win.
 
 ## What's here
@@ -28,6 +33,9 @@ src/
   schemas/index.ts       Zod — the validation boundary
   lib/money.ts           integer paisa. never floats.
   lib/ids.ts             UUIDv7, generated app-side
+  lib/auth.ts            Better Auth configuration
+  lib/session.ts         database-backed session + current role checks
+  lib/audit.ts           append-only audit writer
   repositories/
     types.ts             ⭐ THE SEAM — swap JSON for Postgres here
     json/                Phase 0 implementation (local dev only)
@@ -37,6 +45,7 @@ scripts/
   seed.ts                demo data
   verify.ts              invariant tests
 prisma/schema.prisma     ready for Phase 6
+src/proxy.ts             coarse cookie redirect (not authorization)
 ```
 
 ## ⚠️ Two things to know
@@ -59,14 +68,12 @@ prisma/schema.prisma     ready for Phase 6
    delete button anywhere, on purpose.
 5. **Reconciliation** → on-hand vs SUM(ledger), for every product. It should say the
    books add up. That is the invariant the whole system rests on.
-6. In `src/lib/session.ts`, change `'ADMIN'` to `'STAFF'` and reload. Cost prices,
-   stock valuation and the profit column disappear — not hidden with CSS, *absent
-   from the HTML*. That's PLAN.md §9.2, enforced by TypeScript.
+6. Sign in as a STAFF account. Cost prices, stock valuation and the profit column
+   are not hidden with CSS; they are absent from the server payload and HTML.
 
 ## Next
 
-Open Claude Code in this folder and say:
+The next milestone is:
 
-> Read PLAN.md and CLAUDE.md. Implement Phase 3 (Better Auth + roles + audit log)
-> only. Replace the stub in src/lib/session.ts without changing its signature.
+> Read PLAN.md and CLAUDE.md. Implement Phase 4 (dashboard + quick search) only.
 > Stop when done.

@@ -2,10 +2,12 @@ import { db } from '@/repositories';
 import { createCategory } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { getSession } from '@/lib/session';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CategoriesPage() {
+  const { role } = await getSession();
   const [categories, products] = await Promise.all([
     db.categories.findAll(),
     db.products.findAll({ activeOnly: true }),
@@ -17,13 +19,13 @@ export default async function CategoriesPage() {
     <>
       <PageHeader title="Categories" count={`${categories.length} categories`} />
 
-      <div className="mb-4">
+      {role !== 'STAFF' && <div className="mb-4">
         <QuickCreateForm
           action={createCategory}
           submitLabel="Add category"
           fields={[{ name: 'name', label: 'Name', placeholder: 'Mobile Phones', required: true }]}
         />
-      </div>
+      </div>}
 
       <Card>
         {categories.length === 0 ? (
