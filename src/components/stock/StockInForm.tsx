@@ -1,0 +1,217 @@
+'use client';
+
+import { useActionState, useEffect, useId, useMemo, useState } from 'react';
+import type { Product, Supplier } from '@/domain/types';
+import { toTaka } from '@/lib/money';
+import { receiveStockAction, type StockActionState } from '@/actions/stock';
+import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
+
+export function StockInForm({
+  products,
+  suppliers,
+  initialProductId,
+}: {
+  products: Product[];
+  suppliers: Supplier[];
+  initialProductId?: string;
+}) {
+  const [state, formAction, pending] = useActionState<StockActionState, FormData>(
+    receiveStockAction,
+    {},
+  );
+
+  const [productId, setProductId] = useState(initialProductId ?? '');
+  const [serialText, setSerialText] = useState('');
+  const [cost, setCost] = useState('');
+  const [key, setKey] = useState('');
+  const formId = useId();
+
+  const product = useMemo(
+    () => products.find((p) => p.id === productId),
+    [products, productId],
+  );
+
+  // A fresh idempotency key per submission. Generated in an effect so the server
+  // render and the client render agree (no hydration mismatch), and rotated after
+  // every success so the next receipt isn't swallowed as a replay.
+  useEffect(() => setKey(crypto.randomUUID()), []);
+  useEffect(() => {
+    if (state.ok) {
+      setKey(crypto.randomUUID());
+      setSerialText('');
+    }
+  }, [state.ok]);
+
+  // Prefill cost from the product's default, but let the operator override it —
+  // the real cost is whatever the supplier charged THIS time, and it's what gets
+  // written onto each unit.
+  useEffect(() => {
+    if (product) setCost(String(toTaka(product.defaultCostPrice)));
+  }, [product]);
+
+  const serials = serialText
+    .split(/[\n,]/)
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const dupes = serials.filter((s, i) => serials.indexOf(s) !== i);
+  const isSerial = product?.trackingType === 'SERIAL';
+
+  const err = (k: string) => state.fieldErrors?.[k];
+
+  return (
+    <form action={formAction} id={formId}>
+      <input type="hidden" name="idempotencyKey" value={key} />
+
+      {state.error && (
+        <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
+          {state.error}
+        </div>
+      )}
+      {state.ok && (
+        <div className="mb-4 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
+          {state.ok}
+        </div>
+      )}
+
+      <Card className="mb-4 p-5">
+        <p className="eyebrow mb-4">What arrived</p>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Product" error={err('productId')}>
+            <Select
+              name="productId"
+              required
+              value={productId}
+              onChange={(e) => setProductId(e.target.value)}
+            >
+              <option value="" disabled>
+                Choose a product
+              </option>
+              {products.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.sku} — {p.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="Supplier">
+            <Select name="supplierId" defaultValue="">
+              <option value="">Not recorded</option>
+              {suppliers.map((s) => (
+                <option key={s.id} value={s.id}>
+                  {s.name}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field
+            label="Cost per unit (৳)"
+            error={err('unitCost')}
+            hint="What you paid this time. Written onto every unit received."
+          >
+            <MonoInput
+              name="unitCost"
+              inputMode="decimal"
+              required
+              value={cost}
+              onChange={(e) => setCost(e.target.value)}
+              placeholder="42000"
+            />
+          </Field>
+
+          <Field label="Reason">
+            <Select name="reason" defaultValue="PURCHASE">
+              <option value="PURCHASE">Purchase from supplier</option>
+              <option value="INITIAL_STOCK">Opening balance</option>
+              <option value="CUSTOMER_RETURN">Customer return</option>
+            </Select>
+          </Field>
+
+          <Field label="Reference" hint="Challan or invoice number">
+            <MonoInput name="reference" placeholder="CHL-1001" />
+          </Field>
+
+          <Field label="Note">
+            <Input name="note" />
+          </Field>
+        </div>
+      </Card>
+
+      {product && (
+        <Card className="mb-4 p-5">
+          {isSerial ? (
+            <>
+              <p className="eyebrow mb-1">Serial numbers</p>
+              <p className="mb-3 text-[12px] text-graphite">
+                One per line, or comma separated — paste straight from the delivery note.
+                Each one becomes a unit you can look up, sell and warranty individually.
+              </p>
+
+              <Textarea
+                name="serialNumbers"
+                value={serialText}
+                onChange={(e) => setSerialText(e.target.value)}
+                rows={6}
+                className="tnum min-h-32"
+                placeholder={'352099001761481\n352099001761482\n352099001761483'}
+                required
+              />
+
+              <div className="mt-2 flex items-center gap-3 text-[12px]">
+                <span className="tnum text-graphite">
+                  {serials.length} {serials.length === 1 ? 'unit' : 'units'}
+                </span>
+                {dupes.length > 0 && (
+                  <span className="text-out">
+                    {dupes.length} duplicate{dupes.length > 1 ? 's' : ''} in this list:{' '}
+                    <span className="tnum">{[...new Set(dupes)].join(', ')}</span>
+                  </span>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-4 sm:grid-cols-2">
+                <Field label="Warranty (months)" hint="Counts from the day it sells, not today">
+                  <MonoInput name="warrantyMonths" inputMode="numeric" defaultValue={12} />
+                </Field>
+                <Field label="Location">
+                  <Input name="location" placeholder="Shelf A1" />
+                </Field>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="eyebrow mb-1">Quantity</p>
+              <p className="mb-3 text-[12px] text-graphite">
+                {product.name} is bulk-counted. Receiving updates its weighted-average cost.
+              </p>
+              <div className="max-w-40">
+                <Field label="Units received" error={err('quantity')}>
+                  <MonoInput
+                    name="quantity"
+                    inputMode="numeric"
+                    required
+                    min={1}
+                    type="number"
+                    placeholder="100"
+                  />
+                </Field>
+              </div>
+            </>
+          )}
+        </Card>
+      )}
+
+      <Button
+        type="submit"
+        disabled={pending || !product || (isSerial && (serials.length === 0 || dupes.length > 0))}
+      >
+        {pending
+          ? 'Receiving…'
+          : isSerial && serials.length > 0
+            ? `Receive ${serials.length} ${serials.length === 1 ? 'unit' : 'units'}`
+            : 'Receive stock'}
+      </Button>
+    </form>
+  );
+}

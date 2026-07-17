@@ -1,0 +1,76 @@
+@import 'tailwindcss';
+
+/* ---------------------------------------------------------------------------
+   Design tokens.
+
+   The visual language is borrowed from the thing being counted: the spec plate
+   on the back of a device. Anodized grey field, etched dark text, identifiers
+   and money in tabular mono so an IMEI can be read digit-by-digit at a counter.
+
+   Status colours are load-bearing, not decorative — a shop owner should be able
+   to see "low stock" from across the room without reading the number.
+--------------------------------------------------------------------------- */
+
+@theme {
+  --color-ink: #14181d; /* etched text */
+  --color-graphite: #626c76; /* secondary text */
+  --color-plate: #e9ecee; /* anodized field */
+  --color-card: #ffffff;
+  --color-rule: #d5dade;
+  --color-rule-soft: #e6e9eb;
+
+  --color-signal: #2e4bd8; /* the one accent. primary actions only. */
+  --color-signal-wash: #eef1fe;
+
+  --color-ok: #1b7f5c;
+  --color-ok-wash: #e6f3ee;
+  --color-low: #a8620a; /* below reorder point */
+  --color-low-wash: #fbf0e2;
+  --color-out: #b3261e; /* zero */
+  --color-out-wash: #fbeae9;
+
+  --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+
+  --radius-plate: 3px; /* hardware, not marshmallow */
+}
+
+html {
+  background: var(--color-plate);
+}
+
+body {
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Every identifier and every amount is tabular. Columns must align. */
+.tnum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+}
+
+/* Small-caps field labels, as on a regulatory sticker. */
+.eyebrow {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--color-graphite);
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

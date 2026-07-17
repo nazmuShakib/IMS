@@ -1,0 +1,239 @@
+'use server';
+
+import { revalidatePath } from 'next/cache';
+import { redirect } from 'next/navigation';
+import { z } from 'zod';
+
+import { db } from '@/repositories';
+import { parseBDT } from '@/lib/money';
+import { requireRole, getSession, canSeeCosts } from '@/lib/session';
+import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
+import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
+import type { MovementReason } from '@/domain/types';
+
+/**
+ * Phase 2 (PLAN.md §16). These are thin — every one of them just validates the
+ * form and hands off to `src/services/stock.ts`, which owns the transaction, the
+ * ledger write and the concurrency guard.
+ *
+ * Business logic does NOT live here. If you find yourself writing a stock rule in
+ * this file, it belongs in the service.
+ */
+
+export interface StockActionState {
+  error?: string;
+  ok?: string;
+  fieldErrors?: Record<string, string>;
+}
+
+function str(fd: FormData, key: string): string | null {
+  const v = fd.get(key);
+  return typeof v === 'string' && v.trim() !== '' ? v.trim() : null;
+}
+
+function zodErrors(err: z.ZodError): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const i of err.issues) out[i.path.join('.') || '_'] ??= i.message;
+  return out;
+}
+
+function message(err: unknown): string {
+  if (err instanceof z.ZodError) return err.issues[0]?.message ?? 'Invalid input';
+  return err instanceof Error ? err.message : 'Something went wrong';
+}
+
+/* --- Serial lookup: the counter flow -------------------------------------- */
+
+export interface SerialLookup {
+  unit: ProductUnitDTO;
+  productId: string;
+  productName: string;
+  sku: string;
+  suggestedPrice: number;
+}
+
+/**
+ * A customer puts a device on the counter. You type its IMEI. This is that.
+ * Resolves the serial to its unit AND its product, so the operator never has to
+ * know which product row it belongs to.
+ */
+export async function lookupSerial(
+  _prev: { error?: string; found?: SerialLookup },
+  fd: FormData,
+): Promise<{ error?: string; found?: SerialLookup }> {
+  const { role } = await getSession();
+  const serial = str(fd, 'serialNo');
+  if (!serial) return { error: 'Enter a serial or IMEI' };
+
+  const unit = await db.units.findBySerial(serial);
+  if (!unit) return { error: `No unit with serial ${serial}. Check the number, or receive it in first.` };
+
+  if (unit.status !== 'IN_STOCK') {
+    return {
+      error: `That unit is ${unit.status.replace('_', ' ').toLowerCase()}, so it isn't in stock. Nothing to take out.`,
+    };
+  }
+
+  const product = await db.products.findById(unit.productId);
+  if (!product) return { error: 'That unit points at a product that no longer exists.' };
+
+  return {
+    found: {
+      unit: toProductUnitDTO(unit, role),
+      productId: product.id,
+      productName: product.name,
+      sku: product.sku,
+      suggestedPrice: product.defaultSalePrice,
+    },
+  };
+}
+
+/* --- Stock in -------------------------------------------------------------- */
+
+export async function receiveStockAction(
+  _prev: StockActionState,
+  fd: FormData,
+): Promise<StockActionState> {
+  const actor = await requireRole('ADMIN', 'MANAGER');
+
+  const productId = str(fd, 'productId');
+  if (!productId) return { fieldErrors: { productId: 'Choose a product' } };
+
+  const product = await db.products.findById(productId);
+  if (!product) return { error: 'Product not found' };
+
+  // Serials come in as a pasted block, one per line — that's how a delivery note
+  // is actually read out. Split, trim, drop blanks.
+  const serialBlock = str(fd, 'serialNumbers');
+  const serialNumbers = serialBlock
+    ? serialBlock.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
+    : undefined;
+
+  const qtyRaw = str(fd, 'quantity');
+
+  let count: number;
+  try {
+    const movements = await receiveStock({
+      productId,
+      supplierId: str(fd, 'supplierId'),
+      unitCost: parseBDT(str(fd, 'unitCost') ?? '0'),
+      reason: (str(fd, 'reason') ?? 'PURCHASE') as 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN',
+      serialNumbers: product.trackingType === 'SERIAL' ? serialNumbers : undefined,
+      quantity: product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
+      warrantyMonths: str(fd, 'warrantyMonths') ? Number(str(fd, 'warrantyMonths')) : null,
+      location: str(fd, 'location'),
+      reference: str(fd, 'reference'),
+      note: str(fd, 'note'),
+      actorId: actor.id,
+      idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    });
+    count = movements.reduce((n, m) => n + m.quantity, 0);
+  } catch (err) {
+    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
+    return { error: message(err) };
+  }
+
+  revalidatePath('/products');
+  revalidatePath(`/products/${productId}`);
+  revalidatePath('/stock/movements');
+
+  return {
+    ok: `Received ${count} × ${product.name} into stock.`,
+  };
+}
+
+/* --- Stock out ------------------------------------------------------------- */
+
+export async function stockOutAction(
+  _prev: StockActionState,
+  fd: FormData,
+): Promise<StockActionState> {
+  const actor = await requireRole('ADMIN', 'MANAGER', 'STAFF'); // staff sell things
+
+  const productId = str(fd, 'productId');
+  if (!productId) return { error: 'Missing product' };
+
+  const product = await db.products.findById(productId);
+  if (!product) return { error: 'Product not found' };
+
+  const reason = (str(fd, 'reason') ?? 'SALE') as MovementReason;
+  const priceRaw = str(fd, 'salePrice');
+  const qtyRaw = str(fd, 'quantity');
+
+  try {
+    await recordStockOut({
+      productId,
+      reason: reason as 'SALE' | 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'RETURN_TO_SUPPLIER',
+      serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? undefined) : undefined,
+      quantity:
+        product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
+      salePrice: reason === 'SALE' && priceRaw ? parseBDT(priceRaw) : undefined,
+      customerName: str(fd, 'customerName'),
+      customerPhone: str(fd, 'customerPhone'),
+      reference: str(fd, 'reference'),
+      note: str(fd, 'note'),
+      actorId: actor.id,
+      idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
+    return { error: message(err) };
+  }
+
+  revalidatePath('/products');
+  revalidatePath(`/products/${productId}`);
+  revalidatePath('/stock/movements');
+
+  const what =
+    product.trackingType === 'SERIAL' ? str(fd, 'serialNo') : `${qtyRaw} × ${product.name}`;
+  const verb = reason === 'SALE' ? 'Sold' : 'Removed';
+
+  return { ok: `${verb} ${what}.` };
+}
+
+/* --- Corrections ----------------------------------------------------------- */
+
+/**
+ * The ONLY way to undo a movement. Writes an opposing ledger entry — it never
+ * edits or deletes the original. PLAN.md §8.3.
+ */
+export async function reverseMovementAction(
+  _prev: StockActionState,
+  fd: FormData,
+): Promise<StockActionState> {
+  const actor = await requireRole('ADMIN', 'MANAGER');
+
+  const movementId = str(fd, 'movementId');
+  const note = str(fd, 'note');
+  if (!movementId) return { error: 'Missing movement' };
+  if (!note) return { fieldErrors: { note: 'Say why this is being reversed — it goes in the audit trail' } };
+
+  try {
+    await correctMovement({
+      movementId,
+      note,
+      actorId: actor.id,
+      idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    });
+  } catch (err) {
+    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
+    return { error: message(err) };
+  }
+
+  revalidatePath('/products');
+  revalidatePath('/stock/movements');
+  return { ok: 'Reversed. The original entry is still in the ledger, with the correction beneath it.' };
+}
+
+/* --- Reconciliation -------------------------------------------------------- */
+
+export async function runReconcile(): Promise<void> {
+  await requireRole('ADMIN', 'MANAGER');
+  revalidatePath('/stock/reconcile');
+  redirect('/stock/reconcile');
+}
+
+export async function canViewCosts(): Promise<boolean> {
+  const { role } = await getSession();
+  return canSeeCosts(role);
+}

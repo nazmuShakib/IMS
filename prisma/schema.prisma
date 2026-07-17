@@ -1,0 +1,343 @@
+generator client {
+  provider = "prisma-client-js"
+  // Prisma 6: driverAdapters is GA. On Prisma 5, add:
+  //   previewFeatures = ["driverAdapters"]
+  // Then use @prisma/adapter-neon for HTTP queries on serverless.
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")        // pooled
+  directUrl = env("DIRECT_DATABASE_URL") // unpooled — required by `prisma migrate`
+}
+
+// ===========================================================================
+//  ENUMS
+// ===========================================================================
+
+enum Role {
+  ADMIN   // everything: cost prices, margins, financial reports, user management
+  MANAGER // all stock ops + reports; no user management, no destructive actions
+  STAFF   // record stock in/out, view stock. ⚠️ COST PRICES HIDDEN — see §9.2
+}
+
+enum TrackingType {
+  SERIAL   // one ProductUnit row per physical item
+  QUANTITY // counted in bulk, no serials
+}
+
+enum UnitStatus {
+  IN_STOCK
+  RESERVED
+  SOLD
+  RETURNED // customer brought it back; awaiting inspection or restocked
+  DAMAGED
+  LOST
+  VOID     // created in error and reversed out. Not stock, not a sale.
+}
+
+enum MovementType {
+  IN
+  OUT
+  ADJUST
+}
+
+enum MovementReason {
+  INITIAL_STOCK      // opening balance when first loading the system   (IN)
+  PURCHASE           // goods received from a supplier                  (IN)
+  CUSTOMER_RETURN    // customer returned an item                       (IN)
+  SALE               // sold to a customer                              (OUT)
+  RETURN_TO_SUPPLIER // sent back / RMA                                 (OUT)
+  DAMAGE             // broken, unsellable                              (OUT)
+  LOSS               // theft, shrinkage, unexplained                   (OUT)
+  INTERNAL_USE       // shop's own use, demo unit, gift                 (OUT)
+  CORRECTION         // reverses an earlier bad entry               (ADJUST)
+  STOCK_COUNT        // physical count reconciliation               (ADJUST)
+}
+
+// ===========================================================================
+//  AUTH  (Better Auth owns the shape of User/Session/Account/Verification)
+//  Run Better Auth's schema generator, then add `role` + business relations.
+// ===========================================================================
+
+model User {
+  id            String    @id            // Better Auth generates this — no @default
+  name          String
+  email         String    @unique
+  emailVerified Boolean   @default(false)
+  image         String?
+  role          Role      @default(STAFF)
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  sessions  Session[]
+  accounts  Account[]
+  movements StockMovement[] @relation("MovementActor")
+  auditLogs AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+model Session {
+  id        String   @id
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id
+  userId                String
+  accountId             String
+  providerId            String
+  password              String?   // hashed by Better Auth for email/password auth
+  accessToken           String?
+  refreshToken          String?
+  accessTokenExpiresAt  DateTime?
+  refreshTokenExpiresAt DateTime?
+  scope                 String?
+  idToken               String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id
+  identifier String
+  value      String
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@map("verifications")
+}
+
+/// Who did what, when. Written on every mutating action.
+model AuditLog {
+  id        String   @id @default(uuid(7))
+  actorId   String?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String   // "product.create", "stock.out", "user.role_change"
+  entity    String   // "Product", "ProductUnit", "User"
+  entityId  String?
+  before    Json?
+  after     Json?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId, createdAt])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ===========================================================================
+//  CATALOG
+// ===========================================================================
+
+model Category {
+  id        String     @id @default(uuid(7))
+  name      String     @unique
+  slug      String     @unique
+  parentId  String?
+  parent    Category?  @relation("SubCategories", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Category[] @relation("SubCategories")
+  isActive  Boolean    @default(true)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  products Product[]
+
+  @@map("categories")
+}
+
+model Brand {
+  id        String   @id @default(uuid(7))
+  name      String   @unique
+  slug      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  products Product[]
+
+  @@map("brands")
+}
+
+model Supplier {
+  id        String   @id @default(uuid(7))
+  name      String
+  phone     String?
+  email     String?
+  address   String?
+  note      String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  units     ProductUnit[]
+  movements StockMovement[]
+
+  @@index([name])
+  @@map("suppliers")
+}
+
+model Product {
+  id           String       @id @default(uuid(7))
+  sku          String       @unique
+  barcode      String?      @unique // field exists now; scanning is v2 (§18)
+  name         String
+  description  String?
+  model        String?      // e.g. "A2882", "UN55TU8000"
+  trackingType TrackingType @default(SERIAL)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  brandId    String?
+  brand      Brand?   @relation(fields: [brandId], references: [id], onDelete: SetNull)
+
+  /// Defaults that pre-fill the stock-in form. The REAL cost/price lives on the
+  /// ProductUnit (SERIAL) or on the StockMovement (QUANTITY) — never here.
+  defaultCostPrice Int @default(0) // paisa
+  defaultSalePrice Int @default(0) // paisa
+
+  taxRate      Int @default(0) // basis points (1500 = 15.00%). Unused in v1 — see §18.
+  reorderPoint Int @default(5)
+
+  /// ⚠️ DENORMALIZED CACHE. Authoritative ONLY for trackingType = QUANTITY.
+  /// Must be written in the SAME transaction as the StockMovement insert.
+  /// For SERIAL products this stays 0. See §5.2.
+  quantityOnHand Int @default(0)
+
+  /// Weighted-average cost. Maintained ONLY for trackingType = QUANTITY (§8.2).
+  avgCostPrice Int @default(0) // paisa
+
+  imageUrl String? // URL only. ⚠️ Never store image bytes in Postgres (512 MB tier).
+
+  isActive  Boolean  @default(true) // soft delete — history references this row forever
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  units     ProductUnit[]
+  movements StockMovement[]
+
+  @@index([categoryId])
+  @@index([brandId])
+  @@index([isActive])
+  @@index([name]) // btree; trigram index for fuzzy search lives in §7
+  @@map("products")
+}
+
+// ===========================================================================
+//  UNITS — one row per physical item. The heart of serial tracking.
+// ===========================================================================
+
+model ProductUnit {
+  id String @id @default(uuid(7))
+
+  /// IMEI / serial number. Globally unique — an IMEI never belongs to two items.
+  serialNo String @unique
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  status UnitStatus @default(IN_STOCK)
+
+  /// EXACT costing. Every unit carries its own cost, so profit is a subtraction.
+  costPrice Int  // paisa — what YOU paid
+  salePrice Int? // paisa — what it actually sold for (null until sold)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  receivedAt DateTime  @default(now())
+  soldAt     DateTime?
+
+  warrantyMonths    Int?
+  warrantyExpiresAt DateTime? // computed at sale: soldAt + warrantyMonths
+
+  location String? // "Shelf B3", "Back room"
+  note     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  movements StockMovement[]
+
+  @@index([productId, status]) // on-hand counts
+  @@index([status])
+  @@index([supplierId])
+  @@index([receivedAt])        // stock-aging report
+  @@index([soldAt])            // sales reports
+  @@index([warrantyExpiresAt]) // expiring-warranty widget
+  @@map("product_units")
+}
+
+// ===========================================================================
+//  THE LEDGER — append-only. Your source of truth.
+// ===========================================================================
+
+model StockMovement {
+  id String @id @default(uuid(7))
+
+  type   MovementType
+  reason MovementReason
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  /// Set for SERIAL products, null for QUANTITY products.
+  unitId String?
+  unit   ProductUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  /// ⚠️ SIGNED. Positive = into stock, negative = out.
+  /// Always exactly +1 / -1 for SERIAL products. Never zero (CHECK constraint, §7).
+  quantity Int
+
+  /// Snapshot the economics ON the movement, so every financial report is
+  /// computable from this table alone, without joining to mutable rows.
+  unitCost  Int  // paisa — cost at the moment of the movement
+  unitPrice Int? // paisa — selling price (only when reason = SALE)
+
+  supplierId String?
+  supplier   Supplier? @relation(fields: [supplierId], references: [id], onDelete: SetNull)
+
+  /// Lightweight buyer info without a Customer table (that's v2).
+  customerName  String?
+  customerPhone String?
+
+  reference String? // memo / challan / invoice no. Groups multi-item sales.
+  note      String?
+
+  actorId String?
+  actor   User?   @relation("MovementActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  /// Guards against double-submits and retried Server Actions.
+  idempotencyKey String? @unique
+
+  /// If this entry reverses an earlier one (reason = CORRECTION).
+  reversesId String?
+
+  /// ⚠️ No updatedAt. This table is append-only by design.
+  createdAt DateTime @default(now())
+
+  @@index([productId, createdAt])
+  @@index([createdAt])
+  @@index([type, reason, createdAt])
+  @@index([unitId])
+  @@index([actorId])
+  @@index([supplierId])
+  @@map("stock_movements")
+}

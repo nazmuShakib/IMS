@@ -1,0 +1,396 @@
+import { db } from '@/repositories';
+import { idempotencyKey as newKey, uuidv7 } from '@/lib/ids';
+import { weightedAvgCost, type Paisa } from '@/lib/money';
+import {
+  OUTBOUND_UNIT_STATUS,
+  type Product,
+  type ProductUnit,
+  type StockMovement,
+} from '@/domain/types';
+import {
+  receiveStockSchema,
+  stockOutSchema,
+  correctionSchema,
+  type ReceiveStockInput,
+  type StockOutInput,
+  type CorrectionInput,
+} from '@/schemas';
+
+/**
+ * THE CORE OF THE APPLICATION. PLAN.md §8.
+ *
+ * Every stock-affecting operation runs inside db.transaction(). The unit status,
+ * the ledger row, and the cached quantity move together or not at all.
+ *
+ * INVARIANT (PLAN.md §5.1):
+ *   on-hand(product) === SUM(stock_movements.quantity WHERE productId = ...)
+ *
+ * If you are tempted to change a stock number without writing a movement: don't.
+ * That is the one change that quietly destroys the audit trail.
+ */
+
+export { newKey as generateIdempotencyKey };
+
+/** On-hand, computed the correct way for each tracking type. */
+export async function getOnHand(product: Product): Promise<number> {
+  return product.trackingType === 'SERIAL'
+    ? db.units.countInStock(product.id)
+    : product.quantityOnHand;
+}
+
+// ---------------------------------------------------------------------------
+// STOCK IN
+// ---------------------------------------------------------------------------
+
+export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovement[]> {
+  const input = receiveStockSchema.parse(raw);
+
+  return db.transaction(async () => {
+    // Idempotency: a retried Server Action must not double-receive stock.
+    const existing = await db.movements.findByIdempotencyKey(input.idempotencyKey);
+    if (existing) return [existing];
+
+    const product = await db.products.findById(input.productId);
+    if (!product) throw new Error(`Product not found: ${input.productId}`);
+
+    const type = 'IN' as const;
+    const now = new Date().toISOString();
+
+    // ---- SERIAL path: one ProductUnit + one +1 movement per serial ----
+    if (product.trackingType === 'SERIAL') {
+      const serials = input.serialNumbers ?? [];
+      if (serials.length === 0) {
+        throw new Error(`${product.sku} is SERIAL-tracked — serial numbers are required`);
+      }
+
+      // A serial belonging to a VOID unit is re-usable: that unit was created in
+      // error and reversed out. Receiving it again REVIVES the existing row rather
+      // than creating a second one — the serial stays globally unique, and the
+      // unit's full history (including the void) stays intact in the ledger.
+      const fresh: ProductUnit[] = [];
+      const revived: ProductUnit[] = [];
+
+      for (const serialNo of serials) {
+        const existing = await db.units.findBySerial(serialNo);
+
+        if (existing && existing.status !== 'VOID') {
+          throw new Error(
+            `Serial ${serialNo} is already in the system (${existing.status}). ` +
+              `If it was entered by mistake, reverse that movement first.`,
+          );
+        }
+
+        if (existing) {
+          revived.push(
+            await db.units.transitionStatus(existing.id, 'VOID', 'IN_STOCK', {
+              costPrice: input.unitCost,
+              supplierId: input.supplierId ?? null,
+              receivedAt: now,
+              salePrice: null,
+              soldAt: null,
+              warrantyMonths: input.warrantyMonths ?? null,
+              warrantyExpiresAt: null,
+              location: input.location ?? null,
+              note: null,
+            }),
+          );
+          continue;
+        }
+
+        fresh.push({
+          id: uuidv7(),
+          serialNo,
+          productId: product.id,
+          status: 'IN_STOCK',
+          costPrice: input.unitCost,
+          salePrice: null,
+          supplierId: input.supplierId ?? null,
+          receivedAt: now,
+          soldAt: null,
+          warrantyMonths: input.warrantyMonths ?? null,
+          warrantyExpiresAt: null, // set at sale time, from soldAt + warrantyMonths
+          location: input.location ?? null,
+          note: null,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
+
+      if (fresh.length > 0) await db.units.createMany(fresh);
+      const units = [...fresh, ...revived];
+
+      const recorded: StockMovement[] = [];
+      for (const unit of units) {
+        recorded.push(
+          await db.movements.record({
+            id: uuidv7(),
+            type,
+            reason: input.reason,
+            productId: product.id,
+            unitId: unit.id,
+            quantity: 1, // SIGNED, always +1 for a serial
+            unitCost: input.unitCost,
+            unitPrice: null,
+            supplierId: input.supplierId ?? null,
+            customerName: null,
+            customerPhone: null,
+            reference: input.reference ?? null,
+            note: input.note ?? null,
+            actorId: input.actorId,
+            // Only the first movement of a batch carries the key — it's unique.
+            idempotencyKey: recorded.length === 0 ? input.idempotencyKey : null,
+            reversesId: null,
+            createdAt: now,
+          }),
+        );
+      }
+      return recorded;
+    }
+
+    // ---- QUANTITY path: one movement, plus cache + weighted-average cost ----
+    const qty = input.quantity;
+    if (!qty) throw new Error(`${product.sku} is QUANTITY-tracked — a quantity is required`);
+
+    const newAvg = weightedAvgCost(
+      product.quantityOnHand,
+      product.avgCostPrice,
+      qty,
+      input.unitCost,
+    );
+
+    // ⚠️ Cache write and ledger write are both inside this transaction.
+    await db.products._applyQuantityDelta(product.id, qty, newAvg);
+
+    const movement = await db.movements.record({
+      id: uuidv7(),
+      type,
+      reason: input.reason,
+      productId: product.id,
+      unitId: null,
+      quantity: qty, // SIGNED, positive
+      unitCost: input.unitCost,
+      unitPrice: null,
+      supplierId: input.supplierId ?? null,
+      customerName: null,
+      customerPhone: null,
+      reference: input.reference ?? null,
+      note: input.note ?? null,
+      actorId: input.actorId,
+      idempotencyKey: input.idempotencyKey,
+      reversesId: null,
+      createdAt: now,
+    });
+
+    return [movement];
+  });
+}
+
+// ---------------------------------------------------------------------------
+// STOCK OUT  — a "sale" is this, with reason=SALE and a salePrice. PLAN.md §1.1.
+// ---------------------------------------------------------------------------
+
+export async function recordStockOut(raw: StockOutInput): Promise<StockMovement> {
+  const input = stockOutSchema.parse(raw);
+
+  return db.transaction(async () => {
+    const existing = await db.movements.findByIdempotencyKey(input.idempotencyKey);
+    if (existing) return existing;
+
+    const product = await db.products.findById(input.productId);
+    if (!product) throw new Error(`Product not found: ${input.productId}`);
+
+    const now = new Date().toISOString();
+    const nextStatus = OUTBOUND_UNIT_STATUS[input.reason] ?? 'SOLD';
+
+    // ---- SERIAL path ----
+    if (product.trackingType === 'SERIAL') {
+      if (!input.serialNo) {
+        throw new Error(`${product.sku} is SERIAL-tracked — a serial number is required`);
+      }
+
+      const unit = await db.units.findBySerial(input.serialNo);
+      if (!unit) throw new Error(`Unknown serial number: ${input.serialNo}`);
+      if (unit.productId !== product.id) {
+        throw new Error(`Serial ${input.serialNo} belongs to a different product`);
+      }
+
+      const warrantyExpiresAt =
+        input.reason === 'SALE' && unit.warrantyMonths
+          ? addMonths(now, unit.warrantyMonths)
+          : null;
+
+      // ⚠️ OPTIMISTIC CONCURRENCY. Throws if the unit isn't IN_STOCK any more.
+      // Two staff selling the same IMEI: the second one fails here rather than
+      // corrupting the books. This guard is the whole point. Do not remove it.
+      await db.units.transitionStatus(unit.id, 'IN_STOCK', nextStatus, {
+        salePrice: input.reason === 'SALE' ? (input.salePrice ?? null) : null,
+        soldAt: input.reason === 'SALE' ? now : null,
+        warrantyExpiresAt,
+      });
+
+      return db.movements.record({
+        id: uuidv7(),
+        type: 'OUT',
+        reason: input.reason,
+        productId: product.id,
+        unitId: unit.id,
+        quantity: -1, // SIGNED
+        unitCost: unit.costPrice, // exact cost — this unit's own. No FIFO needed.
+        unitPrice: input.salePrice ?? null,
+        supplierId: null,
+        customerName: input.customerName ?? null,
+        customerPhone: input.customerPhone ?? null,
+        reference: input.reference ?? null,
+        note: input.note ?? null,
+        actorId: input.actorId,
+        idempotencyKey: input.idempotencyKey,
+        reversesId: null,
+        createdAt: now,
+      });
+    }
+
+    // ---- QUANTITY path ----
+    const qty = input.quantity;
+    if (!qty) throw new Error(`${product.sku} is QUANTITY-tracked — a quantity is required`);
+
+    // Throws if this would take stock negative (mirrors the CHECK constraint).
+    await db.products._applyQuantityDelta(product.id, -qty);
+
+    return db.movements.record({
+      id: uuidv7(),
+      type: 'OUT',
+      reason: input.reason,
+      productId: product.id,
+      unitId: null,
+      quantity: -qty, // SIGNED
+      unitCost: product.avgCostPrice,
+      unitPrice: input.salePrice ?? null,
+      supplierId: null,
+      customerName: input.customerName ?? null,
+      customerPhone: input.customerPhone ?? null,
+      reference: input.reference ?? null,
+      note: input.note ?? null,
+      actorId: input.actorId,
+      idempotencyKey: input.idempotencyKey,
+      reversesId: null,
+      createdAt: now,
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CORRECTION — never edit or delete a movement. Write an opposing one. §8.3.
+// ---------------------------------------------------------------------------
+
+export async function correctMovement(raw: CorrectionInput): Promise<StockMovement> {
+  const input = correctionSchema.parse(raw);
+
+  return db.transaction(async () => {
+    const original = await db.movements.findById(input.movementId);
+    if (!original) throw new Error(`Movement not found: ${input.movementId}`);
+
+    const product = await db.products.findById(original.productId);
+    if (!product) throw new Error(`Product not found: ${original.productId}`);
+
+    // Guard 1: a correction is itself a ledger entry. Reversing one would just
+    // re-apply the original. Reverse the original instead.
+    if (original.reason === 'CORRECTION') {
+      throw new Error('This entry is already a correction. Reverse the original movement.');
+    }
+
+    // Guard 2: no double-reversal. Reversing twice would move stock twice.
+    const siblings = await db.movements.findByProduct(original.productId);
+    const alreadyReversed = siblings.find((m) => m.reversesId === original.id);
+    if (alreadyReversed) {
+      throw new Error('This movement has already been reversed.');
+    }
+
+    const now = new Date().toISOString();
+
+    if (original.unitId) {
+      const unit = await db.units.findById(original.unitId);
+      if (!unit) throw new Error(`Unit not found: ${original.unitId}`);
+
+      if (original.quantity > 0) {
+        // Reversing an INBOUND movement: this unit should never have entered stock.
+        // It becomes VOID — not SOLD. It was never sold, and marking it so would
+        // invent a sale and a profit figure out of nothing.
+        //
+        // We require it to still be IN_STOCK: if it has since been sold, the sale
+        // must be reversed first, or we'd be voiding stock that has left the shop.
+        await db.units.transitionStatus(unit.id, 'IN_STOCK', 'VOID', {
+          note: `Voided: ${input.note}`,
+        });
+      } else {
+        // Reversing an OUTBOUND movement: the unit comes back into stock.
+        // Expect exactly the status that outbound movement set — if it's anything
+        // else, someone has touched this unit in between and we must not guess.
+        const expected = OUTBOUND_UNIT_STATUS[original.reason] ?? 'SOLD';
+        await db.units.transitionStatus(unit.id, expected, 'IN_STOCK', {
+          salePrice: null,
+          soldAt: null,
+          warrantyExpiresAt: null,
+        });
+      }
+    } else {
+      await db.products._applyQuantityDelta(product.id, -original.quantity);
+    }
+
+    return db.movements.record({
+      ...original,
+      id: uuidv7(),
+      type: 'ADJUST',
+      reason: 'CORRECTION',
+      quantity: -original.quantity, // the exact opposite
+      note: input.note,
+      actorId: input.actorId,
+      idempotencyKey: input.idempotencyKey,
+      reversesId: original.id,
+      createdAt: now,
+    });
+  });
+}
+
+// ---------------------------------------------------------------------------
+// RECONCILIATION — the cache must always agree with the ledger. §8.4.
+// ---------------------------------------------------------------------------
+
+export interface Drift {
+  productId: string;
+  sku: string;
+  name: string;
+  onHand: number;
+  ledgerSum: number;
+  drift: number;
+}
+
+export async function reconcile(): Promise<Drift[]> {
+  const products = await db.products.findAll();
+  const drifts: Drift[] = [];
+
+  for (const product of products) {
+    const onHand = await getOnHand(product);
+    const ledgerSum = await db.movements.sumQuantity(product.id);
+    if (onHand !== ledgerSum) {
+      drifts.push({
+        productId: product.id,
+        sku: product.sku,
+        name: product.name,
+        onHand,
+        ledgerSum,
+        drift: onHand - ledgerSum,
+      });
+    }
+  }
+  return drifts; // empty array == healthy. Anything else means a missed transaction.
+}
+
+// ---------------------------------------------------------------------------
+
+function addMonths(iso: string, months: number): string {
+  const d = new Date(iso);
+  d.setMonth(d.getMonth() + months);
+  return d.toISOString();
+}
+
+export type { Paisa };

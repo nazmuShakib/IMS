@@ -1,0 +1,10 @@
+node_modules/
+.next/
+.env
+.env.local
+*.tsbuildinfo
+# Phase 0 scratch data — regenerate with `npm run seed`
+/data/*.json
+/data/*.tmp
+
+CLAUDE.md
