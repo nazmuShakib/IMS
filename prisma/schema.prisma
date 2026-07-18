@@ -7,7 +7,7 @@ generator client {
 
 datasource db {
   provider  = "postgresql"
-  url       = env("DATABASE_URL")        // pooled
+  url       = env("DATABASE_URL") // pooled
   directUrl = env("DATABASE_URL_UNPOOLED") // unpooled — required by `prisma migrate`
 }
 
@@ -16,13 +16,13 @@ datasource db {
 // ===========================================================================
 
 enum Role {
-  ADMIN   // everything: cost prices, margins, financial reports, user management
+  ADMIN // everything: cost prices, margins, financial reports, user management
   MANAGER // all stock ops + reports; no user management, no destructive actions
-  STAFF   // record stock in/out, view stock. ⚠️ COST PRICES HIDDEN — see §9.2
+  STAFF // record stock in/out, view stock. ⚠️ COST PRICES HIDDEN — see §9.2
 }
 
 enum TrackingType {
-  SERIAL   // one ProductUnit row per physical item
+  SERIAL // one ProductUnit row per physical item
   QUANTITY // counted in bulk, no serials
 }
 
@@ -33,7 +33,7 @@ enum UnitStatus {
   RETURNED // customer brought it back; awaiting inspection or restocked
   DAMAGED
   LOST
-  VOID     // created in error and reversed out. Not stock, not a sale.
+  VOID // created in error and reversed out. Not stock, not a sale.
 }
 
 enum MovementType {
@@ -43,16 +43,16 @@ enum MovementType {
 }
 
 enum MovementReason {
-  INITIAL_STOCK      // opening balance when first loading the system   (IN)
-  PURCHASE           // goods received from a supplier                  (IN)
-  CUSTOMER_RETURN    // customer returned an item                       (IN)
-  SALE               // sold to a customer                              (OUT)
+  INITIAL_STOCK // opening balance when first loading the system   (IN)
+  PURCHASE // goods received from a supplier                  (IN)
+  CUSTOMER_RETURN // customer returned an item                       (IN)
+  SALE // sold to a customer                              (OUT)
   RETURN_TO_SUPPLIER // sent back / RMA                                 (OUT)
-  DAMAGE             // broken, unsellable                              (OUT)
-  LOSS               // theft, shrinkage, unexplained                   (OUT)
-  INTERNAL_USE       // shop's own use, demo unit, gift                 (OUT)
-  CORRECTION         // reverses an earlier bad entry               (ADJUST)
-  STOCK_COUNT        // physical count reconciliation               (ADJUST)
+  DAMAGE // broken, unsellable                              (OUT)
+  LOSS // theft, shrinkage, unexplained                   (OUT)
+  INTERNAL_USE // shop's own use, demo unit, gift                 (OUT)
+  CORRECTION // reverses an earlier bad entry               (ADJUST)
+  STOCK_COUNT // physical count reconciliation               (ADJUST)
 }
 
 // ===========================================================================
@@ -61,7 +61,7 @@ enum MovementReason {
 // ===========================================================================
 
 model User {
-  id            String    @id            // Better Auth generates this — no @default
+  id            String    @id // Better Auth generates this — no @default
   name          String
   email         String    @unique
   emailVerified Boolean   @default(false)
@@ -84,16 +84,16 @@ model User {
 }
 
 model Session {
-  id        String   @id
-  userId    String
-  token     String   @unique
-  expiresAt DateTime
-  ipAddress String?
-  userAgent String?
+  id             String   @id
+  userId         String
+  token          String   @unique
+  expiresAt      DateTime
+  ipAddress      String?
+  userAgent      String?
   impersonatedBy String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@map("sessions")
@@ -104,7 +104,7 @@ model Account {
   userId                String
   accountId             String
   providerId            String
-  password              String?   // hashed by Better Auth for email/password auth
+  password              String? // hashed by Better Auth for email/password auth
   accessToken           String?
   refreshToken          String?
   accessTokenExpiresAt  DateTime?
@@ -136,8 +136,8 @@ model AuditLog {
   id        String   @id @default(uuid(7))
   actorId   String?
   actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
-  action    String   // "product.create", "stock.out", "user.role_change"
-  entity    String   // "Product", "ProductUnit", "User"
+  action    String // "product.create", "stock.out", "user.role_change"
+  entity    String // "Product", "ProductUnit", "User"
   entityId  String?
   before    Json?
   after     Json?
@@ -207,7 +207,7 @@ model Product {
   barcode      String?      @unique // field exists now; scanning is v2 (§18)
   name         String
   description  String?
-  model        String?      // e.g. "A2882", "UN55TU8000"
+  model        String? // e.g. "A2882", "UN55TU8000"
   trackingType TrackingType @default(SERIAL)
 
   categoryId String
@@ -263,7 +263,7 @@ model ProductUnit {
   status UnitStatus @default(IN_STOCK)
 
   /// EXACT costing. Every unit carries its own cost, so profit is a subtraction.
-  costPrice Int  // paisa — what YOU paid
+  costPrice Int // paisa — what YOU paid
   salePrice Int? // paisa — what it actually sold for (null until sold)
 
   supplierId String?
@@ -286,8 +286,8 @@ model ProductUnit {
   @@index([productId, status]) // on-hand counts
   @@index([status])
   @@index([supplierId])
-  @@index([receivedAt])        // stock-aging report
-  @@index([soldAt])            // sales reports
+  @@index([receivedAt]) // stock-aging report
+  @@index([soldAt]) // sales reports
   @@index([warrantyExpiresAt]) // expiring-warranty widget
   @@map("product_units")
 }
@@ -315,7 +315,7 @@ model StockMovement {
 
   /// Snapshot the economics ON the movement, so every financial report is
   /// computable from this table alone, without joining to mutable rows.
-  unitCost  Int  // paisa — cost at the moment of the movement
+  unitCost  Int // paisa — cost at the moment of the movement
   unitPrice Int? // paisa — selling price (only when reason = SALE)
 
   supplierId String?
@@ -334,8 +334,11 @@ model StockMovement {
   /// Guards against double-submits and retried Server Actions.
   idempotencyKey String? @unique
 
-  /// If this entry reverses an earlier one (reason = CORRECTION).
-  reversesId String?
+  /// If this entry reverses an earlier one (reason = CORRECTION). Unique makes
+  /// double reversal impossible even under concurrent requests.
+  reversesId String?        @unique
+  reverses   StockMovement? @relation("MovementCorrection", fields: [reversesId], references: [id], onDelete: Restrict)
+  reversedBy StockMovement? @relation("MovementCorrection")
 
   /// ⚠️ No updatedAt. This table is append-only by design.
   createdAt DateTime @default(now())

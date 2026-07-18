@@ -4,23 +4,21 @@ import type { Repositories } from './types';
 /**
  * ⚠️ THE ONLY FILE THAT CHANGES WHEN YOU MIGRATE TO POSTGRES. PLAN.md §13.4.
  *
- * Phase 1:
- *   import { prismaRepositories } from './prisma';
- *   ...
- *   process.env.DATA_SOURCE === 'postgres' ? prismaRepositories : jsonRepositories
- *
- * Nothing above this file — services, server actions, UI — may import from
- * './json' or './prisma' directly. Import from '@/repositories' only.
+ * Nothing above this file — services, server actions, UI — imports a storage
+ * implementation directly. Phase 6 changes storage here and nowhere else.
  */
-const source = process.env.DATA_SOURCE ?? 'json';
+// PostgreSQL is the Phase 6 production default. Tests remain self-contained and
+// the legacy seed command opts into JSON explicitly.
+const source = process.env.DATA_SOURCE ?? (process.env.NODE_ENV === 'test' ? 'json' : 'postgres');
 
-if (source === 'postgres') {
-  throw new Error(
-    'DATA_SOURCE=postgres, but the Prisma repositories are not implemented yet. ' +
-      'That is Phase 6 (PLAN.md §14). Set DATA_SOURCE=json for now.',
-  );
+if (source !== 'json' && source !== 'postgres') {
+  throw new Error(`Unsupported DATA_SOURCE=${source}. Use "json" or "postgres".`);
 }
 
-export const db: Repositories = jsonRepositories;
+// Do not initialize Prisma in JSON-only tools/tests. The dynamic import also
+// keeps the legacy local backend usable without a Neon connection string.
+export const db: Repositories = source === 'postgres'
+  ? (await import('./prisma')).prismaRepositories
+  : jsonRepositories;
 
 export type * from './types';

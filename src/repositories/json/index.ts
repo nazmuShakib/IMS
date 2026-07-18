@@ -291,7 +291,7 @@ export const jsonRepositories: Repositories = {
   products,
   units,
   movements,
-  transaction: withLock,
+  transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 
 export type { UnitStatus };

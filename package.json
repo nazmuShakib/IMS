@@ -10,10 +10,13 @@
 		"test": "vitest run",
 		"lint": "eslint",
 		"typecheck": "tsc --noEmit",
-		"seed": "tsx scripts/seed.ts",
+		"seed:json": "DATA_SOURCE=json tsx scripts/seed.ts",
 		"auth:bootstrap": "dotenv -e .env.local -- tsx scripts/bootstrap-admin.ts",
-		"reconcile": "tsx scripts/reconcile.ts",
+		"reconcile": "dotenv -e .env.local -- tsx scripts/reconcile.ts",
 		"db:migrate": "dotenv -e .env.local -- prisma migrate dev",
+		"db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
+		"db:status": "dotenv -e .env.local -- prisma migrate status",
+		"db:verify": "dotenv -e .env.local -- tsx scripts/verify-postgres.ts",
 		"db:studio": "dotenv -e .env.local -- prisma studio"
 	},
 	"dependencies": {

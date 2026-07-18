@@ -55,7 +55,10 @@ export interface ProductRepository {
   findBySku(sku: string): Promise<Product | null>;
   search(query: string, limit?: number): Promise<Product[]>;
   create(data: Product): Promise<Product>;
-  update(id: string, data: Partial<Product>): Promise<Product>;
+  update(
+    id: string,
+    data: Partial<Omit<Product, 'id' | 'trackingType' | 'quantityOnHand' | 'avgCostPrice' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<Product>;
   softDelete(id: string): Promise<void>;
 
   /**
@@ -113,7 +116,7 @@ export interface StockMovementRepository {
  * NOT crash-safe (PLAN.md §13.1). In Phase 1 it becomes `prisma.$transaction`.
  * Services call this and don't care which they got.
  */
-export type Transactor = <T>(fn: () => Promise<T>) => Promise<T>;
+export type Transactor = <T>(fn: (repositories: Repositories) => Promise<T>) => Promise<T>;
 
 export interface Repositories {
   categories: CategoryRepository;

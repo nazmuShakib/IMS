@@ -1,0 +1,357 @@
+import { Prisma, type PrismaClient } from '@prisma/client';
+
+import type {
+  Brand,
+  Category,
+  Product,
+  ProductUnit,
+  StockMovement,
+  Supplier,
+  User,
+} from '@/domain/types';
+import { prisma } from '@/lib/prisma';
+import type { Paisa } from '@/lib/money';
+import type { Repositories } from '@/repositories/types';
+
+type Client = Prisma.TransactionClient;
+
+const iso = (value: Date): string => value.toISOString();
+
+function category(row: Awaited<ReturnType<Client['category']['findUniqueOrThrow']>>): Category {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function brand(row: Awaited<ReturnType<Client['brand']['findUniqueOrThrow']>>): Brand {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function supplier(row: Awaited<ReturnType<Client['supplier']['findUniqueOrThrow']>>): Supplier {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function user(row: Awaited<ReturnType<Client['user']['findUniqueOrThrow']>>): User {
+  return {
+    id: row.id,
+    name: row.name,
+    email: row.email,
+    emailVerified: row.emailVerified,
+    image: row.image,
+    role: row.role,
+    isActive: row.isActive,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+function product(row: Awaited<ReturnType<Client['product']['findUniqueOrThrow']>>): Product {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function unit(row: Awaited<ReturnType<Client['productUnit']['findUniqueOrThrow']>>): ProductUnit {
+  return {
+    ...row,
+    receivedAt: iso(row.receivedAt),
+    soldAt: row.soldAt ? iso(row.soldAt) : null,
+    warrantyExpiresAt: row.warrantyExpiresAt ? iso(row.warrantyExpiresAt) : null,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+function movement(row: Awaited<ReturnType<Client['stockMovement']['findUniqueOrThrow']>>): StockMovement {
+  return { ...row, createdAt: iso(row.createdAt) };
+}
+
+function productData(value: Product): Prisma.ProductUncheckedCreateInput {
+  return {
+    ...value,
+    // New catalog rows never introduce stock. Only the stock service may do so.
+    quantityOnHand: 0,
+    avgCostPrice: 0,
+    createdAt: new Date(value.createdAt),
+    updatedAt: new Date(value.updatedAt),
+  };
+}
+
+function productPatch(
+  value: Parameters<Repositories['products']['update']>[1],
+): Prisma.ProductUncheckedUpdateInput {
+  return value;
+}
+
+function unitData(value: ProductUnit): Prisma.ProductUnitUncheckedCreateInput {
+  return {
+    ...value,
+    receivedAt: new Date(value.receivedAt),
+    soldAt: value.soldAt ? new Date(value.soldAt) : null,
+    warrantyExpiresAt: value.warrantyExpiresAt ? new Date(value.warrantyExpiresAt) : null,
+    createdAt: new Date(value.createdAt),
+    updatedAt: new Date(value.updatedAt),
+  };
+}
+
+function unitPatch(value: Partial<ProductUnit>): Prisma.ProductUnitUncheckedUpdateManyInput {
+  const { receivedAt, soldAt, warrantyExpiresAt, createdAt, updatedAt, ...rest } = value;
+  return {
+    ...rest,
+    ...(receivedAt ? { receivedAt: new Date(receivedAt) } : {}),
+    ...(soldAt !== undefined ? { soldAt: soldAt ? new Date(soldAt) : null } : {}),
+    ...(warrantyExpiresAt !== undefined
+      ? { warrantyExpiresAt: warrantyExpiresAt ? new Date(warrantyExpiresAt) : null }
+      : {}),
+    ...(createdAt ? { createdAt: new Date(createdAt) } : {}),
+    ...(updatedAt ? { updatedAt: new Date(updatedAt) } : {}),
+  };
+}
+
+function movementData(value: StockMovement): Prisma.StockMovementUncheckedCreateInput {
+  return { ...value, createdAt: new Date(value.createdAt) };
+}
+
+function friendlyDatabaseError(error: unknown): never {
+  if (error instanceof Prisma.PrismaClientKnownRequestError) {
+    if (error.code === 'P2002') {
+      const target = Array.isArray(error.meta?.target)
+        ? error.meta.target.join(', ')
+        : String(error.meta?.target ?? 'unique value');
+      throw new Error(`A record with this ${target} already exists.`);
+    }
+    if (error.code === 'P2003') throw new Error('This record references an item that no longer exists.');
+  }
+  throw error;
+}
+
+function createRepositories(client: Client, transact?: Repositories['transaction']): Repositories {
+  let repositories: Repositories;
+
+  repositories = {
+    categories: {
+      async findAll() {
+        return (await client.category.findMany({ orderBy: { name: 'asc' } })).map(category);
+      },
+      async findById(id) {
+        const row = await client.category.findUnique({ where: { id } });
+        return row ? category(row) : null;
+      },
+      async create(data) {
+        try {
+          return category(await client.category.create({ data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    brands: {
+      async findAll() {
+        return (await client.brand.findMany({ orderBy: { name: 'asc' } })).map(brand);
+      },
+      async findById(id) {
+        const row = await client.brand.findUnique({ where: { id } });
+        return row ? brand(row) : null;
+      },
+      async create(data) {
+        try {
+          return brand(await client.brand.create({ data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    suppliers: {
+      async findAll() {
+        return (await client.supplier.findMany({ orderBy: { name: 'asc' } })).map(supplier);
+      },
+      async findById(id) {
+        const row = await client.supplier.findUnique({ where: { id } });
+        return row ? supplier(row) : null;
+      },
+      async create(data) {
+        try {
+          return supplier(await client.supplier.create({ data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    users: {
+      async findAll() {
+        return (await client.user.findMany({ orderBy: { name: 'asc' } })).map(user);
+      },
+      async findById(id) {
+        const row = await client.user.findUnique({ where: { id } });
+        return row ? user(row) : null;
+      },
+      async findByEmail(email) {
+        const row = await client.user.findFirst({
+          where: { email: { equals: email, mode: 'insensitive' } },
+        });
+        return row ? user(row) : null;
+      },
+      async create(data) {
+        try {
+          return user(await client.user.create({ data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    products: {
+      async findAll(filters) {
+        const rows = await client.product.findMany({
+          where: {
+            categoryId: filters?.categoryId,
+            brandId: filters?.brandId,
+            ...(filters?.activeOnly ? { isActive: true } : {}),
+          },
+          orderBy: [{ name: 'asc' }, { sku: 'asc' }],
+        });
+        return rows.map(product);
+      },
+      async findById(id) {
+        const row = await client.product.findUnique({ where: { id } });
+        return row ? product(row) : null;
+      },
+      async findBySku(sku) {
+        const row = await client.product.findFirst({
+          where: { sku: { equals: sku, mode: 'insensitive' } },
+        });
+        return row ? product(row) : null;
+      },
+      async search(query, limit = 10) {
+        const term = query.trim();
+        if (!term) return [];
+        const rows = await client.product.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { sku: { contains: term, mode: 'insensitive' } },
+              { barcode: { contains: term, mode: 'insensitive' } },
+              { model: { contains: term, mode: 'insensitive' } },
+            ],
+          },
+          orderBy: [{ name: 'asc' }, { sku: 'asc' }],
+          take: Math.max(1, Math.min(limit, 50)),
+        });
+        return rows.map(product);
+      },
+      async create(data) {
+        try {
+          return product(await client.product.create({ data: productData(data) }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async update(id, data) {
+        try {
+          return product(await client.product.update({ where: { id }, data: productPatch(data) }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async softDelete(id) {
+        await client.product.update({ where: { id }, data: { isActive: false } });
+      },
+      async _applyQuantityDelta(id, delta, newAvgCost?: Paisa) {
+        const result = await client.product.updateMany({
+          where: {
+            id,
+            trackingType: 'QUANTITY',
+            ...(delta < 0 ? { quantityOnHand: { gte: -delta } } : {}),
+          },
+          data: {
+            quantityOnHand: delta >= 0 ? { increment: delta } : { decrement: -delta },
+            ...(newAvgCost === undefined ? {} : { avgCostPrice: newAvgCost }),
+          },
+        });
+        if (result.count !== 1) {
+          const current = await client.product.findUnique({ where: { id } });
+          if (!current) throw new Error(`Product not found: ${id}`);
+          if (current.trackingType !== 'QUANTITY') throw new Error('Quantity cache is only valid for QUANTITY products.');
+          throw new Error(`Insufficient stock for ${current.sku}: have ${current.quantityOnHand}, tried to remove ${-delta}`);
+        }
+        return product(await client.product.findUniqueOrThrow({ where: { id } }));
+      },
+    },
+    units: {
+      async findById(id) {
+        const row = await client.productUnit.findUnique({ where: { id } });
+        return row ? unit(row) : null;
+      },
+      async findBySerial(serialNo) {
+        const exact = await client.productUnit.findUnique({ where: { serialNo: serialNo.trim() } });
+        const row = exact ?? await client.productUnit.findFirst({
+          where: { serialNo: { equals: serialNo.trim(), mode: 'insensitive' } },
+        });
+        return row ? unit(row) : null;
+      },
+      async findByProduct(productId, status) {
+        return (await client.productUnit.findMany({
+          where: { productId, status }, orderBy: { receivedAt: 'desc' },
+        })).map(unit);
+      },
+      countInStock(productId) {
+        return client.productUnit.count({ where: { productId, status: 'IN_STOCK' } });
+      },
+      async createMany(values) {
+        try {
+          const rows = await client.productUnit.createManyAndReturn({ data: values.map(unitData) });
+          return rows.map(unit);
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async transitionStatus(id, expectedStatus, next, patch) {
+        const result = await client.productUnit.updateMany({
+          where: { id, status: expectedStatus },
+          data: { ...unitPatch(patch ?? {}), status: next },
+        });
+        if (result.count !== 1) {
+          const current = await client.productUnit.findUnique({ where: { id } });
+          if (!current) throw new Error(`Unit not found: ${id}`);
+          throw new Error(
+            `Unit ${current.serialNo} is ${current.status}, expected ${expectedStatus}. ` +
+            'Someone may have just processed it.',
+          );
+        }
+        return unit(await client.productUnit.findUniqueOrThrow({ where: { id } }));
+      },
+    },
+    movements: {
+      async record(value) {
+        if (value.quantity === 0) throw new Error('A zero-quantity movement is meaningless');
+        try {
+          return movement(await client.stockMovement.create({ data: movementData(value) }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async findById(id) {
+        const row = await client.stockMovement.findUnique({ where: { id } });
+        return row ? movement(row) : null;
+      },
+      async findByIdempotencyKey(idempotencyKey) {
+        const row = await client.stockMovement.findUnique({ where: { idempotencyKey } });
+        return row ? movement(row) : null;
+      },
+      async findByProduct(productId) {
+        return (await client.stockMovement.findMany({
+          where: { productId }, orderBy: { createdAt: 'asc' },
+        })).map(movement);
+      },
+      async findByDateRange(from, to, filters) {
+        return (await client.stockMovement.findMany({
+          where: {
+            createdAt: { gte: from, lte: to },
+            productId: filters?.productId,
+            type: filters?.type,
+            reason: filters?.reason,
+            actorId: filters?.actorId,
+          },
+          orderBy: { createdAt: 'asc' },
+        })).map(movement);
+      },
+      async sumQuantity(productId) {
+        const result = await client.stockMovement.aggregate({
+          where: { productId }, _sum: { quantity: true },
+        });
+        return result._sum.quantity ?? 0;
+      },
+    },
+    transaction: transact ?? ((fn) => fn(repositories)),
+  };
+
+  return repositories;
+}
+
+export const prismaRepositories = createRepositories(
+  prisma as PrismaClient,
+  (fn) => prisma.$transaction(
+    (tx) => fn(createRepositories(tx)),
+    { maxWait: 5_000, timeout: 15_000 },
+  ),
+);

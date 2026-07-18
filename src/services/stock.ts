@@ -45,12 +45,12 @@ export async function getOnHand(product: Product): Promise<number> {
 export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovement[]> {
   const input = receiveStockSchema.parse(raw);
 
-  return db.transaction(async () => {
+  return db.transaction(async (tx) => {
     // Idempotency: a retried Server Action must not double-receive stock.
-    const existing = await db.movements.findByIdempotencyKey(input.idempotencyKey);
+    const existing = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
     if (existing) return [existing];
 
-    const product = await db.products.findById(input.productId);
+    const product = await tx.products.findById(input.productId);
     if (!product) throw new Error(`Product not found: ${input.productId}`);
 
     const type = 'IN' as const;
@@ -71,7 +71,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
       const revived: ProductUnit[] = [];
 
       for (const serialNo of serials) {
-        const existing = await db.units.findBySerial(serialNo);
+        const existing = await tx.units.findBySerial(serialNo);
 
         if (existing && existing.status !== 'VOID') {
           throw new Error(
@@ -82,7 +82,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
 
         if (existing) {
           revived.push(
-            await db.units.transitionStatus(existing.id, 'VOID', 'IN_STOCK', {
+            await tx.units.transitionStatus(existing.id, 'VOID', 'IN_STOCK', {
               costPrice: input.unitCost,
               supplierId: input.supplierId ?? null,
               receivedAt: now,
@@ -116,13 +116,13 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
         });
       }
 
-      if (fresh.length > 0) await db.units.createMany(fresh);
+      if (fresh.length > 0) await tx.units.createMany(fresh);
       const units = [...fresh, ...revived];
 
       const recorded: StockMovement[] = [];
       for (const unit of units) {
         recorded.push(
-          await db.movements.record({
+          await tx.movements.record({
             id: uuidv7(),
             type,
             reason: input.reason,
@@ -159,9 +159,9 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
     );
 
     // ⚠️ Cache write and ledger write are both inside this transaction.
-    await db.products._applyQuantityDelta(product.id, qty, newAvg);
+    await tx.products._applyQuantityDelta(product.id, qty, newAvg);
 
-    const movement = await db.movements.record({
+    const movement = await tx.movements.record({
       id: uuidv7(),
       type,
       reason: input.reason,
@@ -192,11 +192,11 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
 export async function recordStockOut(raw: StockOutInput): Promise<StockMovement> {
   const input = stockOutSchema.parse(raw);
 
-  return db.transaction(async () => {
-    const existing = await db.movements.findByIdempotencyKey(input.idempotencyKey);
+  return db.transaction(async (tx) => {
+    const existing = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
     if (existing) return existing;
 
-    const product = await db.products.findById(input.productId);
+    const product = await tx.products.findById(input.productId);
     if (!product) throw new Error(`Product not found: ${input.productId}`);
 
     const now = new Date().toISOString();
@@ -208,7 +208,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
         throw new Error(`${product.sku} is SERIAL-tracked — a serial number is required`);
       }
 
-      const unit = await db.units.findBySerial(input.serialNo);
+      const unit = await tx.units.findBySerial(input.serialNo);
       if (!unit) throw new Error(`Unknown serial number: ${input.serialNo}`);
       if (unit.productId !== product.id) {
         throw new Error(`Serial ${input.serialNo} belongs to a different product`);
@@ -222,13 +222,13 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
       // ⚠️ OPTIMISTIC CONCURRENCY. Throws if the unit isn't IN_STOCK any more.
       // Two staff selling the same IMEI: the second one fails here rather than
       // corrupting the books. This guard is the whole point. Do not remove it.
-      await db.units.transitionStatus(unit.id, 'IN_STOCK', nextStatus, {
+      await tx.units.transitionStatus(unit.id, 'IN_STOCK', nextStatus, {
         salePrice: input.reason === 'SALE' ? (input.salePrice ?? null) : null,
         soldAt: input.reason === 'SALE' ? now : null,
         warrantyExpiresAt,
       });
 
-      return db.movements.record({
+      return tx.movements.record({
         id: uuidv7(),
         type: 'OUT',
         reason: input.reason,
@@ -254,9 +254,9 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
     if (!qty) throw new Error(`${product.sku} is QUANTITY-tracked — a quantity is required`);
 
     // Throws if this would take stock negative (mirrors the CHECK constraint).
-    await db.products._applyQuantityDelta(product.id, -qty);
+    await tx.products._applyQuantityDelta(product.id, -qty);
 
-    return db.movements.record({
+    return tx.movements.record({
       id: uuidv7(),
       type: 'OUT',
       reason: input.reason,
@@ -285,11 +285,11 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
 export async function correctMovement(raw: CorrectionInput): Promise<StockMovement> {
   const input = correctionSchema.parse(raw);
 
-  return db.transaction(async () => {
-    const original = await db.movements.findById(input.movementId);
+  return db.transaction(async (tx) => {
+    const original = await tx.movements.findById(input.movementId);
     if (!original) throw new Error(`Movement not found: ${input.movementId}`);
 
-    const product = await db.products.findById(original.productId);
+    const product = await tx.products.findById(original.productId);
     if (!product) throw new Error(`Product not found: ${original.productId}`);
 
     // Guard 1: a correction is itself a ledger entry. Reversing one would just
@@ -299,7 +299,7 @@ export async function correctMovement(raw: CorrectionInput): Promise<StockMoveme
     }
 
     // Guard 2: no double-reversal. Reversing twice would move stock twice.
-    const siblings = await db.movements.findByProduct(original.productId);
+    const siblings = await tx.movements.findByProduct(original.productId);
     const alreadyReversed = siblings.find((m) => m.reversesId === original.id);
     if (alreadyReversed) {
       throw new Error('This movement has already been reversed.');
@@ -308,7 +308,7 @@ export async function correctMovement(raw: CorrectionInput): Promise<StockMoveme
     const now = new Date().toISOString();
 
     if (original.unitId) {
-      const unit = await db.units.findById(original.unitId);
+      const unit = await tx.units.findById(original.unitId);
       if (!unit) throw new Error(`Unit not found: ${original.unitId}`);
 
       if (original.quantity > 0) {
@@ -318,7 +318,7 @@ export async function correctMovement(raw: CorrectionInput): Promise<StockMoveme
         //
         // We require it to still be IN_STOCK: if it has since been sold, the sale
         // must be reversed first, or we'd be voiding stock that has left the shop.
-        await db.units.transitionStatus(unit.id, 'IN_STOCK', 'VOID', {
+        await tx.units.transitionStatus(unit.id, 'IN_STOCK', 'VOID', {
           note: `Voided: ${input.note}`,
         });
       } else {
@@ -326,17 +326,17 @@ export async function correctMovement(raw: CorrectionInput): Promise<StockMoveme
         // Expect exactly the status that outbound movement set — if it's anything
         // else, someone has touched this unit in between and we must not guess.
         const expected = OUTBOUND_UNIT_STATUS[original.reason] ?? 'SOLD';
-        await db.units.transitionStatus(unit.id, expected, 'IN_STOCK', {
+        await tx.units.transitionStatus(unit.id, expected, 'IN_STOCK', {
           salePrice: null,
           soldAt: null,
           warrantyExpiresAt: null,
         });
       }
     } else {
-      await db.products._applyQuantityDelta(product.id, -original.quantity);
+      await tx.products._applyQuantityDelta(product.id, -original.quantity);
     }
 
-    return db.movements.record({
+    return tx.movements.record({
       ...original,
       id: uuidv7(),
       type: 'ADJUST',
