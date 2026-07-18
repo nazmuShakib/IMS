@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { getSession } from '@/lib/session';
 import { Badge } from '@/components/ui';
 import { SignOutControl } from '@/components/auth/SignOutControl';
+import { CommandPalette } from '@/components/search/CommandPalette';
 import { NavLink } from '@/components/shell/NavLink';
 
 export const dynamic = 'force-dynamic'; // JSON repos read from disk per request
@@ -27,14 +28,17 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* --- Sidebar ---------------------------------------------------- */}
       <aside className="hidden w-52 shrink-0 flex-col border-r border-rule bg-card md:flex">
         <div className="border-b border-rule px-4 py-4">
-          <Link href="/products" className="block">
+          <Link href="/" className="block">
             <span className="text-[13px] font-semibold tracking-[-0.01em]">Inventory</span>
             <span className="eyebrow mt-0.5 block">Electronics Shop</span>
           </Link>
         </div>
 
         <nav className="flex-1 px-2 py-3">
-          <p className="eyebrow px-2 pb-1.5">Stock</p>
+          <p className="eyebrow px-2 pb-1.5">Overview</p>
+          <NavLink href="/">Dashboard</NavLink>
+
+          <p className="eyebrow mt-5 px-2 pb-1.5">Stock</p>
           {STOCK.map((item) => (
             <NavLink key={item.href} href={item.href}>
               {item.label}
@@ -60,18 +64,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
           )}
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Coming next</p>
-          {[
-            ['Dashboard', 'Phase 4'],
-            ['Reports', 'Phase 5'],
-          ].map(([label, phase]) => (
-            <span
-              key={label}
-              className="flex items-center justify-between rounded-[3px] px-2 py-1.5 text-[13px] text-graphite/50"
-            >
-              {label}
-              <span className="text-[10px]">{phase}</span>
-            </span>
-          ))}
+          <span className="flex items-center justify-between rounded-[3px] px-2 py-1.5 text-[13px] text-graphite/50">
+            Reports <span className="text-[10px]">Phase 5</span>
+          </span>
         </nav>
 
         <div className="border-t border-rule px-4 py-3">
@@ -87,17 +82,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* --- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-4">
-          {/* The real ⌘K palette — including serial/IMEI lookup — is Phase 4 (§11).
-              Until then this filters the product list, which is honest and useful. */}
-          <form action="/products" className="w-full max-w-md">
-            <input
-              type="search"
-              name="q"
-              placeholder="Find a product by name, SKU or model…"
-              aria-label="Search products"
-              className="tnum h-9 w-full rounded-[3px] border border-rule bg-plate/60 px-2.5 text-[13px] placeholder:font-sans placeholder:text-graphite/70 focus:border-signal focus:bg-card focus:outline-none"
-            />
-          </form>
+          <CommandPalette />
         </header>
 
         <main className="flex-1 p-5 lg:p-7">

@@ -1,0 +1,194 @@
+'use client';
+
+import { Command } from 'cmdk';
+import { useRouter } from 'next/navigation';
+import { useEffect, useRef, useState } from 'react';
+
+import { formatBDT } from '@/lib/money';
+import type { SearchResponse } from '@/lib/search';
+
+const EMPTY: SearchResponse = { query: '', units: [], products: [] };
+
+const date = (iso: string | null) =>
+  iso
+    ? new Date(iso).toLocaleDateString('en-GB', {
+        timeZone: 'Asia/Dhaka',
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      })
+    : '—';
+
+export function CommandPalette() {
+  const router = useRouter();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<SearchResponse>(EMPTY);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
+
+  useEffect(() => {
+    const shortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setOpen((current) => !current);
+      }
+    };
+    window.addEventListener('keydown', shortcut);
+    return () => window.removeEventListener('keydown', shortcut);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || query.trim().length < 2) {
+      setResults(EMPTY);
+      setLoading(false);
+      setError('');
+      return;
+    }
+
+    const controller = new AbortController();
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const url = `/api/search?q=${encodeURIComponent(query.trim())}`;
+        const request = () =>
+          fetch(url, {
+            signal: controller.signal,
+            cache: 'no-store',
+          });
+
+        let response = await request();
+        // A sleeping Neon compute can make the first session read fail. Search
+        // is read-only, so retry one server error instead of making the user type twice.
+        if (response.status >= 500 && response.status <= 504) {
+          await new Promise((resolve) => window.setTimeout(resolve, 300));
+          if (controller.signal.aborted) return;
+          response = await request();
+        }
+        if (!response.ok) throw new Error(response.status === 401 ? 'Your session expired.' : 'Search failed.');
+        setResults((await response.json()) as SearchResponse);
+      } catch (searchError) {
+        if ((searchError as Error).name !== 'AbortError') {
+          setResults(EMPTY);
+          setError(searchError instanceof Error ? searchError.message : 'Search failed.');
+        }
+      } finally {
+        if (!controller.signal.aborted) setLoading(false);
+      }
+    }, 250);
+
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [open, query]);
+
+  const go = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="flex h-9 w-full max-w-xl items-center justify-between rounded-[3px] border border-rule bg-plate/60 px-3 text-left text-[13px] text-graphite transition-colors hover:border-graphite/50 hover:bg-card"
+        aria-label="Open inventory search"
+      >
+        <span className="truncate">Search products, SKU, barcode or IMEI…</span>
+        <kbd className="tnum ml-3 hidden shrink-0 rounded-[2px] border border-rule bg-card px-1.5 py-0.5 text-[10px] sm:inline">Ctrl/⌘ K</kbd>
+      </button>
+
+      {open && (
+        <div
+          className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 p-4 pt-[10vh]"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+        >
+          <Command
+            shouldFilter={false}
+            loop
+            className="w-full max-w-2xl overflow-hidden rounded-[3px] border border-rule bg-card shadow-2xl"
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') setOpen(false);
+            }}
+          >
+            <div className="flex items-center border-b border-rule px-4">
+              <span className="mr-3 text-graphite">⌕</span>
+              <Command.Input
+                ref={inputRef}
+                value={query}
+                onValueChange={setQuery}
+                placeholder="Type a product, SKU, barcode, model or exact IMEI…"
+                className="h-12 w-full bg-transparent text-[14px] outline-none placeholder:text-graphite/60"
+              />
+              {loading && <span className="text-[11px] text-graphite">Searching…</span>}
+            </div>
+
+            <Command.List className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
+              {query.trim().length < 2 && (
+                <div className="px-3 py-10 text-center text-[12px] text-graphite">Type at least 2 characters. Exact serial or IMEI matches are checked first.</div>
+              )}
+              {error && <div className="px-3 py-8 text-center text-[12px] text-out">{error}</div>}
+              {!loading && !error && query.trim().length >= 2 && results.units.length === 0 && results.products.length === 0 && (
+                <Command.Empty className="px-3 py-10 text-center text-[12px] text-graphite">No matching unit or product.</Command.Empty>
+              )}
+
+              {results.units.length > 0 && (
+                <Command.Group heading="Exact unit / IMEI" className="[&_[cmdk-group-heading]]:eyebrow [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-2">
+                  {results.units.map((unit) => (
+                    <Command.Item
+                      key={unit.id}
+                      value={`unit-${unit.id}`}
+                      onSelect={() => go(`/products/${unit.productId}#unit-${unit.id}`)}
+                      className="flex cursor-pointer items-start justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
+                    >
+                      <span>
+                        <span className="font-medium">{unit.productName}</span>
+                        <span className="tnum mt-0.5 block text-[11px] text-graphite">{unit.serialNo} · {unit.sku}</span>
+                        <span className="mt-1 block text-[11px] text-graphite">Received {date(unit.receivedAt)} · {unit.supplierName ?? 'Unknown supplier'} · {unit.soldAt ? `Sold ${date(unit.soldAt)}` : unit.status.replace('_', ' ')}</span>
+                      </span>
+                      <span className="shrink-0 text-right text-[11px]">
+                        <span className={unit.underWarranty ? 'text-ok' : 'text-graphite'}>{unit.warrantyExpiresAt ? (unit.underWarranty ? `Warranty to ${date(unit.warrantyExpiresAt)}` : `Warranty ended ${date(unit.warrantyExpiresAt)}`) : 'No warranty date'}</span>
+                        {unit.costPrice !== undefined && <span className="tnum mt-1 block text-graphite">Cost {formatBDT(unit.costPrice)}</span>}
+                      </span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )}
+
+              {results.products.length > 0 && (
+                <Command.Group heading="Products" className="[&_[cmdk-group-heading]]:eyebrow [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-2">
+                  {results.products.map((product) => (
+                    <Command.Item
+                      key={product.id}
+                      value={`product-${product.id}`}
+                      onSelect={() => go(`/products/${product.id}`)}
+                      className="flex cursor-pointer items-center justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
+                    >
+                      <span><span className="font-medium">{product.name}</span><span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
+                      <span className="tnum shrink-0 text-[11px] text-graphite">{product.onHand} on hand</span>
+                    </Command.Item>
+                  ))}
+                </Command.Group>
+              )}
+            </Command.List>
+
+            <div className="flex items-center justify-between border-t border-rule px-4 py-2 text-[10px] text-graphite">
+              <span>Click a result or use ↑ ↓ Enter</span><span>Esc to close</span>
+            </div>
+          </Command>
+        </div>
+      )}
+    </>
+  );
+}

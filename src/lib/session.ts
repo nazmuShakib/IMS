@@ -9,6 +9,7 @@ import {
   type Capability,
 } from '@/lib/permissions';
 import { prisma } from '@/lib/prisma';
+import { retryRead } from '@/lib/retry';
 
 export { canSeeCosts } from '@/lib/permissions';
 
@@ -28,16 +29,47 @@ function toDomainUser(user: Awaited<ReturnType<typeof prisma.user.findUniqueOrTh
 
 /** Resolve both the signed session and the current database role on every request. */
 export async function getSession(): Promise<{ user: User; role: Role }> {
-  const session = await auth.api.getSession({ headers: await headers() });
+  const requestHeaders = await headers();
+  const session = await retryRead(() => auth.api.getSession({ headers: requestHeaders }));
   if (!session) redirect('/login');
 
-  const current = await prisma.user.findUnique({ where: { id: session.user.id } });
+  const current = await retryRead(() =>
+    prisma.user.findUnique({ where: { id: session.user.id } }),
+  );
   if (!current || !canUseAccount(current)) {
     redirect('/login?error=inactive');
   }
 
   const user = toDomainUser(current);
   return { user, role: user.role };
+}
+
+/** Route Handlers need a 401 response rather than a navigation redirect. */
+export async function getOptionalSession(): Promise<{ user: User; role: Role } | null> {
+  const requestHeaders = await headers();
+  const session = await retryRead(() => auth.api.getSession({ headers: requestHeaders }));
+  if (!session) return null;
+
+  const current = await retryRead(() =>
+    prisma.user.findUnique({ where: { id: session.user.id } }),
+  );
+  if (!current || !canUseAccount(current)) return null;
+
+  const user = toDomainUser(current);
+  return { user, role: user.role };
+}
+
+/** Resolve movement actor labels from Better Auth without exposing auth storage elsewhere. */
+export async function getAuthUserNames(ids: Array<string | null>): Promise<Map<string, string>> {
+  const unique = [...new Set(ids.filter((id): id is string => Boolean(id)))];
+  if (unique.length === 0) return new Map();
+  const users = await retryRead(() =>
+    prisma.user.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, name: true },
+    }),
+  );
+  return new Map(users.map((user) => [user.id, user.name]));
 }
 
 /** Throws unless the current database role is allowed. Call first in every mutation. */

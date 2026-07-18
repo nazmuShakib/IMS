@@ -1,7 +1,8 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–3 complete: the JSON inventory layer, catalog UI, stock operations,
-Better Auth, RBAC, user administration, and audit logging. Full spec in `PLAN.md`.
+Phases 0–4 complete: the JSON inventory layer, catalog UI, stock operations,
+Better Auth/RBAC/audit logging, dashboard, and command-palette search. Full spec
+in `PLAN.md`.
 
 ## Requirements
 
@@ -17,7 +18,7 @@ npx neon env pull           # writes ignored .env.local connection variables
 # Add BETTER_AUTH_SECRET and INITIAL_ADMIN_* to .env.local
 npm run auth:bootstrap      # one time only
 npm run seed                 # build demo stock: phones, laptops, cables
-npm test                     # Phase 3 RBAC, DTO, auth, and audit checks
+npm test                     # security, dashboard, search, and UI checks
 npx tsx scripts/verify.ts    # prove the invariants hold
 npm run dev                  # http://localhost:3000
 ```
@@ -36,11 +37,13 @@ src/
   lib/auth.ts            Better Auth configuration
   lib/session.ts         database-backed session + current role checks
   lib/audit.ts           append-only audit writer
+  lib/search.ts          exact serial-first, role-filtered inventory search
   repositories/
     types.ts             ⭐ THE SEAM — swap JSON for Postgres here
     json/                Phase 0 implementation (local dev only)
     index.ts             the one file that changes in Phase 6
   services/stock.ts      ⭐ THE CORE — receiveStock, recordStockOut, reconcile
+  services/dashboard.ts  ledger-derived dashboard metrics and alerts
 scripts/
   seed.ts                demo data
   verify.ts              invariant tests
@@ -70,10 +73,12 @@ src/proxy.ts             coarse cookie redirect (not authorization)
    books add up. That is the invariant the whole system rests on.
 6. Sign in as a STAFF account. Cost prices, stock valuation and the profit column
    are not hidden with CSS; they are absent from the server payload and HTML.
+7. Click the topbar search or press `Ctrl+K` / `⌘K`. Search a product or enter an
+   exact IMEI to jump directly to that physical unit.
 
 ## Next
 
 The next milestone is:
 
-> Read PLAN.md and CLAUDE.md. Implement Phase 4 (dashboard + quick search) only.
+> Read PLAN.md and CLAUDE.md. Implement Phase 5 (financial reports + CSV/PDF export) only.
 > Stop when done.

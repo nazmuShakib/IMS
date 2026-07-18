@@ -237,7 +237,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                       : null;
 
                   return (
-                    <tr key={u.id} className="border-b border-rule-soft last:border-0">
+                    <tr id={`unit-${u.id}`} key={u.id} className="scroll-mt-4 border-b border-rule-soft last:border-0 target:bg-signal-wash">
                       <td className="px-4 py-2.5">
                         <SerialChip serial={u.serialNo} dim={u.status !== 'IN_STOCK'} />
                         {u.status === 'IN_STOCK' && (
