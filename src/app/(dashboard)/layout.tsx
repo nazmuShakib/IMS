@@ -45,7 +45,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
             </NavLink>
           ))}
           {role !== 'STAFF' && (
-            <NavLink href="/stock/reconcile">Reconciliation</NavLink>
+            <>
+              <NavLink href="/stock/reconcile">Reconciliation</NavLink>
+              <p className="eyebrow mt-5 px-2 pb-1.5">Analysis</p>
+              <NavLink href="/reports">Reports</NavLink>
+            </>
           )}
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Catalog</p>
@@ -62,11 +66,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <NavLink href="/audit">Audit log</NavLink>
             </>
           )}
-
-          <p className="eyebrow mt-5 px-2 pb-1.5">Coming next</p>
-          <span className="flex items-center justify-between rounded-[3px] px-2 py-1.5 text-[13px] text-graphite/50">
-            Reports <span className="text-[10px]">Phase 5</span>
-          </span>
         </nav>
 
         <div className="border-t border-rule px-4 py-3">

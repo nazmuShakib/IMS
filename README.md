@@ -1,8 +1,8 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–4 complete: the JSON inventory layer, catalog UI, stock operations,
-Better Auth/RBAC/audit logging, dashboard, and command-palette search. Full spec
-in `PLAN.md`.
+Phases 0–5 complete: the JSON inventory layer, catalog UI, stock operations,
+Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
+financial reports with CSV/PDF export. Full spec in `PLAN.md`.
 
 ## Requirements
 
@@ -38,12 +38,14 @@ src/
   lib/session.ts         database-backed session + current role checks
   lib/audit.ts           append-only audit writer
   lib/search.ts          exact serial-first, role-filtered inventory search
+  lib/report-export.ts   shared CSV/PDF export matrix
   repositories/
     types.ts             ⭐ THE SEAM — swap JSON for Postgres here
     json/                Phase 0 implementation (local dev only)
     index.ts             the one file that changes in Phase 6
   services/stock.ts      ⭐ THE CORE — receiveStock, recordStockOut, reconcile
   services/dashboard.ts  ledger-derived dashboard metrics and alerts
+  services/reports.ts    seven ledger-derived financial reports
 scripts/
   seed.ts                demo data
   verify.ts              invariant tests
@@ -75,10 +77,12 @@ src/proxy.ts             coarse cookie redirect (not authorization)
    are not hidden with CSS; they are absent from the server payload and HTML.
 7. Click the topbar search or press `Ctrl+K` / `⌘K`. Search a product or enter an
    exact IMEI to jump directly to that physical unit.
+8. As ADMIN or MANAGER, open **Reports**, apply filters, and export the identical
+   result as CSV or PDF. STAFF cannot access report pages or export endpoints.
 
 ## Next
 
 The next milestone is:
 
-> Read PLAN.md and CLAUDE.md. Implement Phase 5 (financial reports + CSV/PDF export) only.
+> Read PLAN.md and CLAUDE.md. Implement Phase 6 (swap inventory repositories from JSON to Neon) only.
 > Stop when done.

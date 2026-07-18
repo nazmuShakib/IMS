@@ -1,0 +1,105 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+
+import type { Brand, Category, Product, ProductUnit, StockMovement, Supplier, User } from '@/domain/types';
+import { reportExportMatrix, reportToCsv } from '@/lib/report-export';
+import type { Repositories } from '@/repositories';
+import { getReport, type ReportKind } from '@/services/reports';
+
+const now = new Date('2026-07-18T06:00:00.000Z');
+const product: Product = {
+  id: 'p1', sku: 'PHONE-1', barcode: null, name: 'Phone', description: null, model: null,
+  trackingType: 'SERIAL', categoryId: 'c1', brandId: 'b1', defaultCostPrice: 50_000,
+  defaultSalePrice: 80_000, taxRate: 0, reorderPoint: 1, quantityOnHand: 0, avgCostPrice: 0,
+  imageUrl: null, isActive: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
+};
+const bulk: Product = { ...product, id: 'p2', sku: 'USB-1', name: 'USB cable', trackingType: 'QUANTITY', quantityOnHand: 4, avgCostPrice: 1_000 };
+const unit: ProductUnit = {
+  id: 'u1', serialNo: 'IMEI-1', productId: product.id, status: 'IN_STOCK', costPrice: 50_000,
+  salePrice: null, supplierId: 's1', receivedAt: '2026-06-25T00:00:00.000Z', soldAt: null,
+  warrantyMonths: null, warrantyExpiresAt: null, location: null, note: null,
+  createdAt: '2026-06-25T00:00:00.000Z', updatedAt: '2026-06-25T00:00:00.000Z',
+};
+const movement = (patch: Partial<StockMovement> & Pick<StockMovement, 'id'>): StockMovement => ({
+  id: patch.id, type: 'OUT', reason: 'SALE', productId: product.id, unitId: null, quantity: -1,
+  unitCost: 50_000, unitPrice: 80_000, supplierId: null, customerName: null, customerPhone: null,
+  reference: null, note: null, actorId: 'auth-user', idempotencyKey: patch.id, reversesId: null,
+  createdAt: '2026-07-10T06:00:00.000Z', ...patch,
+});
+const movements: StockMovement[] = [
+  movement({ id: 'kept-sale' }),
+  movement({ id: 'reversed-sale', createdAt: '2026-07-11T06:00:00.000Z' }),
+  movement({ id: 'sale-correction', type: 'ADJUST', reason: 'CORRECTION', quantity: 1, reversesId: 'reversed-sale', createdAt: '2026-07-12T06:00:00.000Z' }),
+  movement({ id: 'purchase', type: 'IN', reason: 'PURCHASE', productId: bulk.id, quantity: 4, unitCost: 1_000, unitPrice: null, supplierId: 's1', createdAt: '2026-06-01T06:00:00.000Z' }),
+  movement({ id: 'damage', reason: 'DAMAGE', productId: bulk.id, quantity: -1, unitCost: 1_000, unitPrice: null }),
+];
+const category: Category = { id: 'c1', name: 'Devices', slug: 'devices', parentId: null, isActive: true, createdAt: '', updatedAt: '' };
+const brand: Brand = { id: 'b1', name: 'Acme', slug: 'acme', isActive: true, createdAt: '', updatedAt: '' };
+const supplier: Supplier = { id: 's1', name: 'Supplier', phone: null, email: null, address: null, note: null, isActive: true, createdAt: '', updatedAt: '' };
+const user: User = { id: 'legacy-user', name: 'Legacy', email: 'legacy@example.com', emailVerified: true, image: null, role: 'ADMIN', isActive: true, createdAt: '', updatedAt: '' };
+
+function repositories(): Repositories {
+  return {
+    products: { findAll: vi.fn(async () => [product, bulk]) },
+    units: { findByProduct: vi.fn(async (id: string) => id === product.id ? [unit] : []) },
+    movements: { findByDateRange: vi.fn(async () => movements) },
+    categories: { findAll: vi.fn(async () => [category]) },
+    brands: { findAll: vi.fn(async () => [brand]) },
+    suppliers: { findAll: vi.fn(async () => [supplier]) },
+    users: { findAll: vi.fn(async () => [user]) },
+  } as unknown as Repositories;
+}
+
+describe('Phase 5 calculations', () => {
+  it('cancels a reversed sale instead of overstating revenue, COGS, or profit', async () => {
+    const report = await getReport({ report: 'sales' }, { now, repositories: repositories() });
+    expect(report.totals).toMatchObject({ quantity: 1, revenue: 80_000, cogs: 50_000, profit: 30_000 });
+  });
+
+  it('values current serial and quantity inventory and assigns aging buckets', async () => {
+    const valuation = await getReport({ report: 'valuation' }, { now, repositories: repositories() });
+    expect(valuation.totals).toMatchObject({ quantity: 5, value: 54_000 });
+    const aging = await getReport({ report: 'aging' }, { now, repositories: repositories() });
+    expect(aging.totals).toMatchObject({ quantity: 5, value: 54_000 });
+    expect(aging.note).toContain('FIFO');
+  });
+
+  it('builds every required report from the repository abstraction', async () => {
+    const kinds: ReportKind[] = ['valuation', 'sales', 'profit', 'purchases', 'aging', 'shrinkage', 'movements'];
+    for (const report of kinds) {
+      const result = await getReport({ report }, { now, repositories: repositories(), actorNames: new Map([['auth-user', 'Owner']]) });
+      expect(result.kind).toBe(report);
+      expect(result.columns.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('uses the same ordered cells for CSV and PDF export input', async () => {
+    const report = await getReport({ report: 'profit' }, { now, repositories: repositories() });
+    const matrix = reportExportMatrix(report);
+    const csv = reportToCsv(report);
+    expect(csv.split('\r\n')[0]).toBe(matrix.headers.join(','));
+    expect(matrix.rows).toHaveLength(report.rows.length);
+  });
+});
+
+describe('Phase 5 security boundaries', () => {
+  const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
+
+  it('protects both the page and export route and keeps exports uncached', () => {
+    expect(source('src/app/(dashboard)/reports/page.tsx')).toContain("requireCapability('VIEW_REPORTS')");
+    const route = source('src/app/api/reports/export/route.ts');
+    expect(route).toContain("hasPermission(session.role, 'VIEW_REPORTS')");
+    expect(route).toContain("status: 403");
+    expect(route).toContain("'Cache-Control': 'no-store'");
+  });
+
+  it('uses the repository boundary and provides both planned export formats', () => {
+    const service = source('src/services/reports.ts');
+    expect(service).toContain("from '@/repositories'");
+    expect(service).not.toContain('prisma.');
+    const route = source('src/app/api/reports/export/route.ts');
+    expect(route).toContain('reportToCsv(report)');
+    expect(route).toContain('reportToPdf(report)');
+  });
+});
