@@ -157,4 +157,10 @@ describe('Phase 4 UI and API boundaries', () => {
     expect(palette).toContain('window.setTimeout(resolve, 300)');
     expect(palette.match(/response = await request\(\)/g)).toHaveLength(2);
   });
+
+  it('resolves movement actors from Better Auth instead of only legacy JSON users', () => {
+    const ledger = source('src/app/(dashboard)/stock/movements/page.tsx');
+    expect(ledger).toContain('getAuthUserNames(all.map((movement) => movement.actorId))');
+    expect(ledger).toContain('actorNameById.get(m.actorId)');
+  });
 });

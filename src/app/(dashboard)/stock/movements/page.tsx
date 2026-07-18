@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { db } from '@/repositories';
-import { canSeeCosts, getSession } from '@/lib/session';
+import { canSeeCosts, getAuthUserNames, getSession } from '@/lib/session';
 import { ReverseButton } from '@/components/stock/ReverseButton';
 import {
   Badge,
@@ -48,7 +48,7 @@ export default async function MovementsPage({
   const showCosts = canSeeCosts(role);
   const canReverse = role === 'ADMIN' || role === 'MANAGER';
 
-  const [all, products, users, units] = await Promise.all([
+  const [all, products, users] = await Promise.all([
     // The ledger has no findAll — by design, reads are bounded. Epoch → now is
     // "everything", and it becomes an indexed range scan in Postgres (§6).
     db.movements.findByDateRange(new Date(0), new Date(), {
@@ -57,13 +57,12 @@ export default async function MovementsPage({
     }),
     db.products.findAll(),
     db.users.findAll(),
-    Promise.resolve([]),
   ]);
 
-  void units;
-
   const productById = new Map(products.map((p) => [p.id, p]));
-  const userById = new Map(users.map((u) => [u.id, u]));
+  const actorNameById = new Map(users.map((user) => [user.id, user.name]));
+  const authActorNames = await getAuthUserNames(all.map((movement) => movement.actorId));
+  for (const [id, name] of authActorNames) actorNameById.set(id, name);
 
   // Which entries have already been reversed? They shouldn't offer the button.
   const reversedIds = new Set(all.map((m) => m.reversesId).filter(Boolean));
@@ -213,7 +212,7 @@ export default async function MovementsPage({
                     </td>
 
                     <td className="px-4 py-2.5 text-[12px] text-graphite">
-                      {userById.get(m.actorId ?? '')?.name ?? '—'}
+                      {m.actorId ? (actorNameById.get(m.actorId) ?? 'Unknown user') : 'System'}
                     </td>
 
                     {canReverse && (
