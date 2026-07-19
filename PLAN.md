@@ -4,7 +4,7 @@
 > **Purpose:** A complete build spec for an AI coding assistant (Claude Code, Cursor) to develop from. Save as `PLAN.md` in the project root and reference it in prompts.
 >
 > **What changed from v1:** This revision is rebuilt around three scoping decisions that v1 got wrong (it was written before they were made):
-> 1. **No POS.** The app is back-office only — `Sale`/`SaleItem`/`Customer` models are **removed**.
+> 1. **No full POS in v1.** Sales are initially ledger movements, not checkout documents. Phase 8 deliberately adds a limited cart and invoice workflow without cash-drawer, terminal, shift, loyalty, or payment-processing machinery.
 > 2. **Serial/IMEI tracking is Phase 1, not Phase 2.** It is a core schema concept, not an enhancement.
 > 3. **`currentStock` is no longer a mutable column.** Stock is derived from an append-only ledger.
 >
@@ -40,6 +40,20 @@ If the app never records a sale, it has no revenue data and the financial report
 > **A sale is a `StockMovement` with `type: OUT`, `reason: SALE`, and a `unitPrice`.**
 
 That's a two-field form at the end of the day, not a checkout terminal. It yields revenue, COGS, and exact per-unit margin with zero POS machinery. There is no `Sale` table, no `SaleItem` table, no `Customer` table. If a customer buys three items at once, that's three movement rows sharing a `reference` (memo number).
+
+### 1.2 Phase 8 scope expansion: cart and invoices
+
+The v1 movement-only sale flow remains valid, but Phase 8 adds `Customer`, `Sale`,
+and `SaleItem` as **commercial document models** so one customer can buy multiple
+items and receive one immutable invoice. This does not replace the ledger:
+
+- `Sale` / `SaleItem` answer **what was invoiced to whom**.
+- `StockMovement` remains the authoritative answer to **what physically moved and
+  what revenue/cost was recognized**.
+- Checkout creates the sale, its items, serialized-unit transitions, quantity
+  updates, and all linked movements in one transaction.
+- No cash drawer, card-terminal integration, shift management, loyalty programme,
+  online ordering, or full accounts receivable is included.
 
 ---
 
@@ -821,21 +835,33 @@ Serialize writes through a simple in-process queue/mutex, and generate IDs with 
 
 ```typescript
 // src/repositories/index.ts — the only file that changes when you migrate
-const impl = process.env.DATA_SOURCE === 'postgres' ? prismaRepos : jsonRepos;
-export const { productRepository, productUnitRepository, stockMovementRepository } = impl;
+const source = process.env.DATA_SOURCE ?? 'postgres';
+export const db = source === 'postgres'
+  ? (await import('./prisma')).prismaRepositories
+  : jsonRepositories;
 ```
 
 Nothing above this file — services, Server Actions, UI — ever imports `json/` or `prisma/` directly.
 
 ---
 
-## 14. Phase 1 — Migration to Neon
+## 14. Phase 6 — Migration to Neon
 
 1. Create the Neon project; copy **both** the pooled and direct connection strings into `.env.local`.
-2. `npx prisma migrate dev --name init`, then apply the §7 SQL migration.
-3. Write `scripts/migrate-json-to-pg.ts`: read each JSON file and insert in FK-safe order. Catalog, unit, and movement IDs were generated app-side, so they need no remapping. Auth users already live in PostgreSQL from Phase 3; map any legacy JSON `actorId` values to Better Auth users by email before inserting old movements.
-4. **Verify before trusting it:** run the §8.4 reconciliation. `SUM(movements.quantity)` must equal on-hand for every single product. If one product disagrees, stop and find out why.
-5. Flip `DATA_SOURCE=postgres`. Delete `data/`.
+2. Apply Prisma migrations, the §7 SQL constraints, correction uniqueness, and
+   trigram search indexes.
+3. Implement transaction-scoped Prisma repositories behind the existing §13.2
+   contracts. Stock services must receive the scoped repositories inside
+   `prisma.$transaction`; closing over the global client would silently move writes
+   outside the transaction.
+4. **Clean-start decision:** do not import prototype JSON catalog, unit, movement,
+   or dummy seed data. New inventory is created through authenticated CRUD and
+   stock operations. Keep the JSON adapter only as a legacy local/test backend.
+5. Set `DATA_SOURCE=postgres` and run the rollback-only PostgreSQL repository
+   verifier. It may create temporary rows inside a transaction but must deliberately
+   roll back and prove that none remain.
+6. Run §8.4 reconciliation. `SUM(movements.quantity)` must equal on-hand for every
+   product. Any mismatch blocks the cutover.
 
 ### 14.1 Neon specifics
 - ⚠️ `PrismaClient` **must be a global singleton** in dev, or Next.js hot-reload will open a new connection on every save and exhaust the pool.
@@ -870,7 +896,8 @@ Vitest for units/services, Playwright for the critical flows.
 | **4** | Dashboard + quick search |
 | **5** | Financial reports + CSV/PDF export |
 | **6** | **Swap to Neon** (§14). Should be a boring afternoon if §13.2 was respected. |
-| **7** | v2 features (§18) |
+| **7** | Barcode scanning + Warranty/RMA (§18) |
+| **8** | Customer records + cart checkout + printable invoices (§19) |
 
 ---
 
@@ -884,11 +911,196 @@ Vitest for units/services, Playwright for the critical flows.
 
 ---
 
-## 18. Deferred to v2
+## 18. Phase 7 — Barcode scanning + Warranty/RMA
 
-- **Barcode scanning** — a USB scanner is just a keyboard: it types the barcode and presses Enter. The `barcode` field and the §11 search box already handle this; it needs no new backend work, just a focused input.
+Phase 7 contains only these two features. It does **not** add a Sales Register;
+the existing Movement Ledger and filterable Movement Audit remain the detailed
+sales-history tools.
+
+### 18.1 Barcode scanning
+
+A USB/Bluetooth barcode scanner is a keyboard: it types a value and presses
+Enter. Do not add a hardware SDK or duplicate barcode storage.
+
+**Data reuse:**
+
+- Product barcode: existing `Product.barcode`.
+- Serial/IMEI: existing `ProductUnit.serialNo`.
+- Product text lookup: existing search service and PostgreSQL indexes.
+
+**Resolution order:**
+
+1. Exact serial/IMEI.
+2. Exact product barcode.
+3. Exact SKU.
+4. Existing product search as a manual fallback.
+
+**Implementation requirements:**
+
+- Add an exact barcode repository lookup; exact indexed lookups happen before
+  fuzzy search.
+- Build one reusable focused scanner input for search, stock in/out, RMA intake,
+  and the future Phase 8 cart.
+- Submit on scanner Enter, suppress accidental duplicate scan submissions, and
+  keep mouse/manual selection fully usable.
+- Clearly distinguish unknown, inactive, unavailable, and already-processed
+  serials.
+- Camera-based mobile scanning is deferred.
+- STAFF responses must continue to omit all cost fields.
+
+### 18.2 Warranty/RMA data model
+
+Initial RMA scope is serialized products because warranty eligibility and exact
+sale history are already unit-based.
+
+`WarrantyClaim` stores:
+
+- Automatic claim number (default format `RMA-YYYY-######`).
+- `unitId` and original SALE movement.
+- Claimant name/phone snapshots (a nullable `customerId` is added in Phase 8).
+- Reported issue and received physical condition.
+- Current customer-facing status, coverage classification, resolution, assignee,
+  and opened/completed timestamps.
+- Current custody location; custody is not inventory availability.
+
+`WarrantyClaimEvent` is append-only and stores every status/custody/note change,
+actor, previous/new values, and timestamp. The claim may cache current status for
+listing, but its event history is never edited or deleted.
+
+`SupplierWarrantyCase` is optional and linked to a customer claim. It separately
+tracks supplier, supplier reference, supplier coverage, sent/returned dates,
+status, and resolution. Supplier rejection does not automatically reject the
+customer-facing claim.
+
+**Suggested customer-claim statuses:**
+
+`SUBMITTED`, `UNDER_INSPECTION`, `APPROVED`, `REJECTED`, `SENT_FOR_REPAIR`,
+`READY_FOR_COLLECTION`, `REPLACED`, `COMPLETED`, `CANCELLED`.
+
+**Coverage classifications:**
+
+`IN_WARRANTY`, `OUT_OF_WARRANTY`, `GOODWILL`, `UNKNOWN_PROOF_OF_PURCHASE`.
+Out-of-warranty repairs are recorded for service history, but repair billing is
+outside Phase 7 and may later become a Phase 8 invoice/service line.
+
+### 18.3 ⚠️ RMA inventory policy
+
+Opening or receiving a claim creates **no stock movement**. The unit was already
+sold and is not available inventory. Inspection custody is tracked on the claim;
+the original `ProductUnit` normally remains `SOLD` while being inspected,
+repaired, sent to a supplier, or returned to the customer.
+
+- **Repair returned to customer / no fault / rejected:** unit remains `SOLD`; no
+  stock movement.
+- **Replacement issued:** add `WARRANTY_REPLACEMENT` to `MovementReason`. The
+  replacement unit/quantity creates a normal OUT movement with exact/average cost,
+  `unitPrice = null`, and a link to the claim. It creates warranty expense, never
+  sales revenue. Claim resolution and stock movement are one transaction.
+- **Accepted back and approved for resale:** create `CUSTOMER_RETURN` `+1` and
+  transition the original unit from `SOLD` to `IN_STOCK` in one transaction.
+- **Accepted back but written off:** record `CUSTOMER_RETURN` `+1`, followed by
+  `DAMAGE` `-1`, and end at `DAMAGED`. The pair preserves receipt and write-off
+  history while net inventory remains zero.
+- A unit under inspection must never be marked `IN_STOCK` or offered for sale.
+
+### 18.4 RMA permissions and UI
+
+- STAFF: scan/search units, create claims, add notes, and record handovers.
+- MANAGER/ADMIN: approve/reject, authorize goodwill/out-of-warranty replacement,
+  issue replacement stock, restock/write off returns, and complete/cancel claims.
+- Pages: claim list, scanner-based intake, claim detail/event timeline, assigned
+  open claims, completed claims, and optional printable intake acknowledgement.
+- Every transition and stock-affecting outcome is validated server-side, audited,
+  idempotent, and tested for concurrent processing.
+
+---
+
+## 19. Phase 8 — Customers + Cart Checkout + Invoices
+
+Phase 8 solves one customer buying multiple products without repeating customer
+details. It is a deliberately limited inventory-connected checkout, not a full
+POS. A separate Sales Register is explicitly out of scope.
+
+### 19.1 Data ownership — do not duplicate authority
+
+| Concern | Authoritative data |
+|---|---|
+| Reusable contact details | `Customer` |
+| What the invoice contained | Immutable `Sale` + `SaleItem` snapshots |
+| Stock quantities and movement history | `StockMovement` |
+| Serial identity and current inventory disposition | `ProductUnit` |
+| Detailed sales history/reporting | Existing Movement Ledger/Audit |
+
+Snapshots are deliberate only where history must not change: customer name/phone,
+product name/SKU, list price, actual price, and invoice totals. Do not create a
+second stock counter or calculate stock from invoice rows.
+
+### 19.2 Customer records
+
+`Customer` stores name, normalized/indexed phone, optional email/address, notes,
+active status, and timestamps. Checkout can search by name/phone, create a customer
+inline, select one customer once for the whole cart, or use a walk-in customer
+without inventing a database record. Existing movement customer snapshots remain
+for backward-compatible history; new invoices link to the customer and preserve
+an immutable contact snapshot.
+
+### 19.3 Cart and checkout
+
+- Reuse the Phase 7 scanner component to add serials, product barcodes, or SKUs.
+- SERIAL lines reference one exact available `ProductUnit`; QUANTITY lines carry a
+  positive quantity.
+- Support quantity changes, line removal, customer selection once, notes/reference,
+  and authorized selling-price adjustment.
+- The server revalidates every serial and quantity at checkout. Client state is
+  never authoritative.
+- One idempotent PostgreSQL transaction creates `Sale`, `SaleItem` rows, unit
+  transitions, quantity-cache updates, and linked SALE movements. Any unavailable
+  item rolls back the entire checkout.
+
+`Sale` stores invoice number, optional customer, immutable customer snapshot,
+actor, status, subtotal/discount/total snapshots, idempotency key, notes, and
+timestamps. `SaleItem` stores product/unit links plus immutable product name, SKU,
+quantity, list-price, actual-price, discount, cost, and linked movement.
+
+The actual selling price and list-price-at-sale are snapshotted so two sales of
+the same item at different prices remain explainable even after catalog prices
+change. Financial reports continue to use movement economics.
+
+### 19.4 Invoice printing
+
+- Automatic concurrency-safe invoice sequence (default `INV-YYYY-######`).
+- Print-friendly A4 page and PDF download/reprint.
+- Shop details, invoice/date, actor, customer snapshot, line items, serial/IMEI,
+  quantity, prices, discounts, subtotal/total, warranty information, and policy
+  notes.
+- Phase 8 invoices are ordinary sales invoices, not VAT/tax-compliant invoices.
+- Completed invoices are immutable. Reprints show the original snapshot.
+
+### 19.5 Corrections and returns
+
+Never edit or delete a completed invoice or its movements. Full cancellation and
+item-level returns create opposing/correction movements linked to the original
+sale item, preserve the original invoice, record reason/actor, and optionally
+produce a cancellation/return document. Stock and sale-document status update in
+one transaction.
+
+### 19.6 Phase 8 decisions to confirm before implementation
+
+The following are intentionally not locked yet:
+
+1. Whether draft carts survive refresh/logout (recommended: server-persisted draft).
+2. STAFF price-override permission and maximum discount (recommended: limited;
+   MANAGER/ADMIN unrestricted).
+3. Whether to record payment method and paid/unpaid status; payment processing and
+   customer credit remain out of scope.
+4. Whether A4 is sufficient or an 80 mm thermal layout is also required.
+5. Whether item-level returns ship in the first Phase 8 release.
+
+---
+
+## 20. Still deferred after Phase 8
+
 - **Purchase orders & supplier ledger** — payables, partial deliveries, PO → receipt matching.
-- **VAT / tax invoices** — the `taxRate` field (basis points) is already on `Product`.
-- **Warranty claims / RMA workflow** — the data (`warrantyExpiresAt` per unit) is already captured; this is the UI and status machine on top.
-- **Customer records** — promote `customerName`/`customerPhone` on movements into a real table.
-- **Multi-branch** — would need a `Location` table, a `locationId` on `ProductUnit`, and stock-transfer movements. The current schema is deliberately single-location.
+- **VAT / tax invoices** — the `taxRate` field (basis points) exists, but legal and numbering requirements must be defined first.
+- **Camera barcode scanning** — USB/Bluetooth keyboard scanners are Phase 7.
+- **Multi-branch** — requires `Location`, location-aware on-hand invariants, unit locations, transfers, permissions, and reports. Treat this as a separate major phase.
