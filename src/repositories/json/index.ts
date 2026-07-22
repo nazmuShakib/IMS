@@ -7,6 +7,9 @@ import type {
   Supplier,
   UnitStatus,
   User,
+  WarrantyClaim,
+  WarrantyClaimEvent,
+  SupplierWarrantyCase,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -19,6 +22,7 @@ import type {
   StockMovementRepository,
   SupplierRepository,
   UserRepository,
+  WarrantyRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 
@@ -106,6 +110,12 @@ const products: ProductRepository = {
     return (
       (await readAll<Product>('products')).find((p) => p.sku.toLowerCase() === lower) ?? null
     );
+  },
+  async findByBarcode(barcode) {
+    const lower = barcode.toLowerCase().trim();
+    return (await readAll<Product>('products')).find(
+      (product) => product.barcode?.toLowerCase() === lower,
+    ) ?? null;
   },
   /**
    * Phase 0 search: naive substring match. Phase 1 replaces this with pg_trgm +
@@ -283,6 +293,73 @@ const movements: StockMovementRepository = {
   },
 };
 
+const warranties: WarrantyRepository = {
+  async nextClaimNumber(now) {
+    const year = now.getUTCFullYear();
+    const prefix = `RMA-${year}-`;
+    const rows = await readAll<WarrantyClaim>('warranty-claims');
+    const next = rows.reduce((max, claim) => claim.claimNumber.startsWith(prefix)
+      ? Math.max(max, Number(claim.claimNumber.slice(prefix.length)) || 0)
+      : max, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async findAll(filters) {
+    return (await readAll<WarrantyClaim>('warranty-claims'))
+      .filter((claim) => (!filters?.status || claim.status === filters.status)
+        && (!filters?.unitId || claim.unitId === filters.unitId)
+        && (!filters?.assignedToId || claim.assignedToId === filters.assignedToId))
+      .sort((a, b) => b.openedAt.localeCompare(a.openedAt));
+  },
+  async findById(id) {
+    return (await readAll<WarrantyClaim>('warranty-claims')).find((claim) => claim.id === id) ?? null;
+  },
+  async findByIdempotencyKey(key) {
+    return (await readAll<WarrantyClaim>('warranty-claims')).find((claim) => claim.idempotencyKey === key) ?? null;
+  },
+  async findActiveByUnit(unitId) {
+    const terminal = new Set(['REJECTED', 'REPLACED', 'COMPLETED', 'CANCELLED']);
+    return (await readAll<WarrantyClaim>('warranty-claims')).find(
+      (claim) => claim.unitId === unitId && !terminal.has(claim.status),
+    ) ?? null;
+  },
+  async create(claim) {
+    await writeAll('warranty-claims', [...await readAll<WarrantyClaim>('warranty-claims'), claim]);
+    return claim;
+  },
+  async transition(id, expectedStatus, patch) {
+    const rows = await readAll<WarrantyClaim>('warranty-claims');
+    const index = rows.findIndex((claim) => claim.id === id && claim.status === expectedStatus);
+    if (index < 0) throw new Error('Claim changed while you were working. Refresh and try again.');
+    const updated = { ...rows[index]!, ...patch, id, updatedAt: nowIso() };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('warranty-claims', copy);
+    return updated;
+  },
+  async findEvents(claimId) {
+    return (await readAll<WarrantyClaimEvent>('warranty-claim-events'))
+      .filter((event) => event.claimId === claimId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+  async findEventByIdempotencyKey(key) {
+    return (await readAll<WarrantyClaimEvent>('warranty-claim-events')).find((event) => event.idempotencyKey === key) ?? null;
+  },
+  async createEvent(event) {
+    await writeAll('warranty-claim-events', [...await readAll<WarrantyClaimEvent>('warranty-claim-events'), event]);
+    return event;
+  },
+  async findSupplierCase(claimId) {
+    return (await readAll<SupplierWarrantyCase>('supplier-warranty-cases')).find((item) => item.claimId === claimId) ?? null;
+  },
+  async upsertSupplierCase(value) {
+    const rows = await readAll<SupplierWarrantyCase>('supplier-warranty-cases');
+    const index = rows.findIndex((item) => item.claimId === value.claimId);
+    const copy = [...rows];
+    if (index < 0) copy.push(value); else copy[index] = value;
+    await writeAll('supplier-warranty-cases', copy);
+    return value;
+  },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -291,6 +368,7 @@ export const jsonRepositories: Repositories = {
   products,
   units,
   movements,
+  warranties,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

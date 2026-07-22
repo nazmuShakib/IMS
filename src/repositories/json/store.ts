@@ -24,7 +24,10 @@ export type Collection =
   | 'brands'
   | 'suppliers'
   | 'users'
-  | 'audit-logs';
+  | 'audit-logs'
+  | 'warranty-claims'
+  | 'warranty-claim-events'
+  | 'supplier-warranty-cases';
 
 /** Tiny in-memory cache so a single request doesn't re-read the same file 20 times. */
 const cache = new Map<Collection, unknown[]>();

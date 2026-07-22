@@ -73,7 +73,7 @@ async function main() {
       await tx.units.transitionStatus(unitId, 'IN_STOCK', 'SOLD', {
         salePrice: 60_000, soldAt: now,
       });
-      await tx.movements.record({
+      const saleMovement = await tx.movements.record({
         id: uuidv7(), type: 'OUT', reason: 'SALE', productId: serialProductId,
         unitId, quantity: -1, unitCost: 50_000, unitPrice: 60_000, supplierId: null,
         customerName: null, customerPhone: null, reference: 'ROLLBACK-VERIFY', note: null,
@@ -82,6 +82,27 @@ async function main() {
       assert(await tx.units.countInStock(serialProductId) === 0, 'Serial status transition failed.');
       assert(await tx.movements.sumQuantity(serialProductId) === 0, 'Serial ledger sum failed.');
       assert((await tx.products.search(bulkProductId)).length === 1, 'PostgreSQL product search failed.');
+
+      const actor = (await tx.users.findAll())[0];
+      assert(actor, 'RMA verification needs the bootstrapped administrator.');
+      const claimId = uuidv7();
+      const claimNumber = await tx.warranties.nextClaimNumber(new Date(now));
+      await tx.warranties.create({
+        id: claimId, claimNumber, idempotencyKey: uuidv7(), unitId,
+        saleMovementId: saleMovement.id, claimantName: 'Rollback verification',
+        claimantPhone: null, reportedIssue: 'Rollback-only warranty verification',
+        physicalCondition: null, status: 'SUBMITTED', coverage: 'IN_WARRANTY',
+        custody: 'RECEIVED_BY_SHOP', resolution: null, openedById: actor.id,
+        assignedToId: null, openedAt: now, completedAt: null, updatedAt: now,
+      });
+      await tx.warranties.createEvent({
+        id: uuidv7(), claimId, eventType: 'CLAIM_CREATED', idempotencyKey: uuidv7(),
+        fromStatus: null, toStatus: 'SUBMITTED', fromCustody: null,
+        toCustody: 'RECEIVED_BY_SHOP', note: 'Rollback verification',
+        actorId: actor.id, createdAt: now,
+      });
+      assert((await tx.warranties.findById(claimId))?.claimNumber === claimNumber, 'Warranty claim persistence failed.');
+      assert((await tx.warranties.findEvents(claimId)).length === 1, 'Warranty timeline persistence failed.');
 
       // This intentional error proves the entire verification flow is rolled back.
       throw new RollbackVerification();

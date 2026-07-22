@@ -4,6 +4,10 @@ import {
   TRACKING_TYPES,
   UNIT_STATUSES,
   MOVEMENT_REASONS,
+  RMA_STATUSES,
+  RMA_CUSTODIES,
+  RMA_COVERAGES,
+  SUPPLIER_WARRANTY_STATUSES,
 } from '@/domain/types';
 
 /**
@@ -143,3 +147,62 @@ export const searchSchema = z.object({
 
 export const unitStatusSchema = z.enum(UNIT_STATUSES);
 export const movementReasonSchema = z.enum(MOVEMENT_REASONS);
+
+export const createWarrantyClaimSchema = z.object({
+  serialNo: z.string().min(1).max(120).trim(),
+  claimantName: z.string().max(150).optional().nullable(),
+  claimantPhone: z.string().max(30).optional().nullable(),
+  reportedIssue: z.string().min(5).max(2000).trim(),
+  physicalCondition: z.string().max(1000).optional().nullable(),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type CreateWarrantyClaimInput = z.infer<typeof createWarrantyClaimSchema>;
+
+export const transitionWarrantyClaimSchema = z.object({
+  claimId: z.string().uuid(),
+  expectedStatus: z.enum(RMA_STATUSES),
+  nextStatus: z.enum(RMA_STATUSES),
+  custody: z.enum(RMA_CUSTODIES).optional(),
+  coverage: z.enum(RMA_COVERAGES).optional(),
+  assignedToId: z.string().optional().nullable(),
+  resolution: z.string().max(2000).optional().nullable(),
+  note: z.string().min(1).max(2000),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type TransitionWarrantyClaimInput = z.infer<typeof transitionWarrantyClaimSchema>;
+
+export const warrantyHandoverSchema = z.object({
+  claimId: z.string().uuid(),
+  expectedStatus: z.enum(RMA_STATUSES),
+  expectedCustody: z.enum(RMA_CUSTODIES),
+  custody: z.enum(RMA_CUSTODIES),
+  note: z.string().min(1).max(2000),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type WarrantyHandoverInput = z.infer<typeof warrantyHandoverSchema>;
+
+export const warrantyResolutionSchema = z.object({
+  claimId: z.string().uuid(),
+  expectedStatus: z.enum(RMA_STATUSES),
+  outcome: z.enum(['REPLACEMENT', 'RESTOCK', 'WRITEOFF']),
+  replacementSerial: z.string().max(120).optional(),
+  note: z.string().min(1).max(2000),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type WarrantyResolutionInput = z.infer<typeof warrantyResolutionSchema>;
+
+export const supplierWarrantyCaseSchema = z.object({
+  claimId: z.string().uuid(),
+  supplierId: z.string().uuid(),
+  reference: z.string().max(100).optional().nullable(),
+  status: z.enum(SUPPLIER_WARRANTY_STATUSES),
+  coverage: z.enum(RMA_COVERAGES),
+  resolution: z.string().max(2000).optional().nullable(),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type SupplierWarrantyCaseInput = z.infer<typeof supplierWarrantyCaseSchema>;

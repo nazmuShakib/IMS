@@ -11,6 +11,7 @@ import {
   type StockActionState,
 } from '@/actions/stock';
 import { Button, Card, Field, Input, MonoInput, Select, SerialChip } from '@/components/ui';
+import { ScannerInput } from '@/components/search/ScannerInput';
 
 const REASONS = [
   ['SALE', 'Sold to a customer'],
@@ -96,7 +97,7 @@ function SerialFlow({ initialSerial }: { initialSerial?: string }) {
         </p>
 
         <form action={lookupAction} className="flex gap-2">
-          <MonoInput
+          <ScannerInput
             name="serialNo"
             defaultValue={initialSerial}
             placeholder="352099001761482"

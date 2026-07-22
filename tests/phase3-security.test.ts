@@ -62,9 +62,12 @@ describe('Phase 3 role matrix', () => {
       'CORRECT_STOCK',
       'MANAGE_USERS',
       'ARCHIVE_PRODUCTS',
+      'VIEW_RMA',
+      'CREATE_RMA',
+      'MANAGE_RMA',
     ],
-    MANAGER: ['VIEW_STOCK', 'MOVE_STOCK', 'VIEW_COSTS', 'VIEW_REPORTS', 'MANAGE_CATALOG', 'CORRECT_STOCK'],
-    STAFF: ['VIEW_STOCK', 'MOVE_STOCK'],
+    MANAGER: ['VIEW_STOCK', 'MOVE_STOCK', 'VIEW_COSTS', 'VIEW_REPORTS', 'MANAGE_CATALOG', 'CORRECT_STOCK', 'VIEW_RMA', 'CREATE_RMA', 'MANAGE_RMA'],
+    STAFF: ['VIEW_STOCK', 'MOVE_STOCK', 'VIEW_RMA', 'CREATE_RMA'],
   };
 
   for (const role of Object.keys(expected) as Role[]) {

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { formatBDT } from '@/lib/money';
 import type { SearchResponse } from '@/lib/search';
+import { ScannerInput } from '@/components/search/ScannerInput';
 
 const EMPTY: SearchResponse = { query: '', units: [], products: [] };
 
@@ -27,6 +28,8 @@ export function CommandPalette() {
   const [results, setResults] = useState<SearchResponse>(EMPTY);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [scanRequest, setScanRequest] = useState(0);
+  const immediateScan = useRef(false);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -53,6 +56,8 @@ export function CommandPalette() {
     }
 
     const controller = new AbortController();
+    const delay = immediateScan.current ? 0 : 250;
+    immediateScan.current = false;
     const timer = window.setTimeout(async () => {
       setLoading(true);
       setError('');
@@ -82,13 +87,13 @@ export function CommandPalette() {
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 250);
+    }, delay);
 
     return () => {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [open, query]);
+  }, [open, query, scanRequest]);
 
   const go = (href: string) => {
     setOpen(false);
@@ -124,12 +129,13 @@ export function CommandPalette() {
           >
             <div className="flex items-center border-b border-rule px-4">
               <span className="mr-3 text-graphite">⌕</span>
-              <Command.Input
+              <ScannerInput
                 ref={inputRef}
                 value={query}
                 onValueChange={setQuery}
+                onScan={() => { immediateScan.current = true; setScanRequest((value) => value + 1); }}
                 placeholder="Type a product, SKU, barcode, model or exact IMEI…"
-                className="h-12 w-full bg-transparent text-[14px] outline-none placeholder:text-graphite/60"
+                className="h-12 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
               />
               {loading && <span className="text-[11px] text-graphite">Searching…</span>}
             </div>
@@ -175,8 +181,8 @@ export function CommandPalette() {
                       onSelect={() => go(`/products/${product.id}`)}
                       className="flex cursor-pointer items-center justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
                     >
-                      <span><span className="font-medium">{product.name}</span><span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
-                      <span className="tnum shrink-0 text-[11px] text-graphite">{product.onHand} on hand</span>
+                      <span><span className="font-medium">{product.name}</span>{!product.isActive && <span className="ml-2 text-[10px] font-semibold text-out">INACTIVE</span>}<span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
+                      <span className={`tnum shrink-0 text-[11px] ${product.onHand > 0 ? 'text-graphite' : 'text-out'}`}>{product.onHand > 0 ? `${product.onHand} on hand` : 'Unavailable'}</span>
                     </Command.Item>
                   ))}
                 </Command.Group>

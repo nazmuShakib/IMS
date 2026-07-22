@@ -8,6 +8,9 @@ import type {
   StockMovement,
   Supplier,
   User,
+  WarrantyClaim,
+  WarrantyClaimEvent,
+  SupplierWarrantyCase,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
@@ -60,6 +63,18 @@ function unit(row: Awaited<ReturnType<Client['productUnit']['findUniqueOrThrow']
 
 function movement(row: Awaited<ReturnType<Client['stockMovement']['findUniqueOrThrow']>>): StockMovement {
   return { ...row, createdAt: iso(row.createdAt) };
+}
+
+function warrantyClaim(row: Awaited<ReturnType<Client['warrantyClaim']['findUniqueOrThrow']>>): WarrantyClaim {
+  return { ...row, openedAt: iso(row.openedAt), completedAt: row.completedAt ? iso(row.completedAt) : null, updatedAt: iso(row.updatedAt) };
+}
+
+function warrantyEvent(row: Awaited<ReturnType<Client['warrantyClaimEvent']['findUniqueOrThrow']>>): WarrantyClaimEvent {
+  return { ...row, createdAt: iso(row.createdAt) };
+}
+
+function supplierWarrantyCase(row: Awaited<ReturnType<Client['supplierWarrantyCase']['findUniqueOrThrow']>>): SupplierWarrantyCase {
+  return { ...row, sentAt: row.sentAt ? iso(row.sentAt) : null, returnedAt: row.returnedAt ? iso(row.returnedAt) : null, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
 }
 
 function productData(value: Product): Prisma.ProductUncheckedCreateInput {
@@ -209,6 +224,12 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         });
         return row ? product(row) : null;
       },
+      async findByBarcode(barcode) {
+        const row = await client.product.findFirst({
+          where: { barcode: { equals: barcode.trim(), mode: 'insensitive' } },
+        });
+        return row ? product(row) : null;
+      },
       async search(query, limit = 10) {
         const term = query.trim();
         if (!term) return [];
@@ -340,6 +361,84 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           where: { productId }, _sum: { quantity: true },
         });
         return result._sum.quantity ?? 0;
+      },
+    },
+    warranties: {
+      async nextClaimNumber(now) {
+        const year = now.getUTCFullYear();
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `RMA:${year}` },
+          create: { key: `RMA:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `RMA-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findAll(filters) {
+        return (await client.warrantyClaim.findMany({
+          where: { status: filters?.status, unitId: filters?.unitId, assignedToId: filters?.assignedToId },
+          orderBy: { openedAt: 'desc' },
+        })).map(warrantyClaim);
+      },
+      async findById(id) {
+        const row = await client.warrantyClaim.findUnique({ where: { id } });
+        return row ? warrantyClaim(row) : null;
+      },
+      async findByIdempotencyKey(idempotencyKey) {
+        const row = await client.warrantyClaim.findUnique({ where: { idempotencyKey } });
+        return row ? warrantyClaim(row) : null;
+      },
+      async findActiveByUnit(unitId) {
+        const row = await client.warrantyClaim.findFirst({
+          where: { unitId, status: { notIn: ['REJECTED', 'REPLACED', 'COMPLETED', 'CANCELLED'] } },
+          orderBy: { openedAt: 'desc' },
+        });
+        return row ? warrantyClaim(row) : null;
+      },
+      async create(value) {
+        return warrantyClaim(await client.warrantyClaim.create({
+          data: { ...value, openedAt: new Date(value.openedAt), completedAt: value.completedAt ? new Date(value.completedAt) : null, updatedAt: new Date(value.updatedAt) },
+        }));
+      },
+      async transition(id, expectedStatus, patch) {
+        const { openedAt, completedAt, updatedAt, ...rest } = patch;
+        const result = await client.warrantyClaim.updateMany({
+          where: { id, status: expectedStatus },
+          data: {
+            ...rest,
+            ...(openedAt ? { openedAt: new Date(openedAt) } : {}),
+            ...(completedAt !== undefined ? { completedAt: completedAt ? new Date(completedAt) : null } : {}),
+            ...(updatedAt ? { updatedAt: new Date(updatedAt) } : {}),
+          },
+        });
+        if (result.count !== 1) throw new Error('Claim changed while you were working. Refresh and try again.');
+        return warrantyClaim(await client.warrantyClaim.findUniqueOrThrow({ where: { id } }));
+      },
+      async findEvents(claimId) {
+        return (await client.warrantyClaimEvent.findMany({ where: { claimId }, orderBy: { createdAt: 'asc' } })).map(warrantyEvent);
+      },
+      async findEventByIdempotencyKey(idempotencyKey) {
+        const row = await client.warrantyClaimEvent.findUnique({ where: { idempotencyKey } });
+        return row ? warrantyEvent(row) : null;
+      },
+      async createEvent(value) {
+        return warrantyEvent(await client.warrantyClaimEvent.create({ data: { ...value, createdAt: new Date(value.createdAt) } }));
+      },
+      async findSupplierCase(claimId) {
+        const row = await client.supplierWarrantyCase.findUnique({ where: { claimId } });
+        return row ? supplierWarrantyCase(row) : null;
+      },
+      async upsertSupplierCase(value) {
+        const dates = {
+          sentAt: value.sentAt ? new Date(value.sentAt) : null,
+          returnedAt: value.returnedAt ? new Date(value.returnedAt) : null,
+          updatedAt: new Date(value.updatedAt),
+        };
+        const row = await client.supplierWarrantyCase.upsert({
+          where: { claimId: value.claimId },
+          create: { ...value, ...dates, createdAt: new Date(value.createdAt) },
+          update: { supplierId: value.supplierId, reference: value.reference, status: value.status, coverage: value.coverage, resolution: value.resolution, ...dates },
+        });
+        return supplierWarrantyCase(row);
       },
     },
     transaction: transact ?? ((fn) => fn(repositories)),

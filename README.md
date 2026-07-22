@@ -1,8 +1,9 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–6 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
+Phases 0–7 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
 Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
-financial reports with CSV/PDF export. Full spec in `PLAN.md`.
+financial reports with CSV/PDF export, scanner workflows, and Warranty/RMA. Full
+spec in `PLAN.md`.
 
 ## Requirements
 
@@ -45,6 +46,7 @@ src/
   services/stock.ts      ⭐ THE CORE — receiveStock, recordStockOut, reconcile
   services/dashboard.ts  ledger-derived dashboard metrics and alerts
   services/reports.ts    seven ledger-derived financial reports
+  services/warranty.ts   claim workflow + transactional inventory outcomes
 scripts/
   reconcile.ts           read-only database/ledger comparison
   seed.ts                legacy JSON-only demo data
@@ -79,10 +81,14 @@ src/proxy.ts             coarse cookie redirect (not authorization)
    exact IMEI to jump directly to that physical unit.
 9. As ADMIN or MANAGER, open **Reports**, apply filters, and export the identical
    result as CSV or PDF. STAFF cannot access report pages or export endpoints.
+10. Open **Warranty / RMA**, scan a sold serial, and create a claim. Intake and
+    custody changes do not move stock; only a manager-approved return, write-off,
+    or replacement writes linked ledger movements.
 
 ## Next
 
 The next milestone is:
 
-> Read PLAN.md and CLAUDE.md. Plan Phase 7 v2 features from §18 before implementing them.
+> Read PLAN.md and CLAUDE.md. Confirm the Phase 8 checkout decisions in §19.6
+> before implementing the cart and invoice workflow.
 > Stop when done.

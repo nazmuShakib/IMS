@@ -36,6 +36,7 @@ export const MOVEMENT_REASONS = [
   'DAMAGE',
   'LOSS',
   'INTERNAL_USE',
+  'WARRANTY_REPLACEMENT',
   'CORRECTION',
   'STOCK_COUNT',
 ] as const;
@@ -53,6 +54,7 @@ export const OUTBOUND_REASONS: readonly MovementReason[] = [
   'DAMAGE',
   'LOSS',
   'INTERNAL_USE',
+  'WARRANTY_REPLACEMENT',
 ];
 
 /** Where a unit ends up after an outbound movement. */
@@ -62,7 +64,30 @@ export const OUTBOUND_UNIT_STATUS: Record<string, UnitStatus> = {
   LOSS: 'LOST',
   RETURN_TO_SUPPLIER: 'RETURNED',
   INTERNAL_USE: 'SOLD',
+  WARRANTY_REPLACEMENT: 'SOLD',
 };
+
+export const RMA_STATUSES = ['SUBMITTED', 'UNDER_INSPECTION', 'APPROVED', 'REJECTED', 'SENT_FOR_REPAIR', 'READY_FOR_COLLECTION', 'REPLACED', 'COMPLETED', 'CANCELLED'] as const;
+export type RmaStatus = (typeof RMA_STATUSES)[number];
+/** Ordinary claim transitions. REPLACED is deliberately absent: only the
+ * transactional replacement resolution may produce it. */
+export const RMA_STATUS_TRANSITIONS: Record<RmaStatus, readonly RmaStatus[]> = {
+  SUBMITTED: ['UNDER_INSPECTION', 'CANCELLED'],
+  UNDER_INSPECTION: ['APPROVED', 'REJECTED', 'SENT_FOR_REPAIR', 'CANCELLED'],
+  APPROVED: ['SENT_FOR_REPAIR', 'READY_FOR_COLLECTION', 'COMPLETED'],
+  REJECTED: ['COMPLETED'],
+  SENT_FOR_REPAIR: ['READY_FOR_COLLECTION', 'REJECTED'],
+  READY_FOR_COLLECTION: ['COMPLETED'],
+  REPLACED: [],
+  COMPLETED: [],
+  CANCELLED: [],
+};
+export const RMA_COVERAGES = ['IN_WARRANTY', 'OUT_OF_WARRANTY', 'GOODWILL', 'UNKNOWN_PROOF_OF_PURCHASE'] as const;
+export type RmaCoverage = (typeof RMA_COVERAGES)[number];
+export const RMA_CUSTODIES = ['WITH_CUSTOMER', 'RECEIVED_BY_SHOP', 'WITH_TECHNICIAN', 'SENT_TO_SUPPLIER', 'READY_FOR_COLLECTION', 'RETURNED_TO_CUSTOMER', 'RETAINED_BY_SHOP'] as const;
+export type RmaCustody = (typeof RMA_CUSTODIES)[number];
+export const SUPPLIER_WARRANTY_STATUSES = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'REPAIRED', 'REPLACED', 'CREDITED', 'RETURNED', 'CLOSED'] as const;
+export type SupplierWarrantyStatus = (typeof SUPPLIER_WARRANTY_STATUSES)[number];
 
 export interface User {
   id: string;
@@ -167,8 +192,58 @@ export interface StockMovement {
   actorId: string | null;
   idempotencyKey: string | null;
   reversesId: string | null;
+  warrantyClaimId?: string | null;
   createdAt: string;
   /** NOTE: no updatedAt. Append-only. */
+}
+
+export interface WarrantyClaim {
+  id: string;
+  claimNumber: string;
+  idempotencyKey: string;
+  unitId: string;
+  saleMovementId: string;
+  claimantName: string | null;
+  claimantPhone: string | null;
+  reportedIssue: string;
+  physicalCondition: string | null;
+  status: RmaStatus;
+  coverage: RmaCoverage;
+  custody: RmaCustody;
+  resolution: string | null;
+  openedById: string;
+  assignedToId: string | null;
+  openedAt: string;
+  completedAt: string | null;
+  updatedAt: string;
+}
+
+export interface WarrantyClaimEvent {
+  id: string;
+  claimId: string;
+  eventType: string;
+  idempotencyKey: string;
+  fromStatus: RmaStatus | null;
+  toStatus: RmaStatus | null;
+  fromCustody: RmaCustody | null;
+  toCustody: RmaCustody | null;
+  note: string | null;
+  actorId: string;
+  createdAt: string;
+}
+
+export interface SupplierWarrantyCase {
+  id: string;
+  claimId: string;
+  supplierId: string;
+  reference: string | null;
+  status: SupplierWarrantyStatus;
+  coverage: RmaCoverage;
+  resolution: string | null;
+  sentAt: string | null;
+  returnedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface AuditLog {

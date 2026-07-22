@@ -24,6 +24,7 @@ const REASON_LABEL: Record<MovementReason, string> = {
   DAMAGE: 'Damage',
   LOSS: 'Loss',
   INTERNAL_USE: 'Internal use',
+  WARRANTY_REPLACEMENT: 'Warranty replacement',
   CORRECTION: 'Correction',
   STOCK_COUNT: 'Stock count',
 };

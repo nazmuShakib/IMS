@@ -26,7 +26,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen">
       {/* --- Sidebar ---------------------------------------------------- */}
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-rule bg-card md:flex">
+      <aside className="hidden w-52 shrink-0 flex-col border-r border-rule bg-card print:hidden md:flex">
         <div className="border-b border-rule px-4 py-4">
           <Link href="/" className="block">
             <span className="text-[13px] font-semibold tracking-[-0.01em]">Inventory</span>
@@ -51,6 +51,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
               <NavLink href="/reports">Reports</NavLink>
             </>
           )}
+
+          <p className="eyebrow mt-5 px-2 pb-1.5">After-sales</p>
+          <NavLink href="/warranty">Warranty / RMA</NavLink>
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Catalog</p>
           {CATALOG.map((item) => (
@@ -80,11 +83,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* --- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-4 print:hidden">
           <CommandPalette />
         </header>
 
-        <main className="flex-1 p-5 lg:p-7">
+        <main className="flex-1 p-5 print:p-0 lg:p-7">
           <div className="mx-auto max-w-5xl">{children}</div>
         </main>
       </div>

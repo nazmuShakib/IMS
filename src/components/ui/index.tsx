@@ -5,6 +5,7 @@ import type {
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
+import { forwardRef } from 'react';
 import { formatBDT, type Paisa } from '@/lib/money';
 
 /* -------------------------------------------------------------------------- */
@@ -60,9 +61,11 @@ export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInpu
 }
 
 /** Identifiers (SKU, serial, barcode) are always mono. */
-export function MonoInput({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={`${inputBase} tnum ${className}`} />;
-}
+export const MonoInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(
+  function MonoInput({ className = '', ...props }, ref) {
+    return <input ref={ref} {...props} className={`${inputBase} tnum ${className}`} />;
+  },
+);
 
 export function Select({ className = '', ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
   return <select {...props} className={`${inputBase} ${className}`} />;

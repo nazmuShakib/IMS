@@ -6,6 +6,7 @@ import type { ProductDTO } from '@/lib/dto';
 import { toTaka } from '@/lib/money';
 import { receiveStockAction, type StockActionState } from '@/actions/stock';
 import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
+import { ScannerInput } from '@/components/search/ScannerInput';
 
 export function StockInForm({
   products,
@@ -25,6 +26,7 @@ export function StockInForm({
   const [serialText, setSerialText] = useState('');
   const [cost, setCost] = useState('');
   const [key, setKey] = useState('');
+  const [scanError, setScanError] = useState('');
   const formId = useId();
 
   const product = useMemo(
@@ -80,6 +82,21 @@ export function StockInForm({
 
       <Card className="mb-4 p-5">
         <p className="eyebrow mb-4">What arrived</p>
+        <div className="mb-4 max-w-md">
+          <Field label="Scan product barcode or SKU" hint="Optional — manual selection remains available">
+            <ScannerInput
+              placeholder="Scan, then press Enter"
+              onScan={(value) => {
+                const normalized = value.toLowerCase();
+                const match = products.find((item) => item.barcode?.toLowerCase() === normalized)
+                  ?? products.find((item) => item.sku.toLowerCase() === normalized);
+                if (!match) { setScanError('No active product matches that barcode or SKU.'); return; }
+                setProductId(match.id); setScanError('');
+              }}
+            />
+          </Field>
+          {scanError && <p className="mt-1 text-[12px] text-out">{scanError}</p>}
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Product" error={err('productId')}>
             <Select

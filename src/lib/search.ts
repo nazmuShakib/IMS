@@ -33,6 +33,7 @@ export interface ProductSearchResult {
   defaultSalePrice: Paisa;
   defaultCostPrice?: Paisa;
   avgCostPrice?: Paisa;
+  isActive: boolean;
 }
 
 export interface SearchResponse {
@@ -41,7 +42,7 @@ export interface SearchResponse {
   products: ProductSearchResult[];
 }
 
-/** Exact serial first. Product matching only runs when the unique serial lookup misses. */
+/** Scanner order: exact serial → exact barcode → exact SKU → fuzzy product search. */
 export async function searchInventory(
   query: string,
   role: Role,
@@ -78,7 +79,11 @@ export async function searchInventory(
     return { query: normalized, units: [result], products: [] };
   }
 
-  const matches = await repositories.products.search(normalized, 10);
+  const exactBarcode = await repositories.products.findByBarcode(normalized);
+  const exactSku = exactBarcode ? null : await repositories.products.findBySku(normalized);
+  const matches = exactBarcode || exactSku
+    ? [exactBarcode ?? exactSku!]
+    : await repositories.products.search(normalized, 10);
   const products = await Promise.all(
     matches.map(async (product): Promise<ProductSearchResult> => {
       const dto = toProductDTO(product, role);
@@ -95,6 +100,7 @@ export async function searchInventory(
             ? await repositories.units.countInStock(product.id)
             : product.quantityOnHand,
         defaultSalePrice: dto.defaultSalePrice,
+        isActive: dto.isActive,
       };
       if (dto.defaultCostPrice !== undefined) result.defaultCostPrice = dto.defaultCostPrice;
       if (dto.avgCostPrice !== undefined) result.avgCostPrice = dto.avgCostPrice;

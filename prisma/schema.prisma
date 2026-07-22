@@ -51,8 +51,50 @@ enum MovementReason {
   DAMAGE // broken, unsellable                              (OUT)
   LOSS // theft, shrinkage, unexplained                   (OUT)
   INTERNAL_USE // shop's own use, demo unit, gift                 (OUT)
+  WARRANTY_REPLACEMENT // replacement issued against an RMA claim        (OUT)
   CORRECTION // reverses an earlier bad entry               (ADJUST)
   STOCK_COUNT // physical count reconciliation               (ADJUST)
+}
+
+enum RmaStatus {
+  SUBMITTED
+  UNDER_INSPECTION
+  APPROVED
+  REJECTED
+  SENT_FOR_REPAIR
+  READY_FOR_COLLECTION
+  REPLACED
+  COMPLETED
+  CANCELLED
+}
+
+enum RmaCoverage {
+  IN_WARRANTY
+  OUT_OF_WARRANTY
+  GOODWILL
+  UNKNOWN_PROOF_OF_PURCHASE
+}
+
+enum RmaCustody {
+  WITH_CUSTOMER
+  RECEIVED_BY_SHOP
+  WITH_TECHNICIAN
+  SENT_TO_SUPPLIER
+  READY_FOR_COLLECTION
+  RETURNED_TO_CUSTOMER
+  RETAINED_BY_SHOP
+}
+
+enum SupplierWarrantyStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  REPAIRED
+  REPLACED
+  CREDITED
+  RETURNED
+  CLOSED
 }
 
 // ===========================================================================
@@ -74,10 +116,13 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  sessions  Session[]
-  accounts  Account[]
-  movements StockMovement[] @relation("MovementActor")
-  auditLogs AuditLog[]
+  sessions               Session[]
+  accounts               Account[]
+  movements              StockMovement[]      @relation("MovementActor")
+  auditLogs              AuditLog[]
+  openedWarrantyClaims   WarrantyClaim[]      @relation("WarrantyOpenedBy")
+  assignedWarrantyClaims WarrantyClaim[]      @relation("WarrantyAssignedTo")
+  warrantyClaimEvents    WarrantyClaimEvent[]
 
   @@index([role])
   @@map("users")
@@ -194,8 +239,9 @@ model Supplier {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  units     ProductUnit[]
-  movements StockMovement[]
+  units         ProductUnit[]
+  movements     StockMovement[]
+  warrantyCases SupplierWarrantyCase[]
 
   @@index([name])
   @@map("suppliers")
@@ -281,7 +327,8 @@ model ProductUnit {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  movements StockMovement[]
+  movements      StockMovement[]
+  warrantyClaims WarrantyClaim[]
 
   @@index([productId, status]) // on-hand counts
   @@index([status])
@@ -340,6 +387,10 @@ model StockMovement {
   reverses   StockMovement? @relation("MovementCorrection", fields: [reversesId], references: [id], onDelete: Restrict)
   reversedBy StockMovement? @relation("MovementCorrection")
 
+  warrantyClaimId String?
+  warrantyClaim   WarrantyClaim?  @relation("WarrantyMovement", fields: [warrantyClaimId], references: [id], onDelete: Restrict)
+  warrantySaleFor WarrantyClaim[] @relation("WarrantySale")
+
   /// ⚠️ No updatedAt. This table is append-only by design.
   createdAt DateTime @default(now())
 
@@ -349,5 +400,94 @@ model StockMovement {
   @@index([unitId])
   @@index([actorId])
   @@index([supplierId])
+  @@index([warrantyClaimId])
   @@map("stock_movements")
+}
+
+// ===========================================================================
+//  WARRANTY / RMA — custody is separate from sellable inventory
+// ===========================================================================
+
+model WarrantyClaim {
+  id             String      @id @default(uuid(7))
+  claimNumber    String      @unique
+  idempotencyKey String      @unique
+  unitId         String
+  unit           ProductUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  saleMovementId String
+  saleMovement   StockMovement @relation("WarrantySale", fields: [saleMovementId], references: [id], onDelete: Restrict)
+
+  claimantName      String?
+  claimantPhone     String?
+  reportedIssue     String
+  physicalCondition String?
+  status            RmaStatus   @default(SUBMITTED)
+  coverage          RmaCoverage
+  custody           RmaCustody  @default(RECEIVED_BY_SHOP)
+  resolution        String?
+
+  openedById   String
+  openedBy     User    @relation("WarrantyOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  assignedToId String?
+  assignedTo   User?   @relation("WarrantyAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  openedAt    DateTime  @default(now())
+  completedAt DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  events         WarrantyClaimEvent[]
+  supplierCase   SupplierWarrantyCase?
+  stockMovements StockMovement[]       @relation("WarrantyMovement")
+
+  @@index([unitId, openedAt])
+  @@index([status, openedAt])
+  @@index([assignedToId, status])
+  @@map("warranty_claims")
+}
+
+model WarrantyClaimEvent {
+  id             String        @id @default(uuid(7))
+  claimId        String
+  claim          WarrantyClaim @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  eventType      String
+  idempotencyKey String        @unique
+  fromStatus     RmaStatus?
+  toStatus       RmaStatus?
+  fromCustody    RmaCustody?
+  toCustody      RmaCustody?
+  note           String?
+  actorId        String
+  actor          User          @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt      DateTime      @default(now())
+
+  @@index([claimId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("warranty_claim_events")
+}
+
+model SupplierWarrantyCase {
+  id         String                 @id @default(uuid(7))
+  claimId    String                 @unique
+  claim      WarrantyClaim          @relation(fields: [claimId], references: [id], onDelete: Restrict)
+  supplierId String
+  supplier   Supplier               @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  reference  String?
+  status     SupplierWarrantyStatus @default(DRAFT)
+  coverage   RmaCoverage            @default(UNKNOWN_PROOF_OF_PURCHASE)
+  resolution String?
+  sentAt     DateTime?
+  returnedAt DateTime?
+  createdAt  DateTime               @default(now())
+  updatedAt  DateTime               @updatedAt
+
+  @@index([supplierId, status])
+  @@map("supplier_warranty_cases")
+}
+
+model DocumentSequence {
+  key   String @id
+  value Int    @default(0)
+
+  @@map("document_sequences")
 }

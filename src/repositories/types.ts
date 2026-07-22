@@ -9,6 +9,10 @@ import type {
   User,
   MovementReason,
   MovementType,
+  WarrantyClaim,
+  WarrantyClaimEvent,
+  SupplierWarrantyCase,
+  RmaStatus,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -53,6 +57,7 @@ export interface ProductRepository {
   findAll(filters?: { categoryId?: string; brandId?: string; activeOnly?: boolean }): Promise<Product[]>;
   findById(id: string): Promise<Product | null>;
   findBySku(sku: string): Promise<Product | null>;
+  findByBarcode(barcode: string): Promise<Product | null>;
   search(query: string, limit?: number): Promise<Product[]>;
   create(data: Product): Promise<Product>;
   update(
@@ -111,6 +116,21 @@ export interface StockMovementRepository {
   sumQuantity(productId: string): Promise<number>;
 }
 
+export interface WarrantyRepository {
+  nextClaimNumber(now: Date): Promise<string>;
+  findAll(filters?: { status?: RmaStatus; unitId?: string; assignedToId?: string }): Promise<WarrantyClaim[]>;
+  findById(id: string): Promise<WarrantyClaim | null>;
+  findByIdempotencyKey(key: string): Promise<WarrantyClaim | null>;
+  findActiveByUnit(unitId: string): Promise<WarrantyClaim | null>;
+  create(claim: WarrantyClaim): Promise<WarrantyClaim>;
+  transition(id: string, expectedStatus: RmaStatus, patch: Partial<WarrantyClaim>): Promise<WarrantyClaim>;
+  findEvents(claimId: string): Promise<WarrantyClaimEvent[]>;
+  findEventByIdempotencyKey(key: string): Promise<WarrantyClaimEvent | null>;
+  createEvent(event: WarrantyClaimEvent): Promise<WarrantyClaimEvent>;
+  findSupplierCase(claimId: string): Promise<SupplierWarrantyCase | null>;
+  upsertSupplierCase(value: SupplierWarrantyCase): Promise<SupplierWarrantyCase>;
+}
+
 /**
  * Runs `fn` atomically. In the JSON phase this is a process-level mutex and is
  * NOT crash-safe (PLAN.md §13.1). In Phase 1 it becomes `prisma.$transaction`.
@@ -126,5 +146,6 @@ export interface Repositories {
   products: ProductRepository;
   units: ProductUnitRepository;
   movements: StockMovementRepository;
+  warranties: WarrantyRepository;
   transaction: Transactor;
 }

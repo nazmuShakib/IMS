@@ -69,6 +69,8 @@ function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])):
     products: {
       findAll: vi.fn(async () => [serialProduct, bulkProduct]),
       findById: vi.fn(async (id: string) => [serialProduct, bulkProduct].find((p) => p.id === id) ?? null),
+      findByBarcode: vi.fn(async (barcode: string) => [serialProduct, bulkProduct].find((p) => p.barcode === barcode) ?? null),
+      findBySku: vi.fn(async (sku: string) => [serialProduct, bulkProduct].find((p) => p.sku === sku) ?? null),
       search,
     },
     units: {
@@ -120,6 +122,13 @@ describe('Phase 4 search', () => {
     expect(productSearch).not.toHaveBeenCalled();
   });
 
+  it('resolves an exact barcode before fuzzy product search', async () => {
+    const productSearch = vi.fn(async () => { throw new Error('Fuzzy search must not run'); });
+    const result = await searchInventory('10001', 'ADMIN', now, repositories(productSearch));
+    expect(result.products[0]).toMatchObject({ id: serialProduct.id, barcode: '10001' });
+    expect(productSearch).not.toHaveBeenCalled();
+  });
+
   it('strips costs from STAFF serial and product results', async () => {
     const unitResult = await searchInventory('IMEI-EXACT', 'STAFF', now, repositories());
     expect(unitResult.units[0]).not.toHaveProperty('costPrice');
@@ -147,7 +156,7 @@ describe('Phase 4 UI and API boundaries', () => {
     const palette = source('src/components/search/CommandPalette.tsx');
     expect(palette).toContain('onClick={() => setOpen(true)}');
     expect(palette).toContain('event.metaKey || event.ctrlKey');
-    expect(palette).toContain('}, 250)');
+    expect(palette).toContain('immediateScan.current ? 0 : 250');
     expect(palette).toContain("event.key === 'Escape'");
   });
 

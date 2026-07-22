@@ -9,6 +9,9 @@ export const CAPABILITIES = [
   'CORRECT_STOCK',
   'MANAGE_USERS',
   'ARCHIVE_PRODUCTS',
+  'VIEW_RMA',
+  'CREATE_RMA',
+  'MANAGE_RMA',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -23,6 +26,9 @@ export const CAPABILITY_ROLES: Record<Capability, readonly Role[]> = {
   CORRECT_STOCK: ['ADMIN', 'MANAGER'],
   MANAGE_USERS: ['ADMIN'],
   ARCHIVE_PRODUCTS: ['ADMIN'],
+  VIEW_RMA: ['ADMIN', 'MANAGER', 'STAFF'],
+  CREATE_RMA: ['ADMIN', 'MANAGER', 'STAFF'],
+  MANAGE_RMA: ['ADMIN', 'MANAGER'],
 };
 
 export function hasPermission(role: Role, capability: Capability): boolean {

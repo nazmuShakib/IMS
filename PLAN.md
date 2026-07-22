@@ -913,6 +913,8 @@ Vitest for units/services, Playwright for the critical flows.
 
 ## 18. Phase 7 — Barcode scanning + Warranty/RMA
 
+**Implementation status: complete (20 July 2026).**
+
 Phase 7 contains only these two features. It does **not** add a Sales Register;
 the existing Movement Ledger and filterable Movement Audit remain the detailed
 sales-history tools.
