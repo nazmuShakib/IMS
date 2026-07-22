@@ -25,6 +25,20 @@ npm run reconcile           # prove every stock count matches its ledger
 npm run dev                  # http://localhost:3000
 ```
 
+## Vercel deployment
+
+Use Node.js 22 and configure these variables for the Production environment:
+
+- `DATA_SOURCE=postgres`
+- `DATABASE_URL` — the pooled Neon connection string
+- `DATABASE_URL_UNPOOLED` — the direct Neon connection string
+- `BETTER_AUTH_SECRET` — at least 32 high-entropy characters
+- `BETTER_AUTH_URL` — the exact production HTTPS origin
+
+Run committed Prisma migrations separately with `npm run db:deploy`; do not run
+migrations inside the Vercel build. `INITIAL_ADMIN_*` variables are only for the
+one-time local bootstrap command and are not required by the deployed app.
+
 ## What's here
 
 ```

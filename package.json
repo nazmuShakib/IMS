@@ -2,6 +2,9 @@
 	"name": "inventory-system",
 	"version": "0.1.0",
 	"private": true,
+	"engines": {
+		"node": "22.x"
+	},
 	"type": "module",
 	"scripts": {
 		"dev": "next dev",
@@ -10,6 +13,7 @@
 		"test": "vitest run",
 		"lint": "eslint",
 		"typecheck": "tsc --noEmit",
+		"postinstall": "prisma generate",
 		"seed:json": "DATA_SOURCE=json tsx scripts/seed.ts",
 		"auth:bootstrap": "dotenv -e .env.local -- tsx scripts/bootstrap-admin.ts",
 		"reconcile": "dotenv -e .env.local -- tsx scripts/reconcile.ts",
