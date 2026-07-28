@@ -1,6 +1,7 @@
 'use client';
 
 import { useActionState, useEffect, useId, useMemo, useState } from 'react';
+import Link from 'next/link';
 import type { Supplier } from '@/domain/types';
 import type { ProductDTO } from '@/lib/dto';
 import { toTaka } from '@/lib/money';
@@ -75,8 +76,16 @@ export function StockInForm({
         </div>
       )}
       {state.ok && (
-        <div className="mb-4 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
-          {state.ok}
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
+          <span>{state.ok}</span>
+          {state.labelReceiptId && (
+            <Link
+              href={`/stock/labels?receipt=${encodeURIComponent(state.labelReceiptId)}`}
+              className="rounded-[3px] border border-ok/30 bg-card px-3 py-1.5 text-[12px] font-medium text-ok hover:bg-ok-wash"
+            >
+              Print labels
+            </Link>
+          )}
         </div>
       )}
 

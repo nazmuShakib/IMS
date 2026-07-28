@@ -25,6 +25,7 @@ export interface StockActionState {
   error?: string;
   ok?: string;
   fieldErrors?: Record<string, string>;
+  labelReceiptId?: string;
 }
 
 function str(fd: FormData, key: string): string | null {
@@ -113,6 +114,7 @@ export async function receiveStockAction(
   const qtyRaw = str(fd, 'quantity');
 
   let count: number;
+  let labelReceiptId: string | undefined;
   try {
     const movements = await receiveStock({
       productId,
@@ -129,6 +131,7 @@ export async function receiveStockAction(
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
     });
     count = movements.reduce((n, m) => n + m.quantity, 0);
+    labelReceiptId = movements[0]?.id;
     await writeAudit({
       actorId: actor.id,
       action: 'stock.in',
@@ -147,6 +150,7 @@ export async function receiveStockAction(
 
   return {
     ok: `Received ${count} × ${product.name} into stock.`,
+    labelReceiptId,
   };
 }
 

@@ -74,3 +74,140 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------------------------------------------------------------------------
+   Stock labels. Dimensions are physical: each label is exactly 50 × 25 mm.
+   The screen preview shares the print component so the barcode and copy count
+   cannot drift from the output.
+--------------------------------------------------------------------------- */
+
+.label-print-area {
+  display: none;
+}
+
+.label-preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 50mm);
+  gap: 3mm;
+  min-width: max-content;
+}
+
+.stock-label {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  width: 50mm;
+  height: 25mm;
+  overflow: hidden;
+  border: 0.2mm solid #b8b8b8;
+  background: #fff;
+  padding: 1.2mm 1.5mm 1mm;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.05;
+}
+
+.stock-label-heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 1.5mm;
+}
+
+.stock-label-shop {
+  flex: none;
+  font-size: 5.5pt;
+  font-weight: 700;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.stock-label-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 7.5pt;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.stock-label-meta {
+  display: flex;
+  min-width: 0;
+  justify-content: space-between;
+  gap: 2mm;
+  overflow: hidden;
+  padding-top: 0.5mm;
+  font-size: 5.2pt;
+  white-space: nowrap;
+}
+
+.stock-label-meta span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.stock-label-bars {
+  min-height: 0;
+  padding-top: 0.8mm;
+}
+
+.stock-label-code {
+  overflow: hidden;
+  padding-top: 0.35mm;
+  font-size: 6pt;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@page label-thermal {
+  size: 50mm 25mm;
+  margin: 0;
+}
+
+@page label-a4 {
+  size: A4 portrait;
+  margin: 5mm;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .label-screen-only {
+    display: none !important;
+  }
+
+  .stock-label-print-root .label-print-area {
+    display: block;
+  }
+
+  .stock-label-print-root[data-layout='thermal'] .label-print-grid {
+    display: block;
+  }
+
+  .stock-label-print-root[data-layout='thermal'] .stock-label {
+    page: label-thermal;
+    break-after: page;
+    border: 0;
+  }
+
+  .stock-label-print-root[data-layout='thermal'] .stock-label:last-child {
+    break-after: auto;
+  }
+
+  .stock-label-print-root[data-layout='a4'] .label-print-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 50mm);
+    width: 200mm;
+    page: label-a4;
+  }
+
+  .stock-label-print-root[data-layout='a4'] .stock-label {
+    break-inside: avoid;
+  }
+}

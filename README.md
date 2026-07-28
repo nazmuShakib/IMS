@@ -1,9 +1,10 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–7 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
+Phases 0–7.5 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
 Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
 financial reports with CSV/PDF export, scanner workflows, and Warranty/RMA. Full
-spec in `PLAN.md`.
+spec in `PLAN.md`. Stock labels support 50 × 25 mm thermal and A4 adhesive-sheet
+printing without duplicating inventory identifiers.
 
 ## Requirements
 
@@ -34,6 +35,7 @@ Use Node.js 22 and configure these variables for the Production environment:
 - `DATABASE_URL_UNPOOLED` — the direct Neon connection string
 - `BETTER_AUTH_SECRET` — at least 32 high-entropy characters
 - `BETTER_AUTH_URL` — the exact production HTTPS origin
+- `SHOP_NAME` — name printed on stock labels (defaults to `Electronics Shop`)
 
 Run committed Prisma migrations separately with `npm run db:deploy`; do not run
 migrations inside the Vercel build. `INITIAL_ADMIN_*` variables are only for the
@@ -98,6 +100,9 @@ src/proxy.ts             coarse cookie redirect (not authorization)
 10. Open **Warranty / RMA**, scan a sold serial, and create a claim. Intake and
     custody changes do not move stock; only a manager-approved return, write-off,
     or replacement writes linked ledger movements.
+11. Receive stock and use **Print labels** from the success message, or open
+    **Stock → Print labels** to scan, select, preview, and reprint 50 × 25 mm
+    Code 128 labels.
 
 ## Next
 

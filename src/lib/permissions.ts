@@ -12,6 +12,8 @@ export const CAPABILITIES = [
   'VIEW_RMA',
   'CREATE_RMA',
   'MANAGE_RMA',
+  'PRINT_LABELS',
+  'REPRINT_NON_STOCK_LABELS',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -29,6 +31,8 @@ export const CAPABILITY_ROLES: Record<Capability, readonly Role[]> = {
   VIEW_RMA: ['ADMIN', 'MANAGER', 'STAFF'],
   CREATE_RMA: ['ADMIN', 'MANAGER', 'STAFF'],
   MANAGE_RMA: ['ADMIN', 'MANAGER'],
+  PRINT_LABELS: ['ADMIN', 'MANAGER', 'STAFF'],
+  REPRINT_NON_STOCK_LABELS: ['ADMIN', 'MANAGER'],
 };
 
 export function hasPermission(role: Role, capability: Capability): boolean {

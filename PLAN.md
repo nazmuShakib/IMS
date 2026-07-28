@@ -1017,6 +1017,35 @@ repaired, sent to a supplier, or returned to the customer.
 
 ---
 
+## 18.5 Phase 7.5 — Stock label printing
+
+**Implementation status: complete (28 July 2026).**
+
+Stock received into the shop can be identified and scanned from a physical
+50 × 25 mm adhesive label. Labels are projections of existing inventory data,
+not a new inventory entity:
+
+- SERIAL labels encode the existing `ProductUnit.serialNo`.
+- QUANTITY labels encode `Product.barcode`, falling back to `Product.sku`.
+- No label table, duplicate barcode, saved image, or stock movement is created.
+- Labels contain shop name, product name, brand/model, SKU, the scannable Code
+  128 symbol, and its human-readable value. Price, cost, supplier, and category
+  are deliberately omitted.
+
+The receive-stock success state links to the exact receipt labels. A reusable
+**Stock → Print labels** page also supports product selection, scanner lookup,
+individual serialized-unit selection, manually entered copies, preview, and
+reprinting. Output supports both one-label-per-page thermal printing and a
+four-column A4 adhesive-sheet layout.
+
+`PRINT_LABELS` allows STAFF, MANAGER, and ADMIN to print. STAFF can print or
+reprint only currently in-stock units/products; `REPRINT_NON_STOCK_LABELS`
+allows MANAGER and ADMIN to select historical/non-stock units. The server
+revalidates product ownership and unit status before each print request and
+records `label.print` in the append-only audit log. Printing never changes stock.
+
+---
+
 ## 19. Phase 8 — Customers + Cart Checkout + Invoices
 
 Phase 8 solves one customer buying multiple products without repeating customer
