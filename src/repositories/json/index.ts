@@ -10,6 +10,12 @@ import type {
   WarrantyClaim,
   WarrantyClaimEvent,
   SupplierWarrantyCase,
+  Customer,
+  CartDraft,
+  CartItem,
+  Sale,
+  SaleItem,
+  InvoiceItem,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -23,8 +29,12 @@ import type {
   SupplierRepository,
   UserRepository,
   WarrantyRepository,
+  CustomerRepository,
+  CartRepository,
+  SaleRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
+import { dhakaYear } from '@/lib/time';
 
 const categories: CategoryRepository = {
   findAll: () => readAll<Category>('categories'),
@@ -208,6 +218,11 @@ const units: ProductUnitRepository = {
     const rows = await readAll<ProductUnit>('product-units');
     return rows.filter((u) => u.productId === productId && u.status === 'IN_STOCK').length;
   },
+  async findAllInStock() {
+    return (await readAll<ProductUnit>('product-units'))
+      .filter((unit) => unit.status === 'IN_STOCK')
+      .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
+  },
   async createMany(newUnits) {
     const rows = await readAll<ProductUnit>('product-units');
     const existing = new Set(rows.map((u) => u.serialNo.toLowerCase()));
@@ -360,6 +375,180 @@ const warranties: WarrantyRepository = {
   },
 };
 
+const customers: CustomerRepository = {
+  async findAll(activeOnly = false) {
+    return (await readAll<Customer>('customers'))
+      .filter((item) => !activeOnly || item.isActive)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+  async findById(id) {
+    return (await readAll<Customer>('customers')).find((item) => item.id === id) ?? null;
+  },
+  async findByNormalizedPhone(phoneNormalized) {
+    return (await readAll<Customer>('customers'))
+      .find((item) => item.phoneNormalized === phoneNormalized) ?? null;
+  },
+  async search(query, limit = 20) {
+    const term = query.trim().toLowerCase();
+    const digits = query.replace(/\D/g, '');
+    return (await readAll<Customer>('customers'))
+      .filter((item) => item.isActive && (
+        item.name.toLowerCase().includes(term)
+        || item.phone?.includes(term)
+        || Boolean(digits && item.phoneNormalized?.includes(digits))
+      ))
+      .slice(0, limit);
+  },
+  async create(value) {
+    const rows = await readAll<Customer>('customers');
+    if (value.phoneNormalized && rows.some((item) => item.phoneNormalized === value.phoneNormalized)) {
+      throw new Error('A customer with this phone number already exists.');
+    }
+    await writeAll('customers', [...rows, value]);
+    return value;
+  },
+};
+
+const carts: CartRepository = {
+  async findByActor(actorId) {
+    return (await readAll<CartDraft>('cart-drafts')).find((item) => item.actorId === actorId) ?? null;
+  },
+  async findById(id) {
+    return (await readAll<CartDraft>('cart-drafts')).find((item) => item.id === id) ?? null;
+  },
+  async create(value) {
+    const rows = await readAll<CartDraft>('cart-drafts');
+    if (rows.some((item) => item.actorId === value.actorId)) {
+      throw new Error('This user already has a draft cart.');
+    }
+    await writeAll('cart-drafts', [...rows, value]);
+    return value;
+  },
+  async update(id, patch) {
+    const rows = await readAll<CartDraft>('cart-drafts');
+    const index = rows.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Draft cart not found.');
+    const next = { ...rows[index]!, ...patch, updatedAt: nowIso() };
+    const copy = [...rows]; copy[index] = next;
+    await writeAll('cart-drafts', copy);
+    return next;
+  },
+  async findItems(cartId) {
+    return (await readAll<CartItem>('cart-items'))
+      .filter((item) => item.cartId === cartId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+  async findItem(id) {
+    return (await readAll<CartItem>('cart-items')).find((item) => item.id === id) ?? null;
+  },
+  async createItem(value) {
+    const rows = await readAll<CartItem>('cart-items');
+    await writeAll('cart-items', [...rows, value]);
+    return value;
+  },
+  async updateItem(id, patch) {
+    const rows = await readAll<CartItem>('cart-items');
+    const index = rows.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Cart item not found.');
+    const next = { ...rows[index]!, ...patch, updatedAt: nowIso() };
+    const copy = [...rows]; copy[index] = next;
+    await writeAll('cart-items', copy);
+    return next;
+  },
+  async deleteItem(id) {
+    await writeAll('cart-items', (await readAll<CartItem>('cart-items')).filter((item) => item.id !== id));
+  },
+  async delete(id) {
+    await writeAll('cart-items', (await readAll<CartItem>('cart-items')).filter((item) => item.cartId !== id));
+    await writeAll('cart-drafts', (await readAll<CartDraft>('cart-drafts')).filter((item) => item.id !== id));
+  },
+};
+
+const sales: SaleRepository = {
+  async nextInvoiceNumber(now) {
+    const year = dhakaYear(now);
+    const prefix = `INV-${year}-`;
+    const next = (await readAll<Sale>('sales')).reduce((max, item) =>
+      item.invoiceNumber.startsWith(prefix)
+        ? Math.max(max, Number(item.invoiceNumber.slice(prefix.length)) || 0)
+        : max, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async findAll(limit = 100) {
+    return (await readAll<Sale>('sales'))
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+      .slice(0, limit);
+  },
+  async search(filters, limit = 200) {
+    const query = filters.query?.trim().toLowerCase();
+    return (await readAll<Sale>('sales'))
+      .filter((item) => (
+        (!filters.from || new Date(item.completedAt) >= filters.from)
+        && (!filters.to || new Date(item.completedAt) <= filters.to)
+        && (
+          !filters.customerType
+          || (filters.customerType === 'WALK_IN' ? item.customerId === null : item.customerId !== null)
+        )
+        && (!filters.paymentStatus || item.paymentStatus === filters.paymentStatus)
+        && (!filters.paymentMethod || item.paymentMethod === filters.paymentMethod)
+        && (filters.minTotal === undefined || item.total >= filters.minTotal)
+        && (filters.maxTotal === undefined || item.total <= filters.maxTotal)
+        && (!query || [
+          item.invoiceNumber,
+          item.customerName,
+          item.customerPhone,
+          item.reference,
+          item.actorName,
+        ].some((value) => value?.toLowerCase().includes(query)))
+      ))
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+      .slice(0, Math.max(1, Math.min(limit, 500)));
+  },
+  async findById(id) {
+    return (await readAll<Sale>('sales')).find((item) => item.id === id) ?? null;
+  },
+  async findByInvoiceNumber(invoiceNumber) {
+    return (await readAll<Sale>('sales')).find((item) => item.invoiceNumber === invoiceNumber) ?? null;
+  },
+  async findByIdempotencyKey(key) {
+    return (await readAll<Sale>('sales')).find((item) => item.idempotencyKey === key) ?? null;
+  },
+  async findByCustomer(customerId) {
+    return (await readAll<Sale>('sales'))
+      .filter((item) => item.customerId === customerId)
+      .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+  },
+  async create(value) {
+    await writeAll('sales', [...await readAll<Sale>('sales'), value]);
+    return value;
+  },
+  async createItem(value) {
+    await writeAll('sale-items', [...await readAll<SaleItem>('sale-items'), value]);
+    return value;
+  },
+  async findItems(saleId) {
+    const [items, movementRows] = await Promise.all([
+      readAll<SaleItem>('sale-items'),
+      readAll<StockMovement>('stock-movements'),
+    ]);
+    const movementById = new Map(movementRows.map((movement) => [movement.id, movement]));
+    return items.filter((item) => item.saleId === saleId).map((item): InvoiceItem => {
+      const movement = movementById.get(item.movementId);
+      if (!movement || movement.unitPrice === null) {
+        throw new Error(`Invoice movement ${item.movementId} has no selling price.`);
+      }
+      const quantity = Math.abs(movement.quantity);
+      return {
+        ...item,
+        quantity,
+        actualUnitPrice: movement.unitPrice,
+        discount: (item.listUnitPrice - movement.unitPrice) * quantity,
+        lineTotal: movement.unitPrice * quantity,
+      };
+    });
+  },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -369,6 +558,9 @@ export const jsonRepositories: Repositories = {
   units,
   movements,
   warranties,
+  customers,
+  carts,
+  sales,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

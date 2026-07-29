@@ -1,0 +1,163 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
+
+import { normalizePhone } from '@/services/checkout';
+import { dhakaYear } from '@/lib/time';
+import { createCustomerSchema } from '@/schemas';
+
+const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
+
+describe('Phase 8 customer and checkout decisions', () => {
+  it('normalizes customer phone numbers without inventing walk-in records', () => {
+    expect(normalizePhone('+880 1712-345678')).toBe('01712345678');
+    expect(normalizePhone('1712-345678')).toBe('01712345678');
+    expect(normalizePhone('')).toBeNull();
+    expect(source('src/services/checkout.ts')).toContain('customerId: customer?.id ?? null');
+  });
+
+  it('accepts only Bangladeshi mobile numbers for saved customers', () => {
+    expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '01712345678' }).success).toBe(true);
+    expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '+880 1712-345678' }).success).toBe(true);
+    expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '01212345678' }).success).toBe(false);
+    expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '12345' }).success).toBe(false);
+    expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '' }).success).toBe(false);
+  });
+
+  it('does not turn a name-only customer search into an empty phone match', () => {
+    const repository = source('src/repositories/prisma/index.ts');
+    expect(repository).toContain("const digits = term.replace(/\\D/g, '')");
+    expect(repository).toContain('...(digits ? [{ phoneNormalized: { contains: digits } }] : [])');
+    expect(repository).not.toContain("phoneNormalized: { contains: term.replace(/\\D/g, '') }");
+  });
+
+  it('keeps customer records minimal and provides search plus purchase history', () => {
+    const schema = source('prisma/schema.prisma');
+    const customerModel = schema.slice(schema.indexOf('model Customer'), schema.indexOf('model CartDraft'));
+    expect(customerModel).toContain('name');
+    expect(customerModel).toContain('phone');
+    expect(customerModel).not.toContain('email');
+    expect(customerModel).not.toContain('address');
+    expect(customerModel).not.toContain('note');
+    expect(source('src/app/(dashboard)/customers/page.tsx')).toContain('db.customers.search');
+    expect(source('src/app/(dashboard)/customers/[id]/page.tsx')).toContain('db.sales.findByCustomer');
+  });
+
+  it('numbers invoices by the Dhaka calendar year', () => {
+    expect(dhakaYear(new Date('2026-12-31T20:00:00.000Z'))).toBe(2027);
+  });
+
+  it('persists one server draft per actor and records payment details', () => {
+    const schema = source('prisma/schema.prisma');
+    expect(schema).toContain('actorId String @unique');
+    expect(schema).toContain('paymentMethod PaymentMethod');
+    expect(schema).toContain('paymentStatus PaymentStatus');
+    expect(schema).toContain('enum PaymentStatus');
+  });
+
+  it('lets the owner explicitly discard a persisted draft without changing inventory', () => {
+    const service = source('src/services/checkout.ts');
+    const action = source('src/actions/checkout.ts');
+    const control = source('src/components/checkout/DiscardDraftControl.tsx');
+    expect(service).toContain('const cart = await ownedCart(tx, cartId, actorId)');
+    expect(service).toContain('await tx.carts.delete(cart.id)');
+    expect(action).toContain("action: 'cart.discard'");
+    expect(control).toContain('role="alertdialog"');
+    expect(control).toContain('Inventory will not change');
+  });
+
+  it('allows STAFF checkout while preserving immutable price snapshots', () => {
+    const permissions = source('src/lib/permissions.ts');
+    const service = source('src/services/checkout.ts');
+    expect(permissions).toContain("CHECKOUT: ['ADMIN', 'MANAGER', 'STAFF']");
+    expect(service).toContain('listUnitPrice: item.listUnitPrice');
+    expect(service).toContain('unitPrice: item.actualUnitPrice');
+    expect(service).toContain('discount: subtotal - total');
+  });
+
+  it('requires confirmation before completing a sale', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain('role="alertdialog"');
+    expect(workspace).toContain('Complete this sale?');
+    expect(workspace).toContain('reduce available stock');
+    expect(workspace).toContain("formAction={completeAction}");
+    expect(workspace).toContain('Yes, complete sale');
+  });
+});
+
+describe('Phase 8 stock and invoice invariants', () => {
+  const checkout = source('src/services/checkout.ts');
+
+  it('completes the sale inside one repository transaction with concurrency guards', () => {
+    expect(checkout).toContain('return db.transaction(async (tx)');
+    expect(checkout).toContain("transitionStatus(unit.id, 'IN_STOCK', 'SOLD'");
+    expect(checkout).toContain('tx.products._applyQuantityDelta');
+    expect(checkout).toContain('tx.movements.record');
+    expect(checkout).toContain('tx.sales.createItem');
+    expect(checkout).toContain('await tx.carts.delete(cart.id)');
+  });
+
+  it('keeps SaleItem lean and derives movement-owned invoice values', () => {
+    const schema = source('prisma/schema.prisma');
+    const saleItemModel = schema.slice(schema.indexOf('model SaleItem'));
+    const repository = source('src/repositories/prisma/index.ts');
+    const migration = source('prisma/migrations/20260728215000_simplify_sale_items/migration.sql');
+
+    expect(saleItemModel).toContain('movementId String');
+    expect(saleItemModel).toContain('movement   StockMovement');
+    expect(saleItemModel).toContain('listUnitPrice');
+    expect(saleItemModel).not.toContain('productId');
+    expect(saleItemModel).not.toContain('unitId');
+    expect(saleItemModel).not.toContain('actualUnitPrice');
+    expect(saleItemModel).not.toContain('unitCost');
+    expect(saleItemModel).not.toContain('lineTotal');
+    expect(repository).toContain('const quantity = Math.abs(row.movement.quantity)');
+    expect(repository).toContain('actualUnitPrice: row.movement.unitPrice');
+    expect(migration).toContain('DROP COLUMN "unitCost"');
+  });
+
+  it('provides A4/PDF and 80 mm thermal invoice output', () => {
+    const invoice = source('src/components/invoices/InvoiceView.tsx');
+    const css = source('src/app/globals.css');
+    expect(invoice).toContain('A4 invoice');
+    expect(invoice).toContain('80 mm thermal');
+    expect(invoice).toContain('/pdf');
+    expect(css).toContain('@page invoice-a4');
+    expect(css).toContain('@page invoice-thermal');
+  });
+
+  it('filters invoices at the repository boundary instead of in the browser', () => {
+    const page = source('src/app/(dashboard)/invoices/page.tsx');
+    const repositories = source('src/repositories/types.ts');
+    const prisma = source('src/repositories/prisma/index.ts');
+    expect(page).toContain('await db.sales.search(filters, 500)');
+    expect(page).toContain('name="paymentStatus"');
+    expect(page).toContain('name="paymentMethod"');
+    expect(page).toContain('name="customerType"');
+    expect(page).toContain('Walk-in only');
+    expect(page).toContain('name="minTotal"');
+    expect(page).toContain('name="maxTotal"');
+    expect(page).toContain('key={filterFormKey}');
+    expect(page).toContain('href="/invoices"');
+    expect(repositories).toContain('search(filters: SaleFilters');
+    expect(prisma).toContain('{ invoiceNumber: { contains: query');
+    expect(prisma).toContain("filters.customerType === 'WALK_IN'");
+    expect(prisma).toContain('total: filters.minTotal');
+  });
+
+  it('keeps returns and refunds out of the first implementation', () => {
+    const schema = source('prisma/schema.prisma');
+    expect(schema).not.toContain('model SaleReturn');
+    expect(schema).not.toContain('model ReturnItem');
+    expect(source('src/actions/checkout.ts')).not.toContain('refund');
+  });
+
+  it('uses Checkout as the only user-facing sale path', () => {
+    const stockAction = source('src/actions/stock.ts');
+    const stockForm = source('src/components/stock/StockOutForm.tsx');
+    expect(stockAction).toContain("if (reason === 'SALE')");
+    expect(stockAction).toContain('Use Checkout for every sale');
+    expect(stockForm).not.toContain("['SALE', 'Sold to a customer']");
+    expect(checkout).toContain("reason: 'SALE'");
+  });
+});

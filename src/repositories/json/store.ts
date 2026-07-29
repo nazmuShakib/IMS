@@ -27,7 +27,12 @@ export type Collection =
   | 'audit-logs'
   | 'warranty-claims'
   | 'warranty-claim-events'
-  | 'supplier-warranty-cases';
+  | 'supplier-warranty-cases'
+  | 'customers'
+  | 'cart-drafts'
+  | 'cart-items'
+  | 'sales'
+  | 'sale-items';
 
 /** Tiny in-memory cache so a single request doesn't re-read the same file 20 times. */
 const cache = new Map<Collection, unknown[]>();

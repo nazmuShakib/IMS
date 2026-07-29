@@ -18,6 +18,11 @@ async function main() {
   const bulkProductId = uuidv7();
   const serialProductId = uuidv7();
   const unitId = uuidv7();
+  const checkoutActorId = uuidv7();
+  const customerId = uuidv7();
+  const cartId = uuidv7();
+  const cartItemId = uuidv7();
+  const saleId = uuidv7();
   const now = new Date().toISOString();
 
   try {
@@ -104,6 +109,95 @@ async function main() {
       assert((await tx.warranties.findById(claimId))?.claimNumber === claimNumber, 'Warranty claim persistence failed.');
       assert((await tx.warranties.findEvents(claimId)).length === 1, 'Warranty timeline persistence failed.');
 
+      await tx.users.create({
+        id: checkoutActorId,
+        name: 'Rollback checkout actor',
+        email: `verify-${checkoutActorId}@example.invalid`,
+        emailVerified: true,
+        image: null,
+        role: 'STAFF',
+        isActive: true,
+      });
+      await tx.customers.create({
+        id: customerId,
+        name: 'Rollback customer',
+        phone: '+880 1700 000000',
+        phoneNormalized: `880${customerId.replace(/\D/g, '').slice(0, 10) || '1700000000'}`,
+        isActive: true,
+        createdAt: now,
+        updatedAt: now,
+      });
+      assert((await tx.customers.findById(customerId))?.name === 'Rollback customer', 'Customer persistence failed.');
+      await tx.carts.create({
+        id: cartId,
+        actorId: checkoutActorId,
+        customerId,
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        reference: 'ROLLBACK-VERIFY',
+        note: null,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await tx.carts.createItem({
+        id: cartItemId,
+        cartId,
+        productId: bulkProductId,
+        unitId: null,
+        quantity: 1,
+        listUnitPrice: 1_500,
+        actualUnitPrice: 1_400,
+        createdAt: now,
+        updatedAt: now,
+      });
+      assert((await tx.carts.findItems(cartId)).length === 1, 'Draft cart persistence failed.');
+
+      const invoiceNumber = await tx.sales.nextInvoiceNumber(new Date(now));
+      await tx.sales.create({
+        id: saleId,
+        invoiceNumber,
+        idempotencyKey: uuidv7(),
+        status: 'COMPLETED',
+        customerId,
+        customerName: 'Rollback customer',
+        customerPhone: '+880 1700 000000',
+        actorId: checkoutActorId,
+        actorName: 'Rollback checkout actor',
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        reference: 'ROLLBACK-VERIFY',
+        note: null,
+        subtotal: 1_500,
+        discount: 100,
+        total: 1_400,
+        completedAt: now,
+        createdAt: now,
+      });
+      await tx.products._applyQuantityDelta(bulkProductId, -1);
+      const checkoutMovement = await tx.movements.record({
+        id: uuidv7(), type: 'OUT', reason: 'SALE', productId: bulkProductId,
+        unitId: null, quantity: -1, unitCost: 1_000, unitPrice: 1_400,
+        supplierId: null, customerName: 'Rollback customer',
+        customerPhone: '+880 1700 000000', reference: invoiceNumber, note: null,
+        actorId: checkoutActorId, idempotencyKey: uuidv7(), reversesId: null,
+        createdAt: now,
+      });
+      await tx.sales.createItem({
+        id: uuidv7(),
+        saleId,
+        movementId: checkoutMovement.id,
+        productName: `Verification bulk ${bulkProductId}`,
+        sku: `VERIFY-BULK-${bulkProductId}`,
+        serialNo: null,
+        listUnitPrice: 1_500,
+        warrantyMonths: null,
+        createdAt: now,
+      });
+      assert((await tx.sales.findItems(saleId)).length === 1, 'Invoice item persistence failed.');
+      assert((await tx.sales.findById(saleId))?.invoiceNumber === invoiceNumber, 'Invoice persistence failed.');
+      await tx.carts.delete(cartId);
+      assert((await tx.carts.findById(cartId)) === null, 'Completed draft cleanup failed.');
+
       // This intentional error proves the entire verification flow is rolled back.
       throw new RollbackVerification();
     });
@@ -111,11 +205,13 @@ async function main() {
     if (!(error instanceof RollbackVerification)) throw error;
   }
 
-  const [bulk, serial] = await Promise.all([
+  const [bulk, serial, customer, sale] = await Promise.all([
     prismaRepositories.products.findById(bulkProductId),
     prismaRepositories.products.findById(serialProductId),
+    prismaRepositories.customers.findById(customerId),
+    prismaRepositories.sales.findById(saleId),
   ]);
-  assert(!bulk && !serial, 'Verification rollback failed; temporary products remain.');
+  assert(!bulk && !serial && !customer && !sale, 'Verification rollback failed; temporary records remain.');
   console.log('PostgreSQL repository verification passed; transaction rolled back with no dummy data retained.');
 }
 

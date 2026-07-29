@@ -11,7 +11,7 @@ export default async function StockOutPage({
 }: {
   searchParams: Promise<{ serial?: string }>;
 }) {
-  const { role } = await requireRole('ADMIN', 'MANAGER', 'STAFF'); // staff sell things
+  const { role } = await requireRole('ADMIN', 'MANAGER', 'STAFF');
   const { serial } = await searchParams;
 
   const products = await db.products.findAll({ activeOnly: true });
@@ -20,8 +20,8 @@ export default async function StockOutPage({
   return (
     <>
       <PageHeader
-        title="Stock out"
-        count="Sales, damage, loss — a sale is just a stock-out with a price"
+        title="Inventory removal"
+        count="Damage, loss, internal use, or return to supplier · all sales go through Checkout"
       />
       <StockOutForm
         bulkProducts={bulk.map((product) => toProductDTO(product, role))}

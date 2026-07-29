@@ -1048,6 +1048,9 @@ records `label.print` in the append-only audit log. Printing never changes stock
 
 ## 19. Phase 8 — Customers + Cart Checkout + Invoices
 
+**Implementation status: complete (28 July 2026), excluding returns/refunds as
+explicitly deferred in §19.5.**
+
 Phase 8 solves one customer buying multiple products without repeating customer
 details. It is a deliberately limited inventory-connected checkout, not a full
 POS. A separate Sales Register is explicitly out of scope.
@@ -1057,41 +1060,55 @@ POS. A separate Sales Register is explicitly out of scope.
 | Concern | Authoritative data |
 |---|---|
 | Reusable contact details | `Customer` |
-| What the invoice contained | Immutable `Sale` + `SaleItem` snapshots |
+| Invoice identity and display snapshots | Immutable `Sale` + lean `SaleItem` |
 | Stock quantities and movement history | `StockMovement` |
+| Sold quantity, realized unit price, and cost | The `StockMovement` linked one-to-one from `SaleItem` |
 | Serial identity and current inventory disposition | `ProductUnit` |
 | Detailed sales history/reporting | Existing Movement Ledger/Audit |
 
 Snapshots are deliberate only where history must not change: customer name/phone,
-product name/SKU, list price, actual price, and invoice totals. Do not create a
-second stock counter or calculate stock from invoice rows.
+product name/SKU, list price, warranty term, and invoice totals. Actual selling
+price, quantity, and cost already exist on the immutable linked movement and are
+derived from it when rendering an invoice. Do not create a second stock counter
+or duplicate movement-owned financial fields in invoice rows.
 
 ### 19.2 Customer records
 
-`Customer` stores name, normalized/indexed phone, optional email/address, notes,
-active status, and timestamps. Checkout can search by name/phone, create a customer
-inline, select one customer once for the whole cart, or use a walk-in customer
-without inventing a database record. Existing movement customer snapshots remain
-for backward-compatible history; new invoices link to the customer and preserve
-an immutable contact snapshot.
+`Customer` deliberately stores only name, normalized/indexed phone, active status,
+and timestamps. Checkout can search by name/phone, create a customer inline,
+select one customer once for the whole cart, or use a walk-in customer without
+inventing a database record. The customer section provides name/phone search and
+links each customer to their completed invoice history. Existing movement customer
+snapshots remain for backward-compatible history; new invoices link to the
+customer and preserve immutable name/phone snapshots.
 
 ### 19.3 Cart and checkout
 
+- Checkout is the only user-facing path that records `SALE`. The former Stock out
+  page is **Inventory removal** and accepts only damage, loss, internal use, and
+  return-to-supplier reasons, preventing sales without invoices.
 - Reuse the Phase 7 scanner component to add serials, product barcodes, or SKUs.
 - SERIAL lines reference one exact available `ProductUnit`; QUANTITY lines carry a
   positive quantity.
 - Support quantity changes, line removal, customer selection once, notes/reference,
   and authorized selling-price adjustment.
+- A persisted draft can be explicitly discarded after confirmation. Discarding
+  deletes its cart items and customer/payment selections, records an audit event,
+  and never changes inventory because draft items do not reserve stock.
 - The server revalidates every serial and quantity at checkout. Client state is
   never authoritative.
+- Completing a sale requires an explicit confirmation showing the total and
+  warning that stock will change and an immutable invoice will be created.
 - One idempotent PostgreSQL transaction creates `Sale`, `SaleItem` rows, unit
   transitions, quantity-cache updates, and linked SALE movements. Any unavailable
   item rolls back the entire checkout.
 
 `Sale` stores invoice number, optional customer, immutable customer snapshot,
 actor, status, subtotal/discount/total snapshots, idempotency key, notes, and
-timestamps. `SaleItem` stores product/unit links plus immutable product name, SKU,
-quantity, list-price, actual-price, discount, cost, and linked movement.
+timestamps. `SaleItem` stores only its linked movement plus invoice-specific
+immutable product name, SKU, serial, list price, and warranty snapshots. Product,
+unit, sold quantity, actual price, discount, line total, and cost are not repeated;
+invoice reads derive them from the linked immutable movement and sale totals.
 
 The actual selling price and list-price-at-sale are snapshotted so two sales of
 the same item at different prices remain explainable even after catalog prices
@@ -1100,6 +1117,10 @@ change. Financial reports continue to use movement economics.
 ### 19.4 Invoice printing
 
 - Automatic concurrency-safe invoice sequence (default `INV-YYYY-######`).
+- The invoice register supports server-side lookup by invoice/customer/phone/
+  reference/salesperson plus Dhaka-local date range, payment status/method, and
+  total-price range, including walk-in versus saved-customer filtering. Results
+  are newest first and bounded.
 - Print-friendly A4 page and PDF download/reprint.
 - Shop details, invoice/date, actor, customer snapshot, line items, serial/IMEI,
   quantity, prices, discounts, subtotal/total, warranty information, and policy
@@ -1109,23 +1130,24 @@ change. Financial reports continue to use movement economics.
 
 ### 19.5 Corrections and returns
 
-Never edit or delete a completed invoice or its movements. Full cancellation and
-item-level returns create opposing/correction movements linked to the original
-sale item, preserve the original invoice, record reason/actor, and optionally
-produce a cancellation/return document. Stock and sale-document status update in
-one transaction.
+Completed invoices and their movements are never edited or deleted. Full
+cancellation, item-level returns, refunds, exchanges, and return documents are
+explicitly deferred by the owner from the first Phase 8 implementation. Existing
+ledger correction remains available for authorized correction of an erroneous
+movement, but it does not pretend to be a customer-refund workflow.
 
 ### 19.6 Phase 8 decisions to confirm before implementation
 
-The following are intentionally not locked yet:
+**Decisions confirmed 28 July 2026:**
 
-1. Whether draft carts survive refresh/logout (recommended: server-persisted draft).
-2. STAFF price-override permission and maximum discount (recommended: limited;
-   MANAGER/ADMIN unrestricted).
-3. Whether to record payment method and paid/unpaid status; payment processing and
-   customer credit remain out of scope.
-4. Whether A4 is sufficient or an 80 mm thermal layout is also required.
-5. Whether item-level returns ship in the first Phase 8 release.
+1. Draft carts are server-persisted per user and survive refresh/logout. Users can
+   explicitly discard an unwanted draft after confirmation.
+2. STAFF may change the actual selling price; list and actual prices are both
+   snapshotted for audit and historical explanation.
+3. Record payment method plus `PAID`/`UNPAID`; payment processing and customer
+   credit remain out of scope.
+4. Provide A4/PDF and 80 mm thermal invoice layouts.
+5. Item-level returns and refund accounting are deferred.
 
 ---
 

@@ -3,7 +3,6 @@
 import { useActionState, useEffect, useState } from 'react';
 import Link from 'next/link';
 import type { ProductDTO } from '@/lib/dto';
-import { formatBDT, toTaka } from '@/lib/money';
 import {
   lookupSerial,
   stockOutAction,
@@ -14,7 +13,6 @@ import { Button, Card, Field, Input, MonoInput, Select, SerialChip } from '@/com
 import { ScannerInput } from '@/components/search/ScannerInput';
 
 const REASONS = [
-  ['SALE', 'Sold to a customer'],
   ['DAMAGE', 'Damaged / unsellable'],
   ['LOSS', 'Lost or stolen'],
   ['INTERNAL_USE', 'Shop use / demo / gift'],
@@ -147,7 +145,7 @@ function ConfirmUnit({
   idemKey: string;
   error?: string;
 }) {
-  const [reason, setReason] = useState<string>('SALE');
+  const [reason, setReason] = useState<string>('DAMAGE');
 
   return (
     <form action={action}>
@@ -182,51 +180,18 @@ function ConfirmUnit({
               </Select>
             </Field>
 
-            {reason === 'SALE' && (
-              <Field
-                label="Selling price (৳)"
-                hint={
-                  found.unit.costPrice !== undefined
-                    ? `Cost was ${formatBDT(found.unit.costPrice)}`
-                    : undefined
-                }
-              >
-                <MonoInput
-                  name="salePrice"
-                  inputMode="decimal"
-                  required
-                  defaultValue={toTaka(found.suggestedPrice)}
-                />
-              </Field>
-            )}
           </div>
 
-          {reason === 'SALE' && (
-            <div className="mt-4 grid gap-4 sm:grid-cols-3">
-              <Field label="Customer name">
-                <Input name="customerName" placeholder="Optional" />
-              </Field>
-              <Field label="Phone">
-                <MonoInput name="customerPhone" placeholder="Optional" />
-              </Field>
-              <Field label="Memo number" hint="Groups a multi-item sale">
-                <MonoInput name="reference" placeholder="MEMO-2001" />
-              </Field>
-            </div>
-          )}
-
-          {reason !== 'SALE' && (
-            <div className="mt-4">
-              <Field label="Note" hint="Goes in the audit trail">
-                <Input name="note" placeholder="Screen cracked in the back room" />
-              </Field>
-            </div>
-          )}
+          <div className="mt-4">
+            <Field label="Note" hint="Goes in the audit trail">
+              <Input name="note" placeholder="Screen cracked in the back room" />
+            </Field>
+          </div>
         </div>
       </Card>
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Recording…' : reason === 'SALE' ? 'Record sale' : 'Remove from stock'}
+        {pending ? 'Recording…' : 'Remove from stock'}
       </Button>
     </form>
   );
@@ -240,7 +205,7 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
     {},
   );
   const [productId, setProductId] = useState('');
-  const [reason, setReason] = useState('SALE');
+  const [reason, setReason] = useState('DAMAGE');
   const [key, setKey] = useState('');
 
   useEffect(() => setKey(crypto.randomUUID()), []);
@@ -320,17 +285,6 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
             </Select>
           </Field>
 
-          {reason === 'SALE' && (
-            <Field label="Selling price each (৳)">
-              <MonoInput
-                name="salePrice"
-                inputMode="decimal"
-                required
-                defaultValue={product ? toTaka(product.defaultSalePrice) : ''}
-              />
-            </Field>
-          )}
-
           <Field label="Reference">
             <MonoInput name="reference" placeholder="MEMO-2003" />
           </Field>
@@ -341,7 +295,7 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
       </Card>
 
       <Button type="submit" disabled={pending || !product}>
-        {pending ? 'Recording…' : reason === 'SALE' ? 'Record sale' : 'Remove from stock'}
+        {pending ? 'Recording…' : 'Remove from stock'}
       </Button>
     </form>
   );

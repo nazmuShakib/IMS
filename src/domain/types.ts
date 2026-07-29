@@ -89,6 +89,12 @@ export type RmaCustody = (typeof RMA_CUSTODIES)[number];
 export const SUPPLIER_WARRANTY_STATUSES = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'REPAIRED', 'REPLACED', 'CREDITED', 'RETURNED', 'CLOSED'] as const;
 export type SupplierWarrantyStatus = (typeof SUPPLIER_WARRANTY_STATUSES)[number];
 
+export const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_BANKING', 'BANK_TRANSFER', 'MIXED', 'OTHER'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+export type SaleStatus = 'COMPLETED';
+
 export interface User {
   id: string;
   name: string;
@@ -256,4 +262,79 @@ export interface AuditLog {
   after: unknown;
   ip: string | null;
   createdAt: string;
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string | null;
+  phoneNormalized: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CartDraft {
+  id: string;
+  actorId: string;
+  customerId: string | null;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  reference: string | null;
+  note: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CartItem {
+  id: string;
+  cartId: string;
+  productId: string;
+  unitId: string | null;
+  quantity: number;
+  listUnitPrice: Paisa;
+  actualUnitPrice: Paisa;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Sale {
+  id: string;
+  invoiceNumber: string;
+  idempotencyKey: string;
+  status: SaleStatus;
+  customerId: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  actorId: string;
+  actorName: string;
+  paymentMethod: PaymentMethod;
+  paymentStatus: PaymentStatus;
+  reference: string | null;
+  note: string | null;
+  subtotal: Paisa;
+  discount: Paisa;
+  total: Paisa;
+  completedAt: string;
+  createdAt: string;
+}
+
+export interface SaleItem {
+  id: string;
+  saleId: string;
+  movementId: string;
+  productName: string;
+  sku: string;
+  serialNo: string | null;
+  listUnitPrice: Paisa;
+  warrantyMonths: number | null;
+  createdAt: string;
+}
+
+/** Read model: immutable invoice snapshot plus economics from its linked movement. */
+export interface InvoiceItem extends SaleItem {
+  quantity: number;
+  actualUnitPrice: Paisa;
+  discount: Paisa;
+  lineTotal: Paisa;
 }

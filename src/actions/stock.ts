@@ -168,20 +168,22 @@ export async function stockOutAction(
   const product = await db.products.findById(productId);
   if (!product) return { error: 'Product not found' };
 
-  const reason = (str(fd, 'reason') ?? 'SALE') as MovementReason;
-  const priceRaw = str(fd, 'salePrice');
+  const reason = (str(fd, 'reason') ?? 'DAMAGE') as MovementReason;
+  if (reason === 'SALE') {
+    return { error: 'Use Checkout for every sale so an invoice and complete sale record are created.' };
+  }
   const qtyRaw = str(fd, 'quantity');
 
   try {
     const movement = await recordStockOut({
       productId,
-      reason: reason as 'SALE' | 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'RETURN_TO_SUPPLIER',
+      reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'RETURN_TO_SUPPLIER',
       serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? undefined) : undefined,
       quantity:
         product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
-      salePrice: reason === 'SALE' && priceRaw ? parseBDT(priceRaw) : undefined,
-      customerName: str(fd, 'customerName'),
-      customerPhone: str(fd, 'customerPhone'),
+      salePrice: undefined,
+      customerName: null,
+      customerPhone: null,
       reference: str(fd, 'reference'),
       note: str(fd, 'note'),
       actorId: actor.id,
@@ -205,9 +207,7 @@ export async function stockOutAction(
 
   const what =
     product.trackingType === 'SERIAL' ? str(fd, 'serialNo') : `${qtyRaw} × ${product.name}`;
-  const verb = reason === 'SALE' ? 'Sold' : 'Removed';
-
-  return { ok: `${verb} ${what}.` };
+  return { ok: `Removed ${what}.` };
 }
 
 /* --- Corrections ----------------------------------------------------------- */

@@ -11,9 +11,16 @@ import type {
   WarrantyClaim,
   WarrantyClaimEvent,
   SupplierWarrantyCase,
+  Customer,
+  CartDraft,
+  CartItem,
+  Sale,
+  SaleItem,
+  InvoiceItem,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
+import { dhakaYear } from '@/lib/time';
 import type { Repositories } from '@/repositories/types';
 
 type Client = Prisma.TransactionClient;
@@ -75,6 +82,26 @@ function warrantyEvent(row: Awaited<ReturnType<Client['warrantyClaimEvent']['fin
 
 function supplierWarrantyCase(row: Awaited<ReturnType<Client['supplierWarrantyCase']['findUniqueOrThrow']>>): SupplierWarrantyCase {
   return { ...row, sentAt: row.sentAt ? iso(row.sentAt) : null, returnedAt: row.returnedAt ? iso(row.returnedAt) : null, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function customer(row: Awaited<ReturnType<Client['customer']['findUniqueOrThrow']>>): Customer {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function cartDraft(row: Awaited<ReturnType<Client['cartDraft']['findUniqueOrThrow']>>): CartDraft {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function cartItem(row: Awaited<ReturnType<Client['cartItem']['findUniqueOrThrow']>>): CartItem {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sale {
+  return { ...row, completedAt: iso(row.completedAt), createdAt: iso(row.createdAt) };
+}
+
+function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow']>>): SaleItem {
+  return { ...row, createdAt: iso(row.createdAt) };
 }
 
 function productData(value: Product): Prisma.ProductUncheckedCreateInput {
@@ -302,6 +329,12 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       countInStock(productId) {
         return client.productUnit.count({ where: { productId, status: 'IN_STOCK' } });
       },
+      async findAllInStock() {
+        return (await client.productUnit.findMany({
+          where: { status: 'IN_STOCK' },
+          orderBy: { receivedAt: 'desc' },
+        })).map(unit);
+      },
       async createMany(values) {
         try {
           const rows = await client.productUnit.createManyAndReturn({ data: values.map(unitData) });
@@ -439,6 +472,207 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           update: { supplierId: value.supplierId, reference: value.reference, status: value.status, coverage: value.coverage, resolution: value.resolution, ...dates },
         });
         return supplierWarrantyCase(row);
+      },
+    },
+    customers: {
+      async findAll(activeOnly = false) {
+        return (await client.customer.findMany({
+          where: activeOnly ? { isActive: true } : undefined,
+          orderBy: [{ name: 'asc' }, { createdAt: 'desc' }],
+        })).map(customer);
+      },
+      async findById(id) {
+        const row = await client.customer.findUnique({ where: { id } });
+        return row ? customer(row) : null;
+      },
+      async findByNormalizedPhone(phoneNormalized) {
+        const row = await client.customer.findUnique({ where: { phoneNormalized } });
+        return row ? customer(row) : null;
+      },
+      async search(query, limit = 20) {
+        const term = query.trim();
+        const digits = term.replace(/\D/g, '');
+        return (await client.customer.findMany({
+          where: {
+            isActive: true,
+            OR: [
+              { name: { contains: term, mode: 'insensitive' } },
+              { phone: { contains: term } },
+              ...(digits ? [{ phoneNormalized: { contains: digits } }] : []),
+            ],
+          },
+          orderBy: { name: 'asc' },
+          take: Math.max(1, Math.min(limit, 50)),
+        })).map(customer);
+      },
+      async create(value) {
+        try {
+          return customer(await client.customer.create({
+            data: {
+              ...value,
+              createdAt: new Date(value.createdAt),
+              updatedAt: new Date(value.updatedAt),
+            },
+          }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    carts: {
+      async findByActor(actorId) {
+        const row = await client.cartDraft.findUnique({ where: { actorId } });
+        return row ? cartDraft(row) : null;
+      },
+      async findById(id) {
+        const row = await client.cartDraft.findUnique({ where: { id } });
+        return row ? cartDraft(row) : null;
+      },
+      async create(value) {
+        return cartDraft(await client.cartDraft.create({
+          data: {
+            ...value,
+            createdAt: new Date(value.createdAt),
+            updatedAt: new Date(value.updatedAt),
+          },
+        }));
+      },
+      async update(id, patch) {
+        return cartDraft(await client.cartDraft.update({ where: { id }, data: patch }));
+      },
+      async findItems(cartId) {
+        return (await client.cartItem.findMany({
+          where: { cartId },
+          orderBy: { createdAt: 'asc' },
+        })).map(cartItem);
+      },
+      async findItem(id) {
+        const row = await client.cartItem.findUnique({ where: { id } });
+        return row ? cartItem(row) : null;
+      },
+      async createItem(value) {
+        return cartItem(await client.cartItem.create({
+          data: {
+            ...value,
+            createdAt: new Date(value.createdAt),
+            updatedAt: new Date(value.updatedAt),
+          },
+        }));
+      },
+      async updateItem(id, patch) {
+        return cartItem(await client.cartItem.update({ where: { id }, data: patch }));
+      },
+      async deleteItem(id) {
+        await client.cartItem.delete({ where: { id } });
+      },
+      async delete(id) {
+        await client.cartDraft.delete({ where: { id } });
+      },
+    },
+    sales: {
+      async nextInvoiceNumber(now) {
+        const year = dhakaYear(now);
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `INV:${year}` },
+          create: { key: `INV:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `INV-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findAll(limit = 100) {
+        return (await client.sale.findMany({
+          orderBy: { completedAt: 'desc' },
+          take: Math.max(1, Math.min(limit, 500)),
+        })).map(sale);
+      },
+      async search(filters, limit = 200) {
+        const query = filters.query?.trim();
+        return (await client.sale.findMany({
+          where: {
+            completedAt: filters.from || filters.to
+              ? { gte: filters.from, lte: filters.to }
+              : undefined,
+            customerId: filters.customerType === 'WALK_IN'
+              ? null
+              : filters.customerType === 'REGISTERED'
+                ? { not: null }
+                : undefined,
+            paymentStatus: filters.paymentStatus,
+            paymentMethod: filters.paymentMethod,
+            total: filters.minTotal !== undefined || filters.maxTotal !== undefined
+              ? { gte: filters.minTotal, lte: filters.maxTotal }
+              : undefined,
+            ...(query ? {
+              OR: [
+                { invoiceNumber: { contains: query, mode: 'insensitive' } },
+                { customerName: { contains: query, mode: 'insensitive' } },
+                { customerPhone: { contains: query } },
+                { reference: { contains: query, mode: 'insensitive' } },
+                { actorName: { contains: query, mode: 'insensitive' } },
+              ],
+            } : {}),
+          },
+          orderBy: { completedAt: 'desc' },
+          take: Math.max(1, Math.min(limit, 500)),
+        })).map(sale);
+      },
+      async findById(id) {
+        const row = await client.sale.findUnique({ where: { id } });
+        return row ? sale(row) : null;
+      },
+      async findByInvoiceNumber(invoiceNumber) {
+        const row = await client.sale.findUnique({ where: { invoiceNumber } });
+        return row ? sale(row) : null;
+      },
+      async findByIdempotencyKey(idempotencyKey) {
+        const row = await client.sale.findUnique({ where: { idempotencyKey } });
+        return row ? sale(row) : null;
+      },
+      async findByCustomer(customerId) {
+        return (await client.sale.findMany({
+          where: { customerId },
+          orderBy: { completedAt: 'desc' },
+        })).map(sale);
+      },
+      async create(value) {
+        return sale(await client.sale.create({
+          data: {
+            ...value,
+            completedAt: new Date(value.completedAt),
+            createdAt: new Date(value.createdAt),
+          },
+        }));
+      },
+      async createItem(value) {
+        return saleItem(await client.saleItem.create({
+          data: { ...value, createdAt: new Date(value.createdAt) },
+        }));
+      },
+      async findItems(saleId) {
+        const rows = await client.saleItem.findMany({
+          where: { saleId },
+          include: { movement: true },
+          orderBy: { createdAt: 'asc' },
+        });
+        return rows.map((row): InvoiceItem => {
+          if (row.movement.unitPrice === null) {
+            throw new Error(`Invoice movement ${row.movementId} has no selling price.`);
+          }
+          const quantity = Math.abs(row.movement.quantity);
+          return {
+            id: row.id,
+            saleId: row.saleId,
+            movementId: row.movementId,
+            productName: row.productName,
+            sku: row.sku,
+            serialNo: row.serialNo,
+            listUnitPrice: row.listUnitPrice,
+            warrantyMonths: row.warrantyMonths,
+            createdAt: iso(row.createdAt),
+            quantity,
+            actualUnitPrice: row.movement.unitPrice,
+            discount: (row.listUnitPrice - row.movement.unitPrice) * quantity,
+            lineTotal: row.movement.unitPrice * quantity,
+          };
+        });
       },
     },
     transaction: transact ?? ((fn) => fn(repositories)),

@@ -1,10 +1,12 @@
 # Electronics Shop — Inventory Management System
 
-Phases 0–7.5 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
+Phases 0–8 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
 Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
 financial reports with CSV/PDF export, scanner workflows, and Warranty/RMA. Full
 spec in `PLAN.md`. Stock labels support 50 × 25 mm thermal and A4 adhesive-sheet
 printing without duplicating inventory identifiers.
+Phase 8 adds reusable customers, discardable server-persisted carts, transactional multi-item
+checkout, payment status/method snapshots, and immutable A4/PDF/80 mm invoices.
 
 ## Requirements
 
@@ -36,6 +38,7 @@ Use Node.js 22 and configure these variables for the Production environment:
 - `BETTER_AUTH_SECRET` — at least 32 high-entropy characters
 - `BETTER_AUTH_URL` — the exact production HTTPS origin
 - `SHOP_NAME` — name printed on stock labels (defaults to `Electronics Shop`)
+- `SHOP_ADDRESS`, `SHOP_PHONE`, `INVOICE_POLICY` — optional invoice details
 
 Run committed Prisma migrations separately with `npm run db:deploy`; do not run
 migrations inside the Vercel build. `INITIAL_ADMIN_*` variables are only for the
@@ -103,11 +106,12 @@ src/proxy.ts             coarse cookie redirect (not authorization)
 11. Receive stock and use **Print labels** from the success message, or open
     **Stock → Print labels** to scan, select, preview, and reprint 50 × 25 mm
     Code 128 labels.
+12. Open **Checkout**, scan or manually select several products, choose one saved
+    customer or walk-in, record payment details, adjust selling prices if needed,
+    and complete the cart atomically. Reprint the immutable invoice as A4,
+    downloadable PDF, or 80 mm thermal output.
 
 ## Next
 
-The next milestone is:
-
-> Read PLAN.md and CLAUDE.md. Confirm the Phase 8 checkout decisions in §19.6
-> before implementing the cart and invoice workflow.
-> Stop when done.
+Returns/refunds, purchase orders, VAT invoices, camera scanning, and multi-branch
+inventory remain deferred. See `PLAN.md`.

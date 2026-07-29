@@ -17,7 +17,7 @@ const CATALOG = [
 const STOCK = [
   { href: '/stock/in', label: 'Receive stock' },
   { href: '/stock/labels', label: 'Print labels' },
-  { href: '/stock/out', label: 'Stock out' },
+  { href: '/stock/out', label: 'Inventory removal' },
   { href: '/stock/movements', label: 'Movement ledger' },
 ];
 
@@ -38,6 +38,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
           <p className="eyebrow px-2 pb-1.5">Overview</p>
           <NavLink href="/">Dashboard</NavLink>
+
+          <p className="eyebrow mt-5 px-2 pb-1.5">Sales</p>
+          <NavLink href="/checkout">Checkout</NavLink>
+          <NavLink href="/invoices">Invoices</NavLink>
+          <NavLink href="/customers">Customers</NavLink>
 
           <p className="eyebrow mt-5 px-2 pb-1.5">Stock</p>
           {STOCK.map((item) => (

@@ -13,6 +13,14 @@ import type {
   WarrantyClaimEvent,
   SupplierWarrantyCase,
   RmaStatus,
+  Customer,
+  CartDraft,
+  CartItem,
+  Sale,
+  SaleItem,
+  InvoiceItem,
+  PaymentMethod,
+  PaymentStatus,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -83,6 +91,7 @@ export interface ProductUnitRepository {
   findBySerial(serialNo: string): Promise<ProductUnit | null>;
   findByProduct(productId: string, status?: UnitStatus): Promise<ProductUnit[]>;
   countInStock(productId: string): Promise<number>;
+  findAllInStock(): Promise<ProductUnit[]>;
   createMany(units: ProductUnit[]): Promise<ProductUnit[]>;
 
   /**
@@ -96,6 +105,51 @@ export interface ProductUnitRepository {
     next: UnitStatus,
     patch?: Partial<ProductUnit>,
   ): Promise<ProductUnit>;
+}
+
+export interface CustomerRepository {
+  findAll(activeOnly?: boolean): Promise<Customer[]>;
+  findById(id: string): Promise<Customer | null>;
+  findByNormalizedPhone(phoneNormalized: string): Promise<Customer | null>;
+  search(query: string, limit?: number): Promise<Customer[]>;
+  create(value: Customer): Promise<Customer>;
+}
+
+export interface CartRepository {
+  findByActor(actorId: string): Promise<CartDraft | null>;
+  findById(id: string): Promise<CartDraft | null>;
+  create(value: CartDraft): Promise<CartDraft>;
+  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note'>>): Promise<CartDraft>;
+  findItems(cartId: string): Promise<CartItem[]>;
+  findItem(id: string): Promise<CartItem | null>;
+  createItem(value: CartItem): Promise<CartItem>;
+  updateItem(id: string, patch: Pick<CartItem, 'quantity' | 'actualUnitPrice'>): Promise<CartItem>;
+  deleteItem(id: string): Promise<void>;
+  delete(id: string): Promise<void>;
+}
+
+export interface SaleRepository {
+  nextInvoiceNumber(now: Date): Promise<string>;
+  findAll(limit?: number): Promise<Sale[]>;
+  search(filters: SaleFilters, limit?: number): Promise<Sale[]>;
+  findById(id: string): Promise<Sale | null>;
+  findByInvoiceNumber(invoiceNumber: string): Promise<Sale | null>;
+  findByIdempotencyKey(key: string): Promise<Sale | null>;
+  findByCustomer(customerId: string): Promise<Sale[]>;
+  create(value: Sale): Promise<Sale>;
+  createItem(value: SaleItem): Promise<SaleItem>;
+  findItems(saleId: string): Promise<InvoiceItem[]>;
+}
+
+export interface SaleFilters {
+  query?: string;
+  from?: Date;
+  to?: Date;
+  customerType?: 'WALK_IN' | 'REGISTERED';
+  paymentStatus?: PaymentStatus;
+  paymentMethod?: PaymentMethod;
+  minTotal?: Paisa;
+  maxTotal?: Paisa;
 }
 
 export interface MovementFilters {
@@ -147,5 +201,8 @@ export interface Repositories {
   units: ProductUnitRepository;
   movements: StockMovementRepository;
   warranties: WarrantyRepository;
+  customers: CustomerRepository;
+  carts: CartRepository;
+  sales: SaleRepository;
   transaction: Transactor;
 }

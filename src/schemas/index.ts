@@ -8,7 +8,10 @@ import {
   RMA_CUSTODIES,
   RMA_COVERAGES,
   SUPPLIER_WARRANTY_STATUSES,
+  PAYMENT_METHODS,
+  PAYMENT_STATUSES,
 } from '@/domain/types';
+import { isBangladeshMobile } from '@/lib/phone';
 
 /**
  * ONE schema per input, shared by the client form (react-hook-form) and the
@@ -123,6 +126,39 @@ export const stockOutSchema = z
     path: ['salePrice'],
   });
 export type StockOutInput = z.infer<typeof stockOutSchema>;
+
+export const createCustomerSchema = z.object({
+  name: z.string().min(1).max(150).trim(),
+  phone: z
+    .string()
+    .trim()
+    .min(1, 'A mobile number is required.')
+    .max(30)
+    .refine(
+      isBangladeshMobile,
+      'Enter a valid Bangladeshi mobile number, such as 01712345678 or +8801712345678.',
+    ),
+});
+export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
+
+export const cartItemUpdateSchema = z.object({
+  quantity: z.number().int().positive().max(10_000),
+  actualUnitPrice: paisa,
+});
+
+export const cartDetailsSchema = z.object({
+  customerId: z.string().uuid().optional().nullable(),
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  paymentStatus: z.enum(PAYMENT_STATUSES),
+  reference: z.string().max(100).optional().nullable(),
+  note: z.string().max(1000).optional().nullable(),
+});
+
+export const checkoutSchema = z.object({
+  cartId: z.string().uuid(),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8).max(200),
+});
 
 /** Corrections: never edit a movement, write an opposing one. PLAN.md §8.3. */
 export const correctionSchema = z.object({

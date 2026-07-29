@@ -97,6 +97,24 @@ enum SupplierWarrantyStatus {
   CLOSED
 }
 
+enum SaleStatus {
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PAID
+  UNPAID
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  MOBILE_BANKING
+  BANK_TRANSFER
+  MIXED
+  OTHER
+}
+
 // ===========================================================================
 //  AUTH  (Better Auth owns the shape of User/Session/Account/Verification)
 //  Run Better Auth's schema generator, then add `role` + business relations.
@@ -123,6 +141,8 @@ model User {
   openedWarrantyClaims   WarrantyClaim[]      @relation("WarrantyOpenedBy")
   assignedWarrantyClaims WarrantyClaim[]      @relation("WarrantyAssignedTo")
   warrantyClaimEvents    WarrantyClaimEvent[]
+  cartDraft              CartDraft?
+  sales                  Sale[]
 
   @@index([role])
   @@map("users")
@@ -285,6 +305,7 @@ model Product {
 
   units     ProductUnit[]
   movements StockMovement[]
+  cartItems CartItem[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -329,6 +350,7 @@ model ProductUnit {
 
   movements      StockMovement[]
   warrantyClaims WarrantyClaim[]
+  cartItems      CartItem[]
 
   @@index([productId, status]) // on-hand counts
   @@index([status])
@@ -390,6 +412,7 @@ model StockMovement {
   warrantyClaimId String?
   warrantyClaim   WarrantyClaim?  @relation("WarrantyMovement", fields: [warrantyClaimId], references: [id], onDelete: Restrict)
   warrantySaleFor WarrantyClaim[] @relation("WarrantySale")
+  saleItem        SaleItem?
 
   /// ⚠️ No updatedAt. This table is append-only by design.
   createdAt DateTime @default(now())
@@ -490,4 +513,127 @@ model DocumentSequence {
   value Int    @default(0)
 
   @@map("document_sequences")
+}
+
+// ===========================================================================
+//  PHASE 8 — reusable customers, server drafts, immutable sales and invoices
+// ===========================================================================
+
+model Customer {
+  id              String   @id @default(uuid(7))
+  name            String
+  phone           String?
+  phoneNormalized String?  @unique
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  drafts CartDraft[]
+  sales  Sale[]
+
+  @@index([name])
+  @@index([isActive])
+  @@map("customers")
+}
+
+model CartDraft {
+  id      String @id @default(uuid(7))
+  actorId String @unique
+  actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  paymentMethod PaymentMethod @default(CASH)
+  paymentStatus PaymentStatus @default(PAID)
+  reference     String?
+  note          String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items CartItem[]
+
+  @@index([customerId])
+  @@map("cart_drafts")
+}
+
+model CartItem {
+  id     String    @id @default(uuid(7))
+  cartId String
+  cart   CartDraft @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  productId String
+  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  unitId String?
+  unit   ProductUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
+
+  quantity        Int
+  listUnitPrice   Int
+  actualUnitPrice Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([cartId, unitId])
+  @@unique([cartId, productId, unitId])
+  @@index([cartId])
+  @@index([productId])
+  @@map("cart_items")
+}
+
+model Sale {
+  id             String     @id @default(uuid(7))
+  invoiceNumber  String     @unique
+  idempotencyKey String     @unique
+  status         SaleStatus @default(COMPLETED)
+
+  customerId String?
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+
+  customerName  String?
+  customerPhone String?
+
+  actorId   String
+  actor     User   @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  actorName String
+
+  paymentMethod PaymentMethod
+  paymentStatus PaymentStatus
+  reference     String?
+  note          String?
+
+  subtotal Int
+  discount Int
+  total    Int
+
+  completedAt DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  items SaleItem[]
+
+  @@index([customerId, completedAt])
+  @@index([actorId, completedAt])
+  @@index([completedAt])
+  @@index([paymentStatus, completedAt])
+  @@map("sales")
+}
+
+model SaleItem {
+  id     String @id @default(uuid(7))
+  saleId String
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Restrict)
+
+  movementId String        @unique
+  movement   StockMovement @relation(fields: [movementId], references: [id], onDelete: Restrict)
+
+  productName    String
+  sku            String
+  serialNo       String?
+  listUnitPrice  Int
+  warrantyMonths Int?
+
+  createdAt DateTime @default(now())
+
+  @@index([saleId])
+  @@map("sale_items")
 }

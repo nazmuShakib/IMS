@@ -211,3 +211,233 @@ body {
     break-inside: avoid;
   }
 }
+
+/* Phase 8 immutable invoice preview/printing. */
+.invoice-document {
+  box-sizing: border-box;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto;
+  border: 1px solid var(--color-rule);
+  background: #fff;
+  padding: 15mm;
+  color: #14181d;
+  font-size: 10pt;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-document {
+  width: 80mm;
+  min-height: 0;
+  padding: 4mm;
+  font-size: 8pt;
+}
+
+.invoice-header,
+.invoice-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8mm;
+}
+
+.invoice-header {
+  align-items: flex-start;
+  border-bottom: 0.4mm solid #14181d;
+  padding-bottom: 5mm;
+}
+
+.invoice-header h1 {
+  font-size: 20pt;
+  font-weight: 700;
+}
+
+.invoice-header p,
+.invoice-meta p {
+  margin-top: 1mm;
+  color: #626c76;
+}
+
+.invoice-title {
+  display: grid;
+  justify-items: end;
+  gap: 1.5mm;
+}
+
+.invoice-title strong {
+  font-size: 18pt;
+}
+
+.invoice-meta {
+  padding: 6mm 0;
+}
+
+.invoice-meta > div {
+  width: 48%;
+}
+
+.invoice-meta span,
+.invoice-payment span {
+  display: block;
+  margin-bottom: 1mm;
+  color: #626c76;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invoice-meta strong {
+  display: block;
+}
+
+.invoice-items {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.invoice-items th,
+.invoice-items td {
+  border-bottom: 0.2mm solid #d5dade;
+  padding: 2.5mm 2mm;
+  text-align: right;
+  vertical-align: top;
+}
+
+.invoice-items th {
+  background: #e9ecee;
+  font-size: 7pt;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.invoice-items th:first-child,
+.invoice-items td:first-child {
+  text-align: left;
+}
+
+.invoice-items td:first-child strong,
+.invoice-items td:first-child span {
+  display: block;
+}
+
+.invoice-items td:first-child span {
+  margin-top: 1mm;
+  color: #626c76;
+  font-size: 8pt;
+}
+
+.invoice-summary {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 5mm;
+}
+
+.invoice-summary dl {
+  width: 72mm;
+}
+
+.invoice-summary dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 5mm;
+  padding: 1.5mm 0;
+}
+
+.invoice-summary .invoice-total {
+  margin-top: 1mm;
+  border-top: 0.4mm solid #14181d;
+  font-size: 14pt;
+  font-weight: 700;
+}
+
+.invoice-payment {
+  margin-top: 7mm;
+  border-top: 0.2mm solid #d5dade;
+  padding-top: 4mm;
+}
+
+.invoice-payment p + p {
+  margin-top: 3mm;
+}
+
+.invoice-document footer {
+  margin-top: 12mm;
+  color: #626c76;
+  font-size: 8pt;
+}
+
+.invoice-document footer p + p {
+  margin-top: 2mm;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-header {
+  display: block;
+  text-align: center;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-header h1 {
+  font-size: 14pt;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-title {
+  justify-items: center;
+  margin-top: 3mm;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-title strong {
+  font-size: 11pt;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-meta {
+  display: block;
+  padding: 3mm 0;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-meta > div {
+  width: 100%;
+  margin-bottom: 3mm;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-items th,
+.invoice-root[data-layout='thermal'] .invoice-items td {
+  padding: 1.5mm 0.8mm;
+  font-size: 6.5pt;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-items th:nth-child(3),
+.invoice-root[data-layout='thermal'] .invoice-items td:nth-child(3) {
+  display: none;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-items td:first-child span {
+  font-size: 6.2pt;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-summary dl {
+  width: 100%;
+}
+
+.invoice-root[data-layout='thermal'] .invoice-summary .invoice-total {
+  font-size: 11pt;
+}
+
+@page invoice-a4 {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page invoice-thermal {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  .invoice-root[data-layout='a4'] .invoice-document {
+    page: invoice-a4;
+    border: 0;
+  }
+
+  .invoice-root[data-layout='thermal'] .invoice-document {
+    page: invoice-thermal;
+    border: 0;
+  }
+}
