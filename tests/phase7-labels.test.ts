@@ -59,6 +59,15 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");
   });
 
+  it('allows the label quantity to be cleared while entering a replacement value', () => {
+    const studio = source('src/components/labels/StockLabelStudio.tsx');
+    expect(studio).toContain("useState<number | ''>");
+    expect(studio).toContain("if (next === '')");
+    expect(studio).toContain("if (copies === '') setCopies(1)");
+    expect(studio).toContain('requested <= 500');
+    expect(studio).toContain('You can print 1–500 labels per job.');
+  });
+
   it('shows immediate feedback while label and filtered route data load', () => {
     const studio = source('src/components/labels/StockLabelStudio.tsx');
     expect(studio).toContain('useTransition');

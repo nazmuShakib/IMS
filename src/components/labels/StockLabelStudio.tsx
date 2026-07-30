@@ -95,7 +95,7 @@ export function StockLabelStudio({
   const router = useRouter();
   const [selectedProductId, setSelectedProductId] = useState(product?.id ?? '');
   const [selected, setSelected] = useState(() => new Set(initialUnitIds));
-  const [copies, setCopies] = useState(Math.max(1, initialCopies));
+  const [copies, setCopies] = useState<number | ''>(Math.max(1, initialCopies));
   const [layout, setLayout] = useState<'thermal' | 'a4'>('thermal');
   const [statusFilter, setStatusFilter] = useState<UnitStatus | 'ALL'>(
     initialUnitIds.length > 0 ? 'ALL' : 'IN_STOCK',
@@ -127,27 +127,28 @@ export function StockLabelStudio({
     () => units.filter((unit) => selected.has(unit.id)),
     [selected, units],
   );
+  const copyCount = copies === '' ? 0 : copies;
   const labelCount = product?.trackingType === 'SERIAL'
-    ? selectedUnits.length * copies
+    ? selectedUnits.length * copyCount
     : product
-      ? copies
+      ? copyCount
       : 0;
 
   const labels = useMemo(() => {
-    if (!product) return [];
+    if (!product || labelCount === 0 || labelCount > 500) return [];
     if (product.trackingType === 'QUANTITY') {
-      return Array.from({ length: copies }, (_, index) => ({
+      return Array.from({ length: copyCount }, (_, index) => ({
         key: `quantity-${index}`,
         serialNo: undefined,
       }));
     }
     return selectedUnits.flatMap((unit) =>
-      Array.from({ length: copies }, (_, index) => ({
+      Array.from({ length: copyCount }, (_, index) => ({
         key: `${unit.id}-${index}`,
         serialNo: unit.serialNo,
       })),
     );
-  }, [copies, product, selectedUnits]);
+  }, [copyCount, labelCount, product, selectedUnits]);
 
   function navigateToProduct(productId: string, unitId?: string) {
     setSelectedProductId(productId);
@@ -371,9 +372,27 @@ export function StockLabelStudio({
                     type="number"
                     min={1}
                     max={500}
+                    required
+                    aria-describedby="label-count-help"
                     value={copies}
-                    onChange={(event) => setCopies(Math.max(1, Math.min(500, Number(event.target.value) || 1)))}
+                    onChange={(event) => {
+                      const next = event.target.value;
+                      if (next === '') {
+                        setCopies('');
+                        return;
+                      }
+                      const requested = Number(next);
+                      if (Number.isInteger(requested) && requested >= 1 && requested <= 500) {
+                        setCopies(requested);
+                      }
+                    }}
+                    onBlur={() => {
+                      if (copies === '') setCopies(1);
+                    }}
                   />
+                  <p id="label-count-help" className="mt-1 text-[11px] text-graphite">
+                    You can print 1–500 labels per job.
+                  </p>
                 </Field>
                 <Field label="Print layout">
                   <Select value={layout} onChange={(event) => setLayout(event.target.value as 'thermal' | 'a4')}>
