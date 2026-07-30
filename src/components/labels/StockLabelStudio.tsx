@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState } from 'react';
+import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -9,6 +9,7 @@ import {
 } from '@/actions/labels';
 import { Barcode128 } from '@/components/labels/Barcode128';
 import { ScannerInput } from '@/components/search/ScannerInput';
+import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import {
   Button,
   Card,
@@ -80,6 +81,7 @@ export function StockLabelStudio({
   initialCopies,
   role,
   shopName,
+  resultVersion,
 }: {
   products: LabelProductOption[];
   product: LabelProductOption | null;
@@ -88,8 +90,10 @@ export function StockLabelStudio({
   initialCopies: number;
   role: Role;
   shopName: string;
+  resultVersion: string;
 }) {
   const router = useRouter();
+  const [selectedProductId, setSelectedProductId] = useState(product?.id ?? '');
   const [selected, setSelected] = useState(() => new Set(initialUnitIds));
   const [copies, setCopies] = useState(Math.max(1, initialCopies));
   const [layout, setLayout] = useState<'thermal' | 'a4'>('thermal');
@@ -97,6 +101,10 @@ export function StockLabelStudio({
     initialUnitIds.length > 0 ? 'ALL' : 'IN_STOCK',
   );
   const [scanError, setScanError] = useState('');
+  const [searching, setSearching] = useState(false);
+  const [navigating, setNavigating] = useState(false);
+  const [refreshPending, startNavigation] = useTransition();
+  const loading = navigating || refreshPending || searching;
   const [state, formAction, pending] = useActionState<LabelPrintState, FormData>(
     recordLabelPrintAction,
     {},
@@ -105,6 +113,11 @@ export function StockLabelStudio({
   useEffect(() => {
     if (state.printNonce) window.print();
   }, [state.printNonce]);
+
+  useEffect(() => {
+    setSelectedProductId(product?.id ?? '');
+    setNavigating(false);
+  }, [product?.id, resultVersion]);
 
   const visibleUnits = useMemo(
     () => units.filter((unit) => statusFilter === 'ALL' || unit.status === statusFilter),
@@ -137,9 +150,15 @@ export function StockLabelStudio({
   }, [copies, product, selectedUnits]);
 
   function navigateToProduct(productId: string, unitId?: string) {
+    setSelectedProductId(productId);
+    setScanError('');
+    setNavigating(true);
     const params = new URLSearchParams({ product: productId });
     if (unitId) params.set('unit', unitId);
-    router.push(`/stock/labels?${params.toString()}`);
+    window.history.pushState(null, '', `/stock/labels?${params.toString()}`);
+    startNavigation(() => {
+      router.refresh();
+    });
   }
 
   async function scan(value: string) {
@@ -155,6 +174,7 @@ export function StockLabelStudio({
       return;
     }
 
+    setSearching(true);
     try {
       const response = await fetch(`/api/search?q=${encodeURIComponent(value.trim())}`);
       const result = (await response.json()) as SearchResponse & { error?: string };
@@ -176,6 +196,8 @@ export function StockLabelStudio({
       );
     } catch (error) {
       setScanError(error instanceof Error ? error.message : 'Could not search inventory.');
+    } finally {
+      setSearching(false);
     }
   }
 
@@ -189,7 +211,11 @@ export function StockLabelStudio({
   }
 
   return (
-    <div className="stock-label-print-root" data-layout={layout}>
+    <div
+      className="stock-label-print-root"
+      data-layout={layout}
+      aria-busy={loading}
+    >
       <div className="label-screen-only">
         <Card className="mb-4 p-5">
           <div className="grid gap-4 md:grid-cols-2">
@@ -198,12 +224,14 @@ export function StockLabelStudio({
                 placeholder="Scan, then press Enter"
                 onScan={scan}
                 onValueChange={() => setScanError('')}
+                disabled={loading}
               />
             </Field>
             <Field label="Product">
               <Select
-                value={product?.id ?? ''}
+                value={selectedProductId}
                 onChange={(event) => navigateToProduct(event.target.value)}
+                disabled={loading}
               >
                 <option value="" disabled>Choose a product</option>
                 {products.map((item) => (
@@ -217,7 +245,14 @@ export function StockLabelStudio({
           {scanError && <p className="mt-2 text-[12px] text-out">{scanError}</p>}
         </Card>
 
-        {!product ? (
+        {loading ? (
+          <Card>
+            <LoadingScreen
+              compact
+              label={searching ? 'Searching inventory…' : 'Loading product labels…'}
+            />
+          </Card>
+        ) : !product ? (
           <Card>
             <EmptyState title="Choose or scan a product to prepare its labels." />
           </Card>

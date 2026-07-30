@@ -41,6 +41,12 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(customerModel).not.toContain('note');
     expect(source('src/app/(dashboard)/customers/page.tsx')).toContain('db.customers.search');
     expect(source('src/app/(dashboard)/customers/[id]/page.tsx')).toContain('db.sales.findByCustomer');
+    const register = source('src/components/customers/CustomerRegister.tsx');
+    expect(register).toContain('setFiltering(true)');
+    expect(register).toContain('setFiltering(false)');
+    expect(register).toContain('Searching customers…');
+    expect(register).toContain('window.history.pushState');
+    expect(register).toContain('router.refresh()');
   });
 
   it('numbers invoices by the Dhaka calendar year', () => {
@@ -128,17 +134,25 @@ describe('Phase 8 stock and invoice invariants', () => {
 
   it('filters invoices at the repository boundary instead of in the browser', () => {
     const page = source('src/app/(dashboard)/invoices/page.tsx');
+    const register = source('src/components/invoices/InvoiceRegister.tsx');
     const repositories = source('src/repositories/types.ts');
     const prisma = source('src/repositories/prisma/index.ts');
     expect(page).toContain('await db.sales.search(filters, 500)');
-    expect(page).toContain('name="paymentStatus"');
-    expect(page).toContain('name="paymentMethod"');
-    expect(page).toContain('name="customerType"');
-    expect(page).toContain('Walk-in only');
-    expect(page).toContain('name="minTotal"');
-    expect(page).toContain('name="maxTotal"');
-    expect(page).toContain('key={filterFormKey}');
-    expect(page).toContain('href="/invoices"');
+    expect(register).toContain('name="paymentStatus"');
+    expect(register).toContain('name="paymentMethod"');
+    expect(register).toContain('name="customerType"');
+    expect(register).toContain('Walk-in only');
+    expect(register).toContain('name="minTotal"');
+    expect(register).toContain('name="maxTotal"');
+    expect(register).toContain('useTransition');
+    expect(register).toContain('Filtering invoices…');
+    expect(register).toContain('setValues(next)');
+    expect(register).toContain('setFiltering(true)');
+    expect(register).toContain('setFiltering(false)');
+    expect(page).toContain('resultVersion={crypto.randomUUID()}');
+    expect(register).toContain('window.history.pushState');
+    expect(register).toContain('router.refresh()');
+    expect(source('src/app/(dashboard)/invoices/loading.tsx')).toContain('Loading invoices…');
     expect(repositories).toContain('search(filters: SaleFilters');
     expect(prisma).toContain('{ invoiceNumber: { contains: query');
     expect(prisma).toContain("filters.customerType === 'WALK_IN'");

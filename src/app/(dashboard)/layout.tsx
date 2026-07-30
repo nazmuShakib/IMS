@@ -3,23 +3,10 @@ import { getSession } from '@/lib/session';
 import { Badge } from '@/components/ui';
 import { SignOutControl } from '@/components/auth/SignOutControl';
 import { CommandPalette } from '@/components/search/CommandPalette';
-import { NavLink } from '@/components/shell/NavLink';
+import { MobileNavigation } from '@/components/shell/MobileNavigation';
+import { NavigationLinks } from '@/components/shell/NavigationLinks';
 
 export const dynamic = 'force-dynamic'; // JSON repos read from disk per request
-
-const CATALOG = [
-  { href: '/products', label: 'Products' },
-  { href: '/categories', label: 'Categories' },
-  { href: '/brands', label: 'Brands' },
-  { href: '/suppliers', label: 'Suppliers' },
-];
-
-const STOCK = [
-  { href: '/stock/in', label: 'Receive stock' },
-  { href: '/stock/labels', label: 'Print labels' },
-  { href: '/stock/out', label: 'Inventory removal' },
-  { href: '/stock/movements', label: 'Movement ledger' },
-];
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const { user, role } = await getSession();
@@ -27,7 +14,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
   return (
     <div className="flex min-h-screen">
       {/* --- Sidebar ---------------------------------------------------- */}
-      <aside className="hidden w-52 shrink-0 flex-col border-r border-rule bg-card print:hidden md:flex">
+      <aside className="hidden w-52 shrink-0 flex-col overflow-hidden border-r border-rule bg-card print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
         <div className="border-b border-rule px-4 py-4">
           <Link href="/" className="block">
             <span className="text-[13px] font-semibold tracking-[-0.01em]">Inventory</span>
@@ -36,45 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-          <p className="eyebrow px-2 pb-1.5">Overview</p>
-          <NavLink href="/">Dashboard</NavLink>
-
-          <p className="eyebrow mt-5 px-2 pb-1.5">Sales</p>
-          <NavLink href="/checkout">Checkout</NavLink>
-          <NavLink href="/invoices">Invoices</NavLink>
-          <NavLink href="/customers">Customers</NavLink>
-
-          <p className="eyebrow mt-5 px-2 pb-1.5">Stock</p>
-          {STOCK.map((item) => (
-            <NavLink key={item.href} href={item.href}>
-              {item.label}
-            </NavLink>
-          ))}
-          {role !== 'STAFF' && (
-            <>
-              <NavLink href="/stock/reconcile">Reconciliation</NavLink>
-              <p className="eyebrow mt-5 px-2 pb-1.5">Analysis</p>
-              <NavLink href="/reports">Reports</NavLink>
-            </>
-          )}
-
-          <p className="eyebrow mt-5 px-2 pb-1.5">After-sales</p>
-          <NavLink href="/warranty">Warranty / RMA</NavLink>
-
-          <p className="eyebrow mt-5 px-2 pb-1.5">Catalog</p>
-          {CATALOG.map((item) => (
-            <NavLink key={item.href} href={item.href}>
-              {item.label}
-            </NavLink>
-          ))}
-
-          {role === 'ADMIN' && (
-            <>
-              <p className="eyebrow mt-5 px-2 pb-1.5">Administration</p>
-              <NavLink href="/users">Users</NavLink>
-              <NavLink href="/audit">Audit log</NavLink>
-            </>
-          )}
+          <NavigationLinks role={role} />
         </nav>
 
         <div className="border-t border-rule px-4 py-3">
@@ -90,6 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       {/* --- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-4 print:hidden">
+          <MobileNavigation role={role} userName={user.name} />
           <CommandPalette />
         </header>
 

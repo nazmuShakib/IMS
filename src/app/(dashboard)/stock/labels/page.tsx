@@ -105,6 +105,7 @@ export default async function StockLabelsPage({
         initialCopies={initialCopies}
         role={actor.role}
         shopName={process.env.SHOP_NAME?.trim() || 'Electronics Shop'}
+        resultVersion={crypto.randomUUID()}
       />
     </>
   );

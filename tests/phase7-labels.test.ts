@@ -56,6 +56,26 @@ describe('Phase 7.5 stock-label invariants', () => {
   it('connects stock receipt and scanner workflows to label printing', () => {
     expect(source('src/components/stock/StockInForm.tsx')).toContain('state.labelReceiptId');
     expect(source('src/components/labels/StockLabelStudio.tsx')).toContain('ScannerInput');
-    expect(source('src/app/(dashboard)/layout.tsx')).toContain("href: '/stock/labels'");
+    expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");
+  });
+
+  it('shows immediate feedback while label and filtered route data load', () => {
+    const studio = source('src/components/labels/StockLabelStudio.tsx');
+    expect(studio).toContain('useTransition');
+    expect(studio).toContain('Loading product labels…');
+    expect(studio).toContain('Searching inventory…');
+    expect(studio).toContain('<LoadingScreen');
+    expect(studio).toContain('setSelectedProductId(productId)');
+    expect(studio).toContain('value={selectedProductId}');
+    expect(studio).toContain('window.history.pushState');
+    expect(studio).toContain('router.refresh()');
+    expect(studio).toContain('setNavigating(true)');
+    expect(source('src/app/(dashboard)/stock/labels/error.tsx')).toContain('Try again');
+    expect(source('src/app/(dashboard)/stock/labels/loading.tsx')).toContain('Loading stock labels…');
+    expect(source('src/app/(dashboard)/stock/in/loading.tsx')).toContain('Loading stock receipt…');
+    expect(source('src/app/(dashboard)/stock/out/loading.tsx')).toContain('Loading inventory removal…');
+    expect(source('src/app/(dashboard)/stock/reconcile/loading.tsx')).toContain('Loading reconciliation…');
+    expect(source('src/components/invoices/InvoiceRegister.tsx')).toContain('Filtering invoices…');
+    expect(source('src/app/(dashboard)/loading.tsx')).toContain('Loading dashboard…');
   });
 });

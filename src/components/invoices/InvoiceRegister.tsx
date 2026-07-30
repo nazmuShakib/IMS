@@ -1,0 +1,254 @@
+'use client';
+
+import Link from 'next/link';
+import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
+
+import { LoadingScreen } from '@/components/shell/LoadingScreen';
+import { Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
+import { PAYMENT_METHODS, PAYMENT_STATUSES, type Sale } from '@/domain/types';
+import { formatBDT } from '@/lib/money';
+
+export interface InvoiceFilterValues {
+  q: string;
+  from: string;
+  to: string;
+  customerType: string;
+  paymentStatus: string;
+  paymentMethod: string;
+  minTotal: string;
+  maxTotal: string;
+}
+
+const EMPTY_FILTERS: InvoiceFilterValues = {
+  q: '',
+  from: '',
+  to: '',
+  customerType: '',
+  paymentStatus: '',
+  paymentMethod: '',
+  minTotal: '',
+  maxTotal: '',
+};
+
+function filterUrl(values: InvoiceFilterValues): string {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(values)) {
+    if (value.trim()) params.set(key, value.trim());
+  }
+  const query = params.toString();
+  return query ? `/invoices?${query}` : '/invoices';
+}
+
+export function InvoiceRegister({
+  confirmedFilters,
+  sales,
+  hasFilters,
+  invalidDateRange,
+  invalidPriceRange,
+  resultVersion,
+}: {
+  confirmedFilters: InvoiceFilterValues;
+  sales: Sale[];
+  hasFilters: boolean;
+  invalidDateRange: boolean;
+  invalidPriceRange: boolean;
+  resultVersion: string;
+}) {
+  const router = useRouter();
+  const [values, setValues] = useState(confirmedFilters);
+  const [filtering, setFiltering] = useState(false);
+  const [refreshPending, startRefreshing] = useTransition();
+  const pending = filtering || refreshPending;
+
+  useEffect(() => {
+    setValues(confirmedFilters);
+    setFiltering(false);
+  }, [confirmedFilters, resultVersion]);
+
+  function update(key: keyof InvoiceFilterValues, value: string) {
+    setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function navigate(next: InvoiceFilterValues) {
+    setValues(next);
+    setFiltering(true);
+    window.history.pushState(null, '', filterUrl(next));
+    startRefreshing(() => {
+      router.refresh();
+    });
+  }
+
+  function applyFilters(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    navigate(values);
+  }
+
+  return (
+    <>
+      <Card className="mb-4 p-4">
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={applyFilters}>
+          <label className="sm:col-span-2">
+            <span className="eyebrow mb-1.5 block">Search</span>
+            <Input
+              type="search"
+              name="q"
+              value={values.q}
+              onChange={(event) => update('q', event.target.value)}
+              disabled={pending}
+              placeholder="Invoice, customer, phone, reference or salesperson"
+            />
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">From date</span>
+            <Input
+              type="date"
+              name="from"
+              value={values.from}
+              onChange={(event) => update('from', event.target.value)}
+              disabled={pending}
+            />
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">To date</span>
+            <Input
+              type="date"
+              name="to"
+              value={values.to}
+              onChange={(event) => update('to', event.target.value)}
+              disabled={pending}
+            />
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">Customer type</span>
+            <Select
+              name="customerType"
+              value={values.customerType}
+              onChange={(event) => update('customerType', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">Walk-in and saved</option>
+              <option value="WALK_IN">Walk-in only</option>
+              <option value="REGISTERED">Saved customers only</option>
+            </Select>
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">Payment status</span>
+            <Select
+              name="paymentStatus"
+              value={values.paymentStatus}
+              onChange={(event) => update('paymentStatus', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">Paid and unpaid</option>
+              {PAYMENT_STATUSES.map((value) => <option key={value} value={value}>{value}</option>)}
+            </Select>
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">Payment method</span>
+            <Select
+              name="paymentMethod"
+              value={values.paymentMethod}
+              onChange={(event) => update('paymentMethod', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">All methods</option>
+              {PAYMENT_METHODS.map((value) => (
+                <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>
+              ))}
+            </Select>
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">Minimum total (৳)</span>
+            <Input
+              type="number"
+              name="minTotal"
+              min="0"
+              step="0.01"
+              value={values.minTotal}
+              onChange={(event) => update('minTotal', event.target.value)}
+              disabled={pending}
+              placeholder="0.00"
+            />
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">Maximum total (৳)</span>
+            <Input
+              type="number"
+              name="maxTotal"
+              min="0"
+              step="0.01"
+              value={values.maxTotal}
+              onChange={(event) => update('maxTotal', event.target.value)}
+              disabled={pending}
+              placeholder="No maximum"
+            />
+          </label>
+          <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+            <button
+              className="h-9 rounded-[3px] border border-signal bg-signal px-3.5 text-[13px] font-medium text-white disabled:opacity-60"
+              type="submit"
+              disabled={pending}
+            >
+              {pending ? 'Filtering…' : 'Apply filters'}
+            </button>
+            <button
+              className="h-9 rounded-[3px] border border-rule bg-card px-3 text-[12px] disabled:opacity-60"
+              type="button"
+              disabled={pending}
+              onClick={() => navigate(EMPTY_FILTERS)}
+            >
+              Reset
+            </button>
+          </div>
+        </form>
+        {!pending && invalidDateRange && (
+          <p className="mt-3 text-[12px] text-out">From date must be on or before the to date.</p>
+        )}
+        {!pending && invalidPriceRange && (
+          <p className="mt-3 text-[12px] text-out">Minimum total cannot exceed maximum total.</p>
+        )}
+        <p className="mt-3 text-[11px] text-graphite">
+          Dates use Asia/Dhaka time. Results are newest first and limited to 500 invoices.
+        </p>
+      </Card>
+
+      {pending ? (
+        <Card>
+          <LoadingScreen compact label="Filtering invoices…" />
+        </Card>
+      ) : (
+        <Card>
+          {sales.length === 0 ? (
+            <EmptyState title={hasFilters ? 'No invoices match these filters.' : 'No completed invoices yet.'} />
+          ) : (
+            <TableViewport>
+              <table className="w-full border-collapse text-[12px]">
+                <thead className="sticky top-0 bg-card">
+                  <tr className="border-b border-rule text-left">
+                    <th className="eyebrow px-4 py-2.5">Invoice</th>
+                    <th className="eyebrow px-4 py-2.5">Date</th>
+                    <th className="eyebrow px-4 py-2.5">Customer</th>
+                    <th className="eyebrow px-4 py-2.5">Payment</th>
+                    <th className="eyebrow px-4 py-2.5 text-right">Total</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {sales.map((sale) => (
+                    <tr key={sale.id} className="border-b border-rule-soft last:border-0">
+                      <td className="px-4 py-3"><Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link></td>
+                      <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(sale.completedAt))}</td>
+                      <td className="px-4 py-3">{sale.customerName ?? 'Walk-in'}</td>
+                      <td className="px-4 py-3">{sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</td>
+                      <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </TableViewport>
+          )}
+        </Card>
+      )}
+    </>
+  );
+}

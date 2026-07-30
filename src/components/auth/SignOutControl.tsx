@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 import { logoutAction } from '@/actions/auth';
 import { Button } from '@/components/ui';
@@ -10,11 +11,25 @@ export function SignOutControl() {
 
   useEffect(() => {
     if (!open) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const bodyPaddingRight = Number.parseFloat(
+      window.getComputedStyle(document.body).paddingRight,
+    ) || 0;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
   }, [open]);
 
   return (
@@ -27,9 +42,9 @@ export function SignOutControl() {
         Sign out
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setOpen(false);
           }}
@@ -58,7 +73,8 @@ export function SignOutControl() {
               </form>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

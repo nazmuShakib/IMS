@@ -39,5 +39,48 @@ describe('sign-out confirmation', () => {
     expect(control).toContain('action={logoutAction}');
     expect(control).toContain('setOpen(false)');
     expect(control).toContain("event.key === 'Escape'");
+    expect(control).toContain('createPortal');
+    expect(control).toContain('document.body');
+    expect(control).toContain('z-[100]');
+    expect(control).toContain('window.innerWidth - document.documentElement.clientWidth');
+    expect(control).toContain('document.body.style.paddingRight');
+    expect(source('src/app/globals.css')).not.toContain('scrollbar-gutter: stable');
+  });
+});
+
+describe('route loading feedback', () => {
+  it.each([
+    ['src/app/(dashboard)/checkout/loading.tsx', 'Loading checkout…'],
+    ['src/app/(dashboard)/products/loading.tsx', 'Loading products…'],
+    ['src/app/(dashboard)/categories/loading.tsx', 'Loading categories…'],
+    ['src/app/(dashboard)/brands/loading.tsx', 'Loading brands…'],
+    ['src/app/(dashboard)/suppliers/loading.tsx', 'Loading suppliers…'],
+    ['src/app/(dashboard)/users/loading.tsx', 'Loading users…'],
+    ['src/app/(dashboard)/audit/loading.tsx', 'Loading audit log…'],
+  ])('uses a page-specific message in %s', (file, label) => {
+    expect(source(file)).toContain(label);
+  });
+
+  it('centres full-page feedback in the available dashboard body', () => {
+    const loading = source('src/components/shell/LoadingScreen.tsx');
+    expect(loading).toContain('min-h-[calc(100dvh-6rem)]');
+    expect(loading).toContain('lg:min-h-[calc(100dvh-7rem)]');
+  });
+});
+
+describe('responsive navigation', () => {
+  it('provides the role-aware sidebar destinations through a mobile drawer', () => {
+    const layout = source('src/app/(dashboard)/layout.tsx');
+    const mobile = source('src/components/shell/MobileNavigation.tsx');
+    const links = source('src/components/shell/NavigationLinks.tsx');
+    expect(layout).toContain('<MobileNavigation');
+    expect(layout).toContain('<NavigationLinks role={role} />');
+    expect(mobile).toContain('aria-label="Open navigation menu"');
+    expect(mobile).toContain('role="dialog"');
+    expect(mobile).toContain('md:hidden');
+    expect(mobile).toContain('createPortal');
+    expect(mobile).toContain('<NavigationLinks role={role}');
+    expect(links).toContain("role !== 'STAFF'");
+    expect(links).toContain("role === 'ADMIN'");
   });
 });
