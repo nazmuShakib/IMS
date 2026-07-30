@@ -102,4 +102,15 @@ describe('Phase 5 security boundaries', () => {
     expect(route).toContain('reportToCsv(report)');
     expect(route).toContain('reportToPdf(report)');
   });
+
+  it('keeps report exports and shared page spacing usable on mobile', () => {
+    const reports = source('src/app/(dashboard)/reports/page.tsx');
+    const layout = source('src/app/(dashboard)/layout.tsx');
+    const ui = source('src/components/ui/index.tsx');
+    expect(reports).toContain('grid grid-cols-2 gap-2 sm:flex');
+    expect(reports).toContain('items-center justify-center');
+    expect(layout).toContain('px-3 py-4 print:p-0 sm:p-5 lg:p-7');
+    expect(ui).toContain('flex flex-col items-start gap-3 sm:flex-row');
+    expect(ui).toContain('w-full sm:w-auto');
+  });
 });

@@ -121,12 +121,12 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <header className="mb-5 flex items-end justify-between gap-4">
-      <div>
+    <header className="mb-5 flex flex-col items-start gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-4">
+      <div className="min-w-0">
         <h1 className="text-[22px] font-semibold tracking-[-0.01em]">{title}</h1>
         {count && <p className="tnum mt-0.5 text-[12px] text-graphite">{count}</p>}
       </div>
-      {action}
+      {action && <div className="w-full sm:w-auto">{action}</div>}
     </header>
   );
 }

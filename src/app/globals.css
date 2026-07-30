@@ -213,21 +213,35 @@ body {
 }
 
 /* Phase 8 immutable invoice preview/printing. */
+.invoice-root {
+  container: invoice-preview / inline-size;
+}
+
+.invoice-preview-viewport {
+  width: 100%;
+  max-height: calc(100dvh - 12rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
 .invoice-document {
   box-sizing: border-box;
-  width: 210mm;
-  min-height: 297mm;
+  width: min(210mm, 100%);
+  min-height: 0;
+  aspect-ratio: 210 / 297;
   margin: 0 auto;
   border: 1px solid var(--color-rule);
   background: #fff;
-  padding: 15mm;
+  padding: clamp(16px, 5%, 15mm);
   color: #14181d;
   font-size: 10pt;
 }
 
 .invoice-root[data-layout='thermal'] .invoice-document {
-  width: 80mm;
+  width: min(80mm, 100%);
   min-height: 0;
+  aspect-ratio: auto;
   padding: 4mm;
   font-size: 8pt;
 }
@@ -420,6 +434,93 @@ body {
   font-size: 11pt;
 }
 
+@media screen {
+  @container invoice-preview (max-width: 767px) {
+    .invoice-document,
+    .invoice-root[data-layout='thermal'] .invoice-document {
+      aspect-ratio: auto;
+      padding: 16px;
+    }
+
+    .invoice-header,
+    .invoice-meta {
+      gap: 16px;
+    }
+
+    .invoice-header {
+      padding-bottom: 16px;
+    }
+
+    .invoice-header h1 {
+      font-size: 16pt;
+    }
+
+    .invoice-title {
+      min-width: 0;
+    }
+
+    .invoice-title strong {
+      font-size: 14pt;
+    }
+
+    .invoice-title span {
+      max-width: 100%;
+      overflow-wrap: anywhere;
+    }
+
+    .invoice-meta {
+      padding: 16px 0;
+    }
+
+    .invoice-items {
+      table-layout: fixed;
+    }
+
+    .invoice-items th,
+    .invoice-items td {
+      padding: 8px 4px;
+      font-size: 7.5pt;
+    }
+
+    .invoice-items th:first-child,
+    .invoice-items td:first-child {
+      width: 34%;
+      overflow-wrap: anywhere;
+    }
+
+    .invoice-items th:nth-child(2),
+    .invoice-items td:nth-child(2) {
+      width: 10%;
+    }
+
+    .invoice-items th:nth-child(3),
+    .invoice-items td:nth-child(3),
+    .invoice-items th:nth-child(4),
+    .invoice-items td:nth-child(4) {
+      width: 28%;
+    }
+
+    .invoice-summary dl {
+      width: min(72mm, 100%);
+    }
+  }
+
+  @container invoice-preview (max-width: 420px) {
+    .invoice-header,
+    .invoice-meta {
+      display: grid;
+    }
+
+    .invoice-title {
+      justify-items: start;
+    }
+
+    .invoice-meta > div {
+      width: 100%;
+    }
+  }
+}
+
 @page invoice-a4 {
   size: A4 portrait;
   margin: 0;
@@ -431,12 +532,25 @@ body {
 }
 
 @media print {
+  .invoice-preview-viewport {
+    max-height: none;
+    overflow: visible;
+  }
+
   .invoice-root[data-layout='a4'] .invoice-document {
+    width: 210mm;
+    min-height: 297mm;
+    aspect-ratio: auto;
+    padding: 15mm;
     page: invoice-a4;
     border: 0;
   }
 
   .invoice-root[data-layout='thermal'] .invoice-document {
+    width: 80mm;
+    min-height: 0;
+    aspect-ratio: auto;
+    padding: 4mm;
     page: invoice-thermal;
     border: 0;
   }

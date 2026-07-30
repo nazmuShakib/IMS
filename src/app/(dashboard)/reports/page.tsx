@@ -68,9 +68,9 @@ export default async function ReportsPage({
   return (
     <>
       <PageHeader title="Financial reports" count={`Generated ${dateTime(report.generatedAt)} · Asia/Dhaka`} action={
-        <div className="flex gap-1.5">
-          <a className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[12px] font-medium hover:bg-plate" href={`/api/reports/export?${exportQuery}&format=csv`}>Export CSV</a>
-          <a className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[12px] font-medium hover:bg-plate" href={`/api/reports/export?${exportQuery}&format=pdf`}>Export PDF</a>
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:gap-1.5">
+          <a className="inline-flex h-9 items-center justify-center rounded-[3px] border border-rule bg-card px-3 text-[12px] font-medium hover:bg-plate" href={`/api/reports/export?${exportQuery}&format=csv`}>Export CSV</a>
+          <a className="inline-flex h-9 items-center justify-center rounded-[3px] border border-rule bg-card px-3 text-[12px] font-medium hover:bg-plate" href={`/api/reports/export?${exportQuery}&format=pdf`}>Export PDF</a>
         </div>
       } />
 

@@ -46,7 +46,7 @@ export function InvoiceView({
             <p className="text-[13px] font-medium">Invoice layout</p>
             <p className="text-[11px] text-graphite">Reprints use the original completed-sale snapshot.</p>
           </div>
-          <form action={action} className="flex items-center gap-2">
+          <form action={action} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="saleId" value={sale.id} />
             <select
               name="layout"
@@ -71,78 +71,80 @@ export function InvoiceView({
         {state.error && <p className="mb-3 text-[12px] text-out">{state.error}</p>}
       </div>
 
-      <article className="invoice-document">
-        <header className="invoice-header">
-          <div>
-            <h1>{shop.name}</h1>
-            {shop.address && <p>{shop.address}</p>}
-            {shop.phone && <p>{shop.phone}</p>}
-          </div>
-          <div className="invoice-title">
-            <strong>INVOICE</strong>
-            <span className="tnum">{sale.invoiceNumber}</span>
-          </div>
-        </header>
+      <div className="invoice-preview-viewport" tabIndex={0} aria-label="Scrollable invoice preview">
+        <article className="invoice-document">
+          <header className="invoice-header">
+            <div>
+              <h1>{shop.name}</h1>
+              {shop.address && <p>{shop.address}</p>}
+              {shop.phone && <p>{shop.phone}</p>}
+            </div>
+            <div className="invoice-title">
+              <strong>INVOICE</strong>
+              <span className="tnum">{sale.invoiceNumber}</span>
+            </div>
+          </header>
 
-        <section className="invoice-meta">
-          <div>
-            <span>Customer</span>
-            <strong>{sale.customerName ?? 'Walk-in customer'}</strong>
-            {sale.customerPhone && <p>{sale.customerPhone}</p>}
-          </div>
-          <div>
-            <span>Date</span>
-            <strong>{dateTime(sale.completedAt)}</strong>
-            <p>Served by {sale.actorName}</p>
-            {sale.reference && <p>Ref: {sale.reference}</p>}
-          </div>
-        </section>
+          <section className="invoice-meta">
+            <div>
+              <span>Customer</span>
+              <strong>{sale.customerName ?? 'Walk-in customer'}</strong>
+              {sale.customerPhone && <p>{sale.customerPhone}</p>}
+            </div>
+            <div>
+              <span>Date</span>
+              <strong>{dateTime(sale.completedAt)}</strong>
+              <p>Served by {sale.actorName}</p>
+              {sale.reference && <p>Ref: {sale.reference}</p>}
+            </div>
+          </section>
 
-        <table className="invoice-items">
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Qty</th>
-              <th>Unit price</th>
-              <th>Total</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td>
-                  <strong>{item.productName}</strong>
-                  <span className="tnum">{item.sku}{item.serialNo ? ` · S/N ${item.serialNo}` : ''}</span>
-                  {item.warrantyMonths ? <span>{item.warrantyMonths} month warranty</span> : null}
-                </td>
-                <td className="tnum">{item.quantity}</td>
-                <td className="tnum">{formatBDT(item.actualUnitPrice)}</td>
-                <td className="tnum">{formatBDT(item.lineTotal)}</td>
+          <table className="invoice-items">
+            <thead>
+              <tr>
+                <th>Item</th>
+                <th>Qty</th>
+                <th>Unit price</th>
+                <th>Total</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td>
+                    <strong>{item.productName}</strong>
+                    <span className="tnum">{item.sku}{item.serialNo ? ` · S/N ${item.serialNo}` : ''}</span>
+                    {item.warrantyMonths ? <span>{item.warrantyMonths} month warranty</span> : null}
+                  </td>
+                  <td className="tnum">{item.quantity}</td>
+                  <td className="tnum">{formatBDT(item.actualUnitPrice)}</td>
+                  <td className="tnum">{formatBDT(item.lineTotal)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-        <section className="invoice-summary">
-          <dl>
-            <div><dt>List subtotal</dt><dd className="tnum">{formatBDT(sale.subtotal)}</dd></div>
-            {sale.discount !== 0 && (
-              <div><dt>Price adjustment</dt><dd className="tnum">{formatBDT(sale.discount)}</dd></div>
-            )}
-            <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
-          </dl>
-        </section>
+          <section className="invoice-summary">
+            <dl>
+              <div><dt>List subtotal</dt><dd className="tnum">{formatBDT(sale.subtotal)}</dd></div>
+              {sale.discount !== 0 && (
+                <div><dt>Price adjustment</dt><dd className="tnum">{formatBDT(sale.discount)}</dd></div>
+              )}
+              <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
+            </dl>
+          </section>
 
-        <section className="invoice-payment">
-          <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
-          {sale.note && <p><span>Note:</span> {sale.note}</p>}
-        </section>
+          <section className="invoice-payment">
+            <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
+            {sale.note && <p><span>Note:</span> {sale.note}</p>}
+          </section>
 
-        <footer>
-          {shop.policy && <p>{shop.policy}</p>}
-          <p>This is an ordinary sales invoice, not a VAT/tax invoice.</p>
-        </footer>
-      </article>
+          <footer>
+            {shop.policy && <p>{shop.policy}</p>}
+            <p>This is an ordinary sales invoice, not a VAT/tax invoice.</p>
+          </footer>
+        </article>
+      </div>
     </div>
   );
 }

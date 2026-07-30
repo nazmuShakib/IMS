@@ -128,8 +128,19 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(invoice).toContain('A4 invoice');
     expect(invoice).toContain('80 mm thermal');
     expect(invoice).toContain('/pdf');
+    expect(invoice).toContain('flex flex-wrap items-center gap-2');
     expect(css).toContain('@page invoice-a4');
     expect(css).toContain('@page invoice-thermal');
+    expect(css).toContain('width: min(210mm, 100%)');
+    expect(css).toContain('container: invoice-preview / inline-size');
+    expect(invoice).toContain('className="invoice-preview-viewport"');
+    expect(invoice).toContain('aria-label="Scrollable invoice preview"');
+    expect(css).toContain('.invoice-preview-viewport');
+    expect(css).toContain('overflow: auto');
+    expect(css).toContain('@container invoice-preview (max-width: 767px)');
+    expect(css).toContain("width: min(72mm, 100%)");
+    expect(css).toContain('width: 210mm');
+    expect(css).toContain('min-height: 297mm');
   });
 
   it('filters invoices at the repository boundary instead of in the browser', () => {
