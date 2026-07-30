@@ -113,4 +113,19 @@ describe('Phase 5 security boundaries', () => {
     expect(ui).toContain('flex flex-col items-start gap-3 sm:flex-row');
     expect(ui).toContain('w-full sm:w-auto');
   });
+
+  it('uses separate loading scopes for report tabs and report output filters', () => {
+    const page = source('src/app/(dashboard)/reports/page.tsx');
+    const workspace = source('src/components/reports/ReportWorkspace.tsx');
+    expect(page).toContain('<ReportWorkspace');
+    expect(page).toContain('resultVersion={crypto.randomUUID()}');
+    expect(page).toContain('href: `/reports?report=${item.id}`');
+    expect(workspace).toContain("navigate(tab.href, tab.id, 'tab')");
+    expect(workspace).toContain("navigate(`/reports?${params.toString()}`, report, 'output')");
+    expect(workspace).toContain("loadingScope === 'tab'");
+    expect(workspace).toContain("loadingScope === 'output'");
+    expect(workspace).toContain('setSelectedReport(report)');
+    expect(workspace).toContain('window.history.pushState');
+    expect(workspace).toContain('router.refresh()');
+  });
 });

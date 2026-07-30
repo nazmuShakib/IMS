@@ -1,5 +1,4 @@
-import Link from 'next/link';
-
+import { ReportWorkspace } from '@/components/reports/ReportWorkspace';
 import { Card, EmptyState, Input, Money, PageHeader, Select, TableViewport } from '@/components/ui';
 import { MOVEMENT_REASONS, MOVEMENT_TYPES } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
@@ -74,11 +73,14 @@ export default async function ReportsPage({
         </div>
       } />
 
-      <nav className="mb-4 flex gap-1.5 overflow-x-auto pb-1" aria-label="Report selection">
-        {REPORTS.map((item) => (
-          <Link key={item.id} href={`/reports?${queryWith(raw, { report: item.id })}`} className={`shrink-0 rounded-[3px] border px-2.5 py-1.5 text-[12px] ${filters.report === item.id ? 'border-ink bg-ink text-white' : 'border-rule bg-card text-graphite hover:text-ink'}`}>{item.label}</Link>
-        ))}
-      </nav>
+      <ReportWorkspace
+        tabs={REPORTS.map((item) => ({
+          ...item,
+          href: `/reports?report=${item.id}`,
+        }))}
+        confirmedReport={filters.report}
+        resultVersion={crypto.randomUUID()}
+      >
 
       <Card className="mb-4 p-4">
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" method="get">
@@ -91,22 +93,25 @@ export default async function ReportsPage({
           {['valuation', 'sales'].includes(filters.report) && <label><span className="eyebrow mb-1.5 block">Group by</span><Select name="groupBy" defaultValue={filters.report === 'valuation' ? (filters.groupBy === 'brand' ? 'brand' : 'category') : (filters.groupBy ?? 'day')}>{filters.report === 'sales' && <><option value="day">Day</option><option value="month">Month</option></>}<option value="category">Category</option><option value="brand">Brand</option></Select></label>}
           {filters.report === 'profit' && <><label><span className="eyebrow mb-1.5 block">Sort by</span><Select name="sort" defaultValue={filters.sort ?? 'profit'}><option value="profit">Profit</option><option value="revenue">Revenue</option><option value="cogs">COGS</option><option value="margin">Margin %</option><option value="quantity">Units</option></Select></label><label><span className="eyebrow mb-1.5 block">Direction</span><Select name="direction" defaultValue={filters.direction ?? 'desc'}><option value="desc">Highest first</option><option value="asc">Lowest first</option></Select></label></>}
           {filters.report === 'movements' && <><label><span className="eyebrow mb-1.5 block">Type</span><Select name="type" defaultValue={filters.type ?? ''}><option value="">All types</option>{MOVEMENT_TYPES.map((item) => <option key={item} value={item}>{item}</option>)}</Select></label><label><span className="eyebrow mb-1.5 block">Reason</span><Select name="reason" defaultValue={filters.reason ?? ''}><option value="">All reasons</option>{MOVEMENT_REASONS.map((item) => <option key={item} value={item}>{item.replaceAll('_', ' ')}</option>)}</Select></label><label><span className="eyebrow mb-1.5 block">Actor</span><Select name="actorId" defaultValue={filters.actorId ?? ''}><option value="">All actors</option>{uniqueActors.map(([id, name]) => <option key={id} value={id}>{name}</option>)}</Select></label></>}
-          <div className="flex items-end gap-1.5"><button className="h-9 rounded-[3px] border border-signal bg-signal px-3.5 text-[13px] font-medium text-white" type="submit">Apply filters</button><Link className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[12px]" href={`/reports?report=${filters.report}`}>Reset</Link></div>
+          <div className="flex items-end gap-1.5"><button className="h-9 rounded-[3px] border border-signal bg-signal px-3.5 text-[13px] font-medium text-white" type="submit">Apply filters</button><button className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[12px]" type="button" data-report-reset>Reset</button></div>
         </form>
       </Card>
 
-      <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {totals.map((column) => {
-          const value = report.totals[column.key] ?? 0;
-          return <Card className="p-4" key={column.key}><p className="eyebrow">Total {column.label}</p><div className="mt-2 text-[18px] font-semibold">{column.type === 'money' ? formatBDT(value) : value.toLocaleString('en-BD')}</div></Card>;
-        })}
-      </div>
+      <div className="contents">
+        <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {totals.map((column) => {
+            const value = report.totals[column.key] ?? 0;
+            return <Card className="p-4" key={column.key}><p className="eyebrow">Total {column.label}</p><div className="mt-2 text-[18px] font-semibold">{column.type === 'money' ? formatBDT(value) : value.toLocaleString('en-BD')}</div></Card>;
+          })}
+        </div>
 
-      <Card>
-        <div className="border-b border-rule px-4 py-3"><h2 className="text-[14px] font-medium">{report.title}</h2><p className="mt-0.5 text-[11px] text-graphite">{report.description}</p></div>
-        {report.rows.length === 0 ? <EmptyState title="No records match these filters." /> : <TableViewport><table className="w-full min-w-max"><thead className="sticky top-0 z-10 bg-card"><tr className="border-b border-rule">{report.columns.map((column) => <th key={column.key} className={`eyebrow px-4 py-2.5 ${['money', 'number'].includes(column.type) ? 'text-right' : 'text-left'}`}>{column.label}</th>)}</tr></thead><tbody>{report.rows.map((row) => <tr key={row.id} className="border-b border-rule-soft last:border-0">{report.columns.map((column) => <td key={column.key} className={`px-4 py-2.5 text-[12px] ${['money', 'number'].includes(column.type) ? 'text-right' : 'text-left'}`}>{displayCell(row.cells[column.key] ?? null, column)}</td>)}</tr>)}</tbody></table></TableViewport>}
-        {report.note && <p className="border-t border-rule bg-plate/30 px-4 py-2 text-[11px] text-graphite">Method: {report.note}</p>}
-      </Card>
+        <Card>
+          <div className="border-b border-rule px-4 py-3"><h2 className="text-[14px] font-medium">{report.title}</h2><p className="mt-0.5 text-[11px] text-graphite">{report.description}</p></div>
+          {report.rows.length === 0 ? <EmptyState title="No records match these filters." /> : <TableViewport><table className="w-full min-w-max"><thead className="sticky top-0 z-10 bg-card"><tr className="border-b border-rule">{report.columns.map((column) => <th key={column.key} className={`eyebrow px-4 py-2.5 ${['money', 'number'].includes(column.type) ? 'text-right' : 'text-left'}`}>{column.label}</th>)}</tr></thead><tbody>{report.rows.map((row) => <tr key={row.id} className="border-b border-rule-soft last:border-0">{report.columns.map((column) => <td key={column.key} className={`px-4 py-2.5 text-[12px] ${['money', 'number'].includes(column.type) ? 'text-right' : 'text-left'}`}>{displayCell(row.cells[column.key] ?? null, column)}</td>)}</tr>)}</tbody></table></TableViewport>}
+          {report.note && <p className="border-t border-rule bg-plate/30 px-4 py-2 text-[11px] text-graphite">Method: {report.note}</p>}
+        </Card>
+      </div>
+      </ReportWorkspace>
     </>
   );
 }
