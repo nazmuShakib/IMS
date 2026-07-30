@@ -20,11 +20,11 @@ export const ScannerInput = forwardRef<HTMLInputElement, Omit<ComponentProps<typ
       onChange={(event) => onValueChange?.(event.target.value)}
       onKeyDown={(event) => {
         if (event.key !== 'Enter') return;
+        event.preventDefault();
         const value = event.currentTarget.value.trim();
         if (!value) return;
         const now = Date.now();
         if (last.current?.value === value && now - last.current.at < 750) {
-          event.preventDefault();
           return;
         }
         last.current = { value, at: now };

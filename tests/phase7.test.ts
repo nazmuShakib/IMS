@@ -8,6 +8,7 @@ describe('Phase 7 scanner workflow', () => {
   it('uses one scanner input in stock-in, stock-out, and RMA workflows', () => {
     const scanner = source('src/components/search/ScannerInput.tsx');
     expect(scanner).toContain("event.key !== 'Enter'");
+    expect(scanner).toContain('event.preventDefault()');
     expect(scanner).toContain('now - last.current.at < 750');
     for (const file of [
       'src/components/stock/StockInForm.tsx',
@@ -15,6 +16,17 @@ describe('Phase 7 scanner workflow', () => {
       'src/components/warranty/WarrantyForms.tsx',
       'src/components/search/CommandPalette.tsx',
     ]) expect(source(file)).toContain('ScannerInput');
+  });
+
+  it('appends scanned receipt identifiers without querying or duplicating units', () => {
+    const stockIn = source('src/components/stock/StockInForm.tsx');
+    expect(stockIn).toContain('function appendScannedSerial');
+    expect(stockIn).toContain('onScan={appendScannedSerial}');
+    expect(stockIn).toContain("`${existing}\\n${scanned}`");
+    expect(stockIn).toContain('is already in this receipt');
+    expect(stockIn).toContain('uniqueSerialCount');
+    expect(stockIn).toContain('normally IMEI 1 for a dual-SIM phone');
+    expect(stockIn).not.toContain('fetch(');
   });
 });
 

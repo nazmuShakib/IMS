@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useId, useMemo, useState } from 'react';
+import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Supplier } from '@/domain/types';
 import type { ProductDTO } from '@/lib/dto';
@@ -25,15 +25,19 @@ export function StockInForm({
 
   const [productId, setProductId] = useState(initialProductId ?? '');
   const [serialText, setSerialText] = useState('');
+  const [serialScan, setSerialScan] = useState('');
   const [cost, setCost] = useState('');
   const [key, setKey] = useState('');
   const [scanError, setScanError] = useState('');
+  const [serialScanError, setSerialScanError] = useState('');
+  const serialScanRef = useRef<HTMLInputElement>(null);
   const formId = useId();
 
   const product = useMemo(
     () => products.find((p) => p.id === productId),
     [products, productId],
   );
+  const isSerial = product?.trackingType === 'SERIAL';
 
   // A fresh idempotency key per submission. Generated in an effect so the server
   // render and the client render agree (no hydration mismatch), and rotated after
@@ -43,8 +47,14 @@ export function StockInForm({
     if (state.ok) {
       setKey(crypto.randomUUID());
       setSerialText('');
+      setSerialScan('');
+      setSerialScanError('');
     }
   }, [state.ok]);
+
+  useEffect(() => {
+    if (isSerial) serialScanRef.current?.focus();
+  }, [isSerial, productId]);
 
   // Prefill cost from the product's default, but let the operator override it —
   // the real cost is whatever the supplier charged THIS time, and it's what gets
@@ -61,8 +71,30 @@ export function StockInForm({
     .split(/[\n,]/)
     .map((s) => s.trim())
     .filter(Boolean);
-  const dupes = serials.filter((s, i) => serials.indexOf(s) !== i);
-  const isSerial = product?.trackingType === 'SERIAL';
+  const seenSerials = new Set<string>();
+  const dupes = serials.filter((serial) => {
+    const key = serial.toLocaleLowerCase();
+    if (seenSerials.has(key)) return true;
+    seenSerials.add(key);
+    return false;
+  });
+  const uniqueSerialCount = seenSerials.size;
+
+  function appendScannedSerial(value: string) {
+    const scanned = value.trim();
+    if (!scanned) return;
+    if (serials.some((serial) => serial.toLocaleLowerCase() === scanned.toLocaleLowerCase())) {
+      setSerialScanError(`${scanned} is already in this receipt.`);
+      setSerialScan('');
+      return;
+    }
+    setSerialText((current) => {
+      const existing = current.trimEnd();
+      return existing ? `${existing}\n${scanned}` : scanned;
+    });
+    setSerialScan('');
+    setSerialScanError('');
+  }
 
   const err = (k: string) => state.fieldErrors?.[k];
 
@@ -179,10 +211,37 @@ export function StockInForm({
                 Each one becomes a unit you can look up, sell and warranty individually.
               </p>
 
+              <div className="mb-4 max-w-md">
+                <Field
+                  label="Scan serial / IMEI"
+                  hint="Each scan is appended below. Configure the scanner to send Enter after the code."
+                >
+                  <ScannerInput
+                    ref={serialScanRef}
+                    value={serialScan}
+                    onValueChange={setSerialScan}
+                    onScan={appendScannedSerial}
+                    placeholder="Scan IMEI or serial, then press Enter"
+                    autoComplete="off"
+                  />
+                </Field>
+                {serialScanError && (
+                  <p className="mt-1 text-[12px] text-out" role="alert">
+                    {serialScanError}
+                  </p>
+                )}
+                <p className="mt-1 text-[11px] text-graphite">
+                  Use one identifier per physical unit—normally IMEI 1 for a dual-SIM phone.
+                </p>
+              </div>
+
               <Textarea
                 name="serialNumbers"
                 value={serialText}
-                onChange={(e) => setSerialText(e.target.value)}
+                onChange={(e) => {
+                  setSerialText(e.target.value);
+                  setSerialScanError('');
+                }}
                 rows={6}
                 className="tnum min-h-32"
                 placeholder={'352099001761481\n352099001761482\n352099001761483'}
@@ -191,7 +250,7 @@ export function StockInForm({
 
               <div className="mt-2 flex items-center gap-3 text-[12px]">
                 <span className="tnum text-graphite">
-                  {serials.length} {serials.length === 1 ? 'unit' : 'units'}
+                  {uniqueSerialCount} unique {uniqueSerialCount === 1 ? 'unit' : 'units'} to receive
                 </span>
                 {dupes.length > 0 && (
                   <span className="text-out">
@@ -235,12 +294,12 @@ export function StockInForm({
 
       <Button
         type="submit"
-        disabled={pending || !product || (isSerial && (serials.length === 0 || dupes.length > 0))}
+        disabled={pending || !product || (isSerial && (uniqueSerialCount === 0 || dupes.length > 0))}
       >
         {pending
           ? 'Receiving…'
-          : isSerial && serials.length > 0
-            ? `Receive ${serials.length} ${serials.length === 1 ? 'unit' : 'units'}`
+          : isSerial && uniqueSerialCount > 0
+            ? `Receive ${uniqueSerialCount} ${uniqueSerialCount === 1 ? 'unit' : 'units'}`
             : 'Receive stock'}
       </Button>
     </form>
