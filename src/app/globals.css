@@ -75,6 +75,63 @@ body {
   }
 }
 
+/* Wide displays expose more content at once, so slightly increase application
+   copy without scaling layout dimensions or physically sized print output. */
+@media screen and (min-width: 1440px) {
+  .dashboard-content .eyebrow,
+  .dashboard-content [class~='text-[10px]'] {
+    font-size: 11px;
+    line-height: 1.45;
+  }
+
+  .dashboard-content [class~='text-[11px]'] {
+    font-size: 12px;
+    line-height: 1.45;
+  }
+
+  .dashboard-content [class~='text-[12px]'] {
+    font-size: 13px;
+    line-height: 1.45;
+  }
+
+  .dashboard-content [class~='text-[13px]'] {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .dashboard-content [class~='text-[14px]'] {
+    font-size: 15px;
+  }
+
+  .dashboard-content [class~='text-[16px]'] {
+    font-size: 17px;
+  }
+
+  .dashboard-content [class~='text-[17px]'] {
+    font-size: 18px;
+  }
+
+  .dashboard-content [class~='text-[18px]'] {
+    font-size: 20px;
+  }
+
+  .dashboard-content [class~='text-[20px]'] {
+    font-size: 22px;
+  }
+
+  .dashboard-content [class~='text-[22px]'] {
+    font-size: 24px;
+  }
+
+  .dashboard-content .recharts-cartesian-axis-tick-value {
+    font-size: 11px;
+  }
+
+  .dashboard-content .recharts-legend-item-text {
+    font-size: 12px;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Stock labels. Dimensions are physical: each label is exactly 50 × 25 mm.
    The screen preview shares the print component so the barcode and copy count

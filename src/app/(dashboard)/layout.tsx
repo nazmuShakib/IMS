@@ -38,13 +38,13 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* --- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-3 print:hidden sm:px-4">
+        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-3 print:hidden">
           <MobileNavigation role={role} userName={user.name} />
           <CommandPalette />
         </header>
 
-        <main className="flex-1 px-3 py-4 print:p-0 sm:p-5 lg:p-7">
-          <div className="mx-auto max-w-5xl">{children}</div>
+        <main className="flex-1 px-3 py-4 print:p-0">
+          <div className="dashboard-content mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
       </div>
     </div>

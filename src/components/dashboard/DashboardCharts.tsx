@@ -43,7 +43,7 @@ export function DashboardCharts({
   }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
+    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
       <ChartShell title="Daily stock movement · last 30 days">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={operations} margin={{ left: -20, right: 8, top: 4, bottom: 0 }}>
