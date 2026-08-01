@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { db } from '@/repositories';
 import { uuidv7 } from '@/lib/ids';
 import { parseBDT } from '@/lib/money';
+import { normalizeBangladeshMobile } from '@/lib/phone';
 import { requireCapability } from '@/lib/session';
 import { writeAudit } from '@/lib/audit';
 import {
@@ -27,6 +28,7 @@ import {
 export interface ActionState {
   error?: string;
   fieldErrors?: Record<string, string>;
+  ok?: string;
 }
 
 const slugify = (s: string) =>
@@ -322,7 +324,7 @@ export async function createSupplier(
     const created = await db.suppliers.create({
       id: uuidv7(),
       name: parsed.data.name,
-      phone: parsed.data.phone ?? null,
+      phone: parsed.data.phone ? normalizeBangladeshMobile(parsed.data.phone) : null,
       email: parsed.data.email ?? null,
       address: parsed.data.address ?? null,
       note: parsed.data.note ?? null,
@@ -341,4 +343,48 @@ export async function createSupplier(
 
   revalidatePath('/suppliers');
   return {};
+}
+
+export async function updateSupplier(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  if (!id) return { error: 'Missing supplier id' };
+
+  const before = await db.suppliers.findById(id);
+  if (!before) return { error: 'Supplier not found' };
+
+  const parsed = createSupplierSchema.safeParse({
+    name: str(fd, 'name') ?? '',
+    phone: str(fd, 'phone'),
+    email: str(fd, 'email'),
+    address: str(fd, 'address'),
+    note: str(fd, 'note'),
+  });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+
+  try {
+    const updated = await db.suppliers.update(id, {
+      name: parsed.data.name,
+      phone: parsed.data.phone ? normalizeBangladeshMobile(parsed.data.phone) : null,
+      email: parsed.data.email ?? null,
+      address: parsed.data.address ?? null,
+      note: parsed.data.note ?? null,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'supplier.update',
+      entity: 'Supplier',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not update the supplier' };
+  }
+
+  revalidatePath('/suppliers');
+  return { ok: 'Supplier updated.' };
 }

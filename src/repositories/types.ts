@@ -52,6 +52,10 @@ export interface SupplierRepository {
   findAll(): Promise<Supplier[]>;
   findById(id: string): Promise<Supplier | null>;
   create(data: Omit<Supplier, 'createdAt' | 'updatedAt'>): Promise<Supplier>;
+  update(
+    id: string,
+    data: Partial<Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<Supplier>;
 }
 
 export interface UserRepository {

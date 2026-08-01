@@ -79,6 +79,19 @@ const suppliers: SupplierRepository = {
       return row;
     });
   },
+  async update(id, data) {
+    return withLock(async () => {
+      const rows = await readAll<Supplier>('suppliers');
+      const index = rows.findIndex((supplier) => supplier.id === id);
+      const existing = rows[index];
+      if (!existing) throw new Error('Supplier not found');
+      const row: Supplier = { ...existing, ...data, updatedAt: nowIso() };
+      const copy = [...rows];
+      copy[index] = row;
+      await writeAll('suppliers', copy);
+      return row;
+    });
+  },
 };
 
 const users: UserRepository = {

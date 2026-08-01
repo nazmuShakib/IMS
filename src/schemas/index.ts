@@ -58,7 +58,16 @@ export type CreateBrandInput = z.infer<typeof createBrandSchema>;
 
 export const createSupplierSchema = z.object({
   name: z.string().min(1).max(150).trim(),
-  phone: z.string().max(30).optional().nullable(),
+  phone: z
+    .string()
+    .trim()
+    .max(30)
+    .refine(
+      isBangladeshMobile,
+      'Enter a valid Bangladeshi mobile number, such as 01712345678 or +8801712345678.',
+    )
+    .optional()
+    .nullable(),
   email: z.string().email().optional().nullable(),
   address: z.string().max(500).optional().nullable(),
   note: z.string().max(1000).optional().nullable(),

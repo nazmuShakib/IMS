@@ -199,6 +199,7 @@ describe('authentication and audit architecture', () => {
       'category.create',
       'brand.create',
       'supplier.create',
+      'supplier.update',
       'stock.in',
       'stock.out',
       'stock.correct',

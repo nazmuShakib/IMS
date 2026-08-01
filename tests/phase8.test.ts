@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizePhone } from '@/services/checkout';
 import { dhakaYear } from '@/lib/time';
-import { createCustomerSchema } from '@/schemas';
+import { createCustomerSchema, createSupplierSchema } from '@/schemas';
 
 const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
@@ -22,6 +22,26 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '01212345678' }).success).toBe(false);
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '12345' }).success).toBe(false);
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '' }).success).toBe(false);
+  });
+
+  it('accepts only Bangladeshi mobile numbers when creating or editing suppliers', () => {
+    expect(createSupplierSchema.safeParse({ name: 'Supplier', phone: '01712345678' }).success).toBe(true);
+    expect(createSupplierSchema.safeParse({ name: 'Supplier', phone: '+880 1712-345678' }).success).toBe(true);
+    expect(createSupplierSchema.safeParse({ name: 'Supplier', phone: null }).success).toBe(true);
+    expect(createSupplierSchema.safeParse({ name: 'Supplier', phone: '+14155552671' }).success).toBe(false);
+    expect(createSupplierSchema.safeParse({ name: 'Supplier', phone: '12345' }).success).toBe(false);
+
+    const page = source('src/app/(dashboard)/suppliers/page.tsx');
+    const editor = source('src/components/suppliers/SupplierEditor.tsx');
+    const action = source('src/actions/catalog.ts');
+    const repositories = source('src/repositories/types.ts');
+    expect(page).toContain("role !== 'STAFF' && <SupplierEditor");
+    expect(editor).toContain('Edit supplier');
+    expect(editor).toContain('Save changes');
+    expect(action).toContain('export async function updateSupplier');
+    expect(action).toContain("action: 'supplier.update'");
+    expect(action).toContain('normalizeBangladeshMobile(parsed.data.phone)');
+    expect(repositories).toContain("Partial<Omit<Supplier, 'id' | 'createdAt' | 'updatedAt'>>");
   });
 
   it('does not turn a name-only customer search into an empty phone match', () => {

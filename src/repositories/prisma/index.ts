@@ -208,6 +208,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           return supplier(await client.supplier.create({ data }));
         } catch (error) { return friendlyDatabaseError(error); }
       },
+      async update(id, data) {
+        try {
+          return supplier(await client.supplier.update({ where: { id }, data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
     },
     users: {
       async findAll() {
