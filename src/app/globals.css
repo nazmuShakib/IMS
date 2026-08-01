@@ -29,6 +29,29 @@
   --color-out: #b3261e; /* zero */
   --color-out-wash: #fbeae9;
 
+  /* Dashboard metric identities. Kept separate from operational statuses so
+     every KPI remains recognizable without recoloring other components. */
+  --color-metric-units: #14181d;
+  --color-metric-units-wash: #f1f3f4;
+  --color-metric-low: #a16207;
+  --color-metric-low-wash: #fff7e6;
+  --color-metric-stock: #4338ca;
+  --color-metric-stock-wash: #eeefff;
+  --color-metric-margin: #0f766e;
+  --color-metric-margin-wash: #e8f7f5;
+  --color-metric-margin-loss: #9f1239;
+  --color-metric-margin-loss-wash: #fce7ef;
+  --color-metric-revenue: #0369a1;
+  --color-metric-revenue-wash: #eaf5fb;
+  --color-metric-cogs: #c2410c;
+  --color-metric-cogs-wash: #fff0e8;
+  --color-metric-profit: #15803d;
+  --color-metric-profit-wash: #eaf7ee;
+  --color-metric-profit-loss: #b3261e;
+  --color-metric-profit-loss-wash: #fbeae9;
+  --color-metric-neutral: #626c76;
+  --color-metric-neutral-wash: #f1f3f4;
+
   --font-sans: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
 

@@ -17,12 +17,47 @@ const dhaka = (iso: string) =>
     minute: '2-digit',
   });
 
-function Kpi({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
+type KpiTone =
+  | 'units'
+  | 'low'
+  | 'stock'
+  | 'margin'
+  | 'marginLoss'
+  | 'revenue'
+  | 'cogs'
+  | 'profit'
+  | 'profitLoss'
+  | 'neutral';
+
+const KPI_TONES: Record<KpiTone, { border: string; wash: string; value: string; note: string }> = {
+  units: { border: 'border-t-metric-units', wash: 'bg-metric-units-wash', value: 'text-metric-units', note: 'text-graphite' },
+  low: { border: 'border-t-metric-low', wash: 'bg-metric-low-wash', value: 'text-metric-low', note: 'text-metric-low' },
+  stock: { border: 'border-t-metric-stock', wash: 'bg-metric-stock-wash', value: 'text-metric-stock', note: 'text-metric-stock' },
+  margin: { border: 'border-t-metric-margin', wash: 'bg-metric-margin-wash', value: 'text-metric-margin', note: 'text-metric-margin' },
+  marginLoss: { border: 'border-t-metric-margin-loss', wash: 'bg-metric-margin-loss-wash', value: 'text-metric-margin-loss', note: 'text-metric-margin-loss' },
+  revenue: { border: 'border-t-metric-revenue', wash: 'bg-metric-revenue-wash', value: 'text-metric-revenue', note: 'text-metric-revenue' },
+  cogs: { border: 'border-t-metric-cogs', wash: 'bg-metric-cogs-wash', value: 'text-metric-cogs', note: 'text-metric-cogs' },
+  profit: { border: 'border-t-metric-profit', wash: 'bg-metric-profit-wash', value: 'text-metric-profit', note: 'text-metric-profit' },
+  profitLoss: { border: 'border-t-metric-profit-loss', wash: 'bg-metric-profit-loss-wash', value: 'text-metric-profit-loss', note: 'text-metric-profit-loss' },
+  neutral: { border: 'border-t-metric-neutral', wash: 'bg-metric-neutral-wash', value: 'text-metric-neutral', note: 'text-metric-neutral' },
+};
+
+function Kpi({ label, value, note, tone }: {
+  label: string;
+  value: React.ReactNode;
+  note?: string;
+  tone: KpiTone;
+}) {
+  const colors = KPI_TONES[tone];
   return (
-    <Card className="p-4">
-      <p className="eyebrow">{label}</p>
-      <div className="tnum mt-2 text-[20px] font-semibold">{value}</div>
-      {note && <p className="mt-1 text-[11px] text-graphite">{note}</p>}
+    <Card className={`overflow-hidden border-t-[3px] p-0 ${colors.border}`}>
+      <div className="p-4">
+        <p className="eyebrow">{label}</p>
+        <div className={`-mx-1 mt-2 rounded-[2px] px-2 py-2 ${colors.wash}`}>
+          <div className={`tnum text-[20px] font-semibold ${colors.value}`}>{value}</div>
+          {note && <p className={`mt-1 text-[11px] ${colors.note}`}>{note}</p>}
+        </div>
+      </div>
     </Card>
   );
 }
@@ -41,19 +76,36 @@ export default async function DashboardPage() {
       <PageHeader title="Dashboard" count={`Updated ${dhaka(dashboard.generatedAt)}`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi label="Units in stock" value={dashboard.totalUnits.toLocaleString('en-BD')} note={`${dashboard.distinctSkus} stocked SKUs`} />
-        <Kpi label="Low stock" value={dashboard.lowStockCount} note={`${dashboard.outOfStockCount} out of stock`} />
+        <Kpi tone="units" label="Units in stock" value={dashboard.totalUnits.toLocaleString('en-BD')} note={`${dashboard.distinctSkus} stocked SKUs`} />
+        <Kpi tone="low" label="Low stock" value={dashboard.lowStockCount} note={`${dashboard.outOfStockCount} out of stock`} />
         {dashboard.canSeeFinancials ? (
           <>
-            <Kpi label="Stock value · cost" value={formatBDT(dashboard.stockValueAtCost)} note={`Retail ${formatBDT(dashboard.stockValueAtRetail)}`} />
-            <Kpi label="Potential margin" value={formatBDT(dashboard.potentialMargin)} note="Retail value minus current cost" />
-            <Kpi label="Revenue · this month" value={formatBDT(dashboard.monthRevenue)} />
-            <Kpi label="COGS · this month" value={formatBDT(dashboard.monthCogs)} />
-            <Kpi label="Gross profit · this month" value={formatBDT(dashboard.monthGrossProfit)} />
+            <Kpi tone="stock" label="Stock value · cost" value={formatBDT(dashboard.stockValueAtCost)} note={`Retail ${formatBDT(dashboard.stockValueAtRetail)}`} />
+            <Kpi
+              tone={dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'}
+              label="Potential margin"
+              value={formatBDT(dashboard.potentialMargin)}
+              note={dashboard.potentialMargin < 0 ? 'Negative margin · retail value is below current cost' : 'Retail value minus current cost'}
+            />
+            <Kpi tone="revenue" label="Revenue · this month" value={formatBDT(dashboard.monthRevenue)} />
+            <Kpi tone="cogs" label="COGS · this month" value={formatBDT(dashboard.monthCogs)} />
+            <Kpi
+              tone={dashboard.monthGrossProfit < 0 ? 'profitLoss' : dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'}
+              label="Gross profit · this month"
+              value={formatBDT(dashboard.monthGrossProfit)}
+              note={dashboard.monthGrossProfit < 0 ? 'Loss this month' : dashboard.monthGrossProfit === 0 ? 'Break-even this month' : undefined}
+            />
           </>
         ) : (
-          <Kpi label="Access" value="Operational" note="Financial KPIs are restricted by role" />
+          <Kpi tone="units" label="Access" value="Operational" note="Financial KPIs are restricted by role" />
         )}
+      </div>
+
+      <div className="mb-4">
+        <DashboardCharts
+          operations={dashboard.dailyOperations}
+          financials={dashboard.canSeeFinancials ? dashboard.dailyFinancials : undefined}
+        />
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
@@ -124,13 +176,6 @@ export default async function DashboardPage() {
             </TableViewport>
           )}
         </Card>
-      </div>
-
-      <div className="mb-4">
-        <DashboardCharts
-          operations={dashboard.dailyOperations}
-          financials={dashboard.canSeeFinancials ? dashboard.dailyFinancials : undefined}
-        />
       </div>
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">

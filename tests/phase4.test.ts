@@ -108,6 +108,43 @@ describe('Phase 4 dashboard', () => {
       expect(payload).not.toContain(field);
     }
   });
+
+  it('gives each dashboard KPI a distinct semantic card tone', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/page.tsx'), 'utf8');
+    const css = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8');
+    for (const tone of ['units', 'low', 'stock', 'revenue', 'cogs']) {
+      expect(page).toContain(`tone="${tone}"`);
+    }
+    expect(page).toContain("dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'");
+    expect(page).toContain("dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'");
+    expect(page).toContain('Break-even this month');
+    expect(css).toContain('--color-metric-margin-loss: #9f1239');
+    expect(css).toContain('--color-metric-profit-loss: #b3261e');
+  });
+
+  it('renders daily stock movement as signed bars with a net line', () => {
+    const charts = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardCharts.tsx'), 'utf8');
+    expect(charts).toContain('stockOut: -point.stockOut');
+    expect(charts).toContain('net: point.stockIn - point.stockOut');
+    expect(charts).toContain('<ComposedChart');
+    expect(charts).toContain('stackOffset="sign"');
+    expect(charts).toContain('<ReferenceLine y={0}');
+    expect(charts).toContain('<Bar dataKey="stockIn"');
+    expect(charts).toContain('<Bar dataKey="stockOut"');
+    expect(charts.match(/stackId="movement"/g)).toHaveLength(2);
+    expect(charts.match(/maxBarSize=\{22\}/g)).toHaveLength(2);
+    expect(charts).toContain('<Line type="monotone" dataKey="net"');
+    expect(charts).not.toContain('<AreaChart data={operations}');
+  });
+
+  it('places alerts below charts and limits charts to two columns', () => {
+    const page = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/page.tsx'), 'utf8');
+    const charts = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardCharts.tsx'), 'utf8');
+    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf('Low-stock alerts'));
+    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf('Dead stock'));
+    expect(charts).toContain('className="grid gap-4 lg:grid-cols-2"');
+    expect(charts).not.toContain('2xl:grid-cols-3');
+  });
 });
 
 describe('Phase 4 search', () => {

@@ -1,12 +1,13 @@
 'use client';
 
 import {
-  Area,
-  AreaChart,
+  Bar,
   CartesianGrid,
+  ComposedChart,
   Legend,
   Line,
   LineChart,
+  ReferenceLine,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -41,20 +42,35 @@ export function DashboardCharts({
     revenue: taka(point.revenue),
     margin: taka(point.margin),
   }));
+  const operationsData = operations.map((point) => ({
+    ...point,
+    stockOut: -point.stockOut,
+    net: point.stockIn - point.stockOut,
+  }));
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2 2xl:grid-cols-3">
+    <div className="grid gap-4 lg:grid-cols-2">
       <ChartShell title="Daily stock movement · last 30 days">
         <ResponsiveContainer width="100%" height="100%">
-          <AreaChart data={operations} margin={{ left: -20, right: 8, top: 4, bottom: 0 }}>
+          <ComposedChart
+            data={operationsData}
+            margin={{ left: -20, right: 8, top: 4, bottom: 0 }}
+            barCategoryGap="20%"
+            stackOffset="sign"
+          >
             <CartesianGrid stroke="#e6e9eb" vertical={false} />
             <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 10 }} minTickGap={24} />
             <YAxis allowDecimals={false} tick={{ fontSize: 10 }} />
-            <Tooltip labelFormatter={(label) => String(label)} />
+            <Tooltip
+              labelFormatter={(label) => String(label)}
+              formatter={(value, name) => [Math.abs(Number(value)).toLocaleString('en-BD'), name]}
+            />
             <Legend wrapperStyle={{ fontSize: 11 }} />
-            <Area type="monotone" dataKey="stockIn" name="Stock in" stroke="#1b7f5c" fill="#e6f3ee" />
-            <Area type="monotone" dataKey="stockOut" name="Stock out" stroke="#b3261e" fill="#fbeae9" />
-          </AreaChart>
+            <ReferenceLine y={0} stroke="#9ca3af" />
+            <Bar dataKey="stockIn" name="Stock in" fill="#1b7f5c" stackId="movement" maxBarSize={22} />
+            <Bar dataKey="stockOut" name="Stock out" fill="#b3261e" stackId="movement" maxBarSize={22} />
+            <Line type="monotone" dataKey="net" name="Net" stroke="#626c76" dot={false} strokeWidth={1.5} />
+          </ComposedChart>
         </ResponsiveContainer>
       </ChartShell>
 
