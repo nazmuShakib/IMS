@@ -94,19 +94,19 @@ export async function addCartItem(input: {
       product = await tx.products.findByBarcode(identifier)
         ?? await tx.products.findBySku(identifier);
     }
-    if (!product) throw new Error('No product or serial matches that identifier.');
+    if (!product) throw new Error('No product or device number matches that identifier.');
     if (!product.isActive) throw new Error(`${product.name} is inactive and cannot be sold.`);
 
     if (product.trackingType === 'SERIAL') {
       if (!unit || unit.productId !== product.id) {
-        throw new Error('Scan or select the exact serial/IMEI for this serialized product.');
+        throw new Error('Scan or select the exact device number/IMEI for this individually tracked product.');
       }
       if (unit.status !== 'IN_STOCK') {
         throw new Error(`Serial ${unit.serialNo} is ${unit.status.replaceAll('_', ' ').toLowerCase()}.`);
       }
       const existing = (await tx.carts.findItems(input.cartId))
         .find((item) => item.unitId === unit!.id);
-      if (existing) throw new Error(`Serial ${unit.serialNo} is already in this cart.`);
+      if (existing) throw new Error(`Device number ${unit.serialNo} is already in this cart.`);
     } else {
       const existing = (await tx.carts.findItems(input.cartId))
         .find((item) => item.productId === product!.id && item.unitId === null);
@@ -152,7 +152,7 @@ export async function updateCartItem(input: {
     const product = await tx.products.findById(item.productId);
     if (!product) throw new Error('Product not found.');
     if (product.trackingType === 'SERIAL' && parsed.quantity !== 1) {
-      throw new Error('Serialized cart lines always have quantity 1.');
+      throw new Error('Individually tracked cart lines always have quantity 1.');
     }
     if (product.trackingType === 'QUANTITY' && parsed.quantity > product.quantityOnHand) {
       throw new Error(`Only ${product.quantityOnHand} × ${product.name} are in stock.`);
@@ -233,9 +233,9 @@ export async function checkoutCart(raw: {
       const unit = item.unitId ? await tx.units.findById(item.unitId) : null;
       if (product.trackingType === 'SERIAL') {
         if (!unit || unit.productId !== product.id || unit.status !== 'IN_STOCK') {
-          throw new Error(`${product.name} (${unit?.serialNo ?? 'unknown serial'}) is no longer available.`);
+          throw new Error(`${product.name} (${unit?.serialNo ?? 'unknown device number'}) is no longer available.`);
         }
-        if (item.quantity !== 1) throw new Error('Serialized cart lines must have quantity 1.');
+        if (item.quantity !== 1) throw new Error('Individually tracked cart lines must have quantity 1.');
       } else if (item.unitId || item.quantity > product.quantityOnHand) {
         throw new Error(`Only ${product.quantityOnHand} × ${product.name} remain in stock.`);
       }

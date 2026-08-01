@@ -108,7 +108,7 @@ export function CommandPalette() {
         className="flex h-9 w-full max-w-xl items-center justify-between rounded-[3px] border border-rule bg-plate/60 px-3 text-left text-[13px] text-graphite transition-colors hover:border-graphite/50 hover:bg-card"
         aria-label="Open inventory search"
       >
-        <span className="truncate">Search products, SKU, barcode or IMEI…</span>
+        <span className="truncate">Search products, product code (SKU), barcode or IMEI…</span>
         <kbd className="tnum ml-3 hidden shrink-0 rounded-[2px] border border-rule bg-card px-1.5 py-0.5 text-[10px] sm:inline">Ctrl/⌘ K</kbd>
       </button>
 
@@ -134,7 +134,7 @@ export function CommandPalette() {
                 value={query}
                 onValueChange={setQuery}
                 onScan={() => { immediateScan.current = true; setScanRequest((value) => value + 1); }}
-                placeholder="Type a product, SKU, barcode, model or exact IMEI…"
+                placeholder="Type a product, product code (SKU), barcode, model or exact IMEI…"
                 className="h-12 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
               />
               {loading && <span className="text-[11px] text-graphite">Searching…</span>}
@@ -142,7 +142,7 @@ export function CommandPalette() {
 
             <Command.List className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
               {query.trim().length < 2 && (
-                <div className="px-3 py-10 text-center text-[12px] text-graphite">Type at least 2 characters. Exact serial or IMEI matches are checked first.</div>
+                <div className="px-3 py-10 text-center text-[12px] text-graphite">Type at least 2 characters. Exact device number or IMEI matches are checked first.</div>
               )}
               {error && <div className="px-3 py-8 text-center text-[12px] text-out">{error}</div>}
               {!loading && !error && query.trim().length >= 2 && results.units.length === 0 && results.products.length === 0 && (

@@ -24,7 +24,7 @@ export async function inspectWarrantySerial(serialNo: string, now = new Date()) 
   if (!unit) throw new Error(`No serialized unit matches ${serialNo}.`);
   const product = await db.products.findById(unit.productId);
   if (!product) throw new Error('The unit points to a missing product.');
-  if (product.trackingType !== 'SERIAL') throw new Error('Warranty/RMA currently supports serialized products only.');
+  if (product.trackingType !== 'SERIAL') throw new Error('Warranty claims currently support individually tracked products only.');
   if (unit.status !== 'SOLD') throw new Error(`This unit is ${unit.status.replaceAll('_', ' ').toLowerCase()}, not sold.`);
   const movements = await db.movements.findByProduct(product.id);
   const sale = movements.filter((item) => item.unitId === unit.id && item.reason === 'SALE')
@@ -46,7 +46,7 @@ export async function createWarrantyClaim(raw: CreateWarrantyClaimInput): Promis
     if (!unit) throw new Error(`No serialized unit matches ${input.serialNo}.`);
     if (unit.status !== 'SOLD') throw new Error('Only a sold serialized unit can open a warranty claim.');
     const product = await tx.products.findById(unit.productId);
-    if (!product || product.trackingType !== 'SERIAL') throw new Error('Warranty/RMA supports serialized products only.');
+    if (!product || product.trackingType !== 'SERIAL') throw new Error('Warranty claims support individually tracked products only.');
     const sale = (await tx.movements.findByProduct(product.id))
       .filter((item) => item.unitId === unit.id && item.reason === 'SALE')
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];

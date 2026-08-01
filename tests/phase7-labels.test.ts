@@ -82,7 +82,7 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(source('src/app/(dashboard)/stock/labels/error.tsx')).toContain('Try again');
     expect(source('src/app/(dashboard)/stock/labels/loading.tsx')).toContain('Loading stock labels…');
     expect(source('src/app/(dashboard)/stock/in/loading.tsx')).toContain('Loading stock receipt…');
-    expect(source('src/app/(dashboard)/stock/out/loading.tsx')).toContain('Loading inventory removal…');
+    expect(source('src/app/(dashboard)/stock/out/loading.tsx')).toContain('Loading stock removal…');
     expect(source('src/app/(dashboard)/stock/reconcile/loading.tsx')).toContain('Loading reconciliation…');
     expect(source('src/components/invoices/InvoiceRegister.tsx')).toContain('Filtering invoices…');
     expect(source('src/app/(dashboard)/loading.tsx')).toContain('Loading dashboard…');

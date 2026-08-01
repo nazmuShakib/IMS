@@ -3,7 +3,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'Inventory — Electronics Shop',
-  description: 'Stock, units and serial numbers for a single-location electronics shop.',
+  description: 'Stock, products and device numbers for a single-location electronics shop.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

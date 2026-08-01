@@ -88,7 +88,7 @@ function SerialFlow({ initialSerial }: { initialSerial?: string }) {
     <>
       {/* Step 1 — identify the device */}
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-1">Scan or type the serial</p>
+        <p className="eyebrow mb-1">Scan or type the device number / IMEI</p>
         <p className="mb-3 text-[12px] text-graphite">
           A barcode scanner types the number and presses Enter — this box already works with
           one.
@@ -219,7 +219,7 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
     return (
       <Card className="p-5">
         <p className="text-[13px] text-graphite">
-          No bulk-counted products yet. Serial-tracked products go out through the other tab.
+          No bulk/count-based products yet. Individually tracked products use the other tab.
         </p>
       </Card>
     );

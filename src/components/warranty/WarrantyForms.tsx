@@ -11,7 +11,7 @@ import {
   type WarrantyActionState,
 } from '@/actions/warranty';
 import { ScannerInput } from '@/components/search/ScannerInput';
-import { Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
+import { Button, Card, Field, HelpTerm, Input, Select, Textarea } from '@/components/ui';
 import {
   RMA_COVERAGES, RMA_CUSTODIES, RMA_STATUS_TRANSITIONS, SUPPLIER_WARRANTY_STATUSES,
   type RmaCoverage, type RmaCustody, type RmaStatus, type Supplier, type SupplierWarrantyCase, type User,
@@ -31,7 +31,7 @@ function Feedback({ state }: { state: WarrantyActionState }) {
 export function WarrantyLookup({ initialSerial = '' }: { initialSerial?: string }) {
   return (
     <form method="get" action="/warranty/new" className="flex max-w-xl items-end gap-2">
-      <div className="flex-1"><Field label="Scan or enter sold serial / IMEI"><ScannerInput name="serial" defaultValue={initialSerial} autoFocus required placeholder="Scan, then press Enter" /></Field></div>
+      <div className="flex-1"><Field label={<HelpTerm description="The unique serial number or IMEI printed on the sold device.">Scan or enter device number / IMEI</HelpTerm>}><ScannerInput name="serial" defaultValue={initialSerial} autoFocus required placeholder="Scan, then press Enter" /></Field></div>
       <Button type="submit">Look up</Button>
     </form>
   );
@@ -82,7 +82,7 @@ export function WarrantyResolutionForm({ claimId, status }: { claimId: string; s
   const [state, action, pending] = useActionState(resolveWarrantyClaimAction, {}); const key = useKey(state.ok);
   return <form action={action}><input type="hidden" name="claimId" value={claimId} /><input type="hidden" name="expectedStatus" value={status} /><input type="hidden" name="idempotencyKey" value={key} /><Feedback state={state} /><div className="grid gap-3 sm:grid-cols-2">
     <Field label="Inventory outcome"><Select name="outcome"><option value="RESTOCK">Returned and fit for stock</option><option value="WRITEOFF">Returned and damaged</option><option value="REPLACEMENT">Issue replacement unit</option></Select></Field>
-    <Field label="Replacement serial" hint="Required only for replacement; must be the same product"><ScannerInput name="replacementSerial" /></Field>
+    <Field label="Replacement device number / IMEI" hint="Required only for replacement; must be the same product"><ScannerInput name="replacementSerial" /></Field>
     <div className="sm:col-span-2"><Field label="Resolution note"><Textarea name="note" required /></Field></div>
   </div><Button className="mt-3" disabled={pending || key === 'pending'}>Apply stock resolution</Button></form>;
 }

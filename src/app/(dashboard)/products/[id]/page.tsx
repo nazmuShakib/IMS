@@ -208,7 +208,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
           {units.length === 0 ? (
             <EmptyState
-              title="No units yet. Receive some stock and each phone, laptop or TV will appear here with its own serial."
+              title="No items yet. Receive stock and each phone, laptop or TV will appear here with its own device number or IMEI."
               action={
                 <Link href={`/stock/in?product=${product.id}`}>
                   <Button variant="ghost">Receive stock</Button>
@@ -220,7 +220,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <table className="w-full">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-rule">
-                  <th className="eyebrow px-4 py-2.5 text-left">Serial / IMEI</th>
+                  <th className="eyebrow px-4 py-2.5 text-left">Device number / IMEI</th>
                   <th className="eyebrow px-4 py-2.5 text-left">Status</th>
                   <th className="eyebrow px-4 py-2.5 text-left">Received</th>
                   {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Cost</th>}

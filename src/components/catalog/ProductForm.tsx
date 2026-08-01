@@ -5,7 +5,7 @@ import Link from 'next/link';
 import type { Brand, Category, Product } from '@/domain/types';
 import { toTaka } from '@/lib/money';
 import type { ActionState } from '@/actions/catalog';
-import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
+import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -37,7 +37,11 @@ export function ProductForm({
       <Card className="mb-4 p-5">
         <p className="eyebrow mb-4">Identity</p>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="SKU" error={err('sku')} hint="Your internal code. Must be unique.">
+          <Field
+            label={<HelpTerm description="Your shop's unique code for identifying this product.">Product code (SKU)</HelpTerm>}
+            error={err('sku')}
+            hint="Must be unique."
+          >
             <MonoInput
               name="sku"
               required
@@ -106,8 +110,8 @@ export function ProductForm({
           <div className="rounded-[3px] border border-rule bg-plate/60 px-3 py-2.5">
             <p className="text-[13px] font-medium">
               {product!.trackingType === 'SERIAL'
-                ? 'Serial-tracked — one row per physical unit'
-                : 'Bulk-counted — a single quantity'}
+                ? 'Individually tracked — one record per physical item'
+                : 'Bulk/count-based — one shared quantity'}
             </p>
             <p className="mt-1 text-[12px] text-graphite">
               This can&apos;t be changed after the product exists. Its units and its ledger
@@ -125,10 +129,10 @@ export function ProductForm({
                 className="mt-0.5"
               />
               <span>
-                <span className="block text-[13px] font-medium">Serial / IMEI</span>
+                <span className="block text-[13px] font-medium">Individually tracked</span>
                 <span className="mt-0.5 block text-[12px] text-graphite">
-                  Every unit is entered individually. Phones, laptops, TVs. Gives you exact
-                  profit per unit and warranty lookup.
+                  Enter each phone, laptop or TV by its device number or IMEI. This gives
+                  exact profit per item and supports warranty lookup.
                 </span>
               </span>
             </label>
@@ -136,10 +140,10 @@ export function ProductForm({
             <label className="flex cursor-pointer gap-3 rounded-[3px] border border-rule p-3 hover:bg-plate/50 has-checked:border-signal has-checked:bg-signal-wash">
               <input type="radio" name="trackingType" value="QUANTITY" className="mt-0.5" />
               <span>
-                <span className="block text-[13px] font-medium">Bulk quantity</span>
+                <span className="block text-[13px] font-medium">Bulk/count-based</span>
                 <span className="mt-0.5 block text-[12px] text-graphite">
-                  Counted, not serialised. Cables, adapters, screws. Costed at weighted
-                  average.
+                  Track cables, adapters and similar items as a total count instead of
+                  identifying every item separately.
                 </span>
               </span>
             </label>

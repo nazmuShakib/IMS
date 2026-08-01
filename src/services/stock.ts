@@ -60,7 +60,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
     if (product.trackingType === 'SERIAL') {
       const serials = input.serialNumbers ?? [];
       if (serials.length === 0) {
-        throw new Error(`${product.sku} is SERIAL-tracked — serial numbers are required`);
+        throw new Error(`${product.sku} is individually tracked — device numbers or IMEIs are required`);
       }
 
       // A serial belonging to a VOID unit is re-usable: that unit was created in
@@ -75,7 +75,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
 
         if (existing && existing.status !== 'VOID') {
           throw new Error(
-            `Serial ${serialNo} is already in the system (${existing.status}). ` +
+            `Device number ${serialNo} is already in the system (${existing.status}). ` +
               `If it was entered by mistake, reverse that movement first.`,
           );
         }
@@ -149,7 +149,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
 
     // ---- QUANTITY path: one movement, plus cache + weighted-average cost ----
     const qty = input.quantity;
-    if (!qty) throw new Error(`${product.sku} is QUANTITY-tracked — a quantity is required`);
+    if (!qty) throw new Error(`${product.sku} is bulk/count-based — a quantity is required`);
 
     const newAvg = weightedAvgCost(
       product.quantityOnHand,
@@ -205,13 +205,13 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
     // ---- SERIAL path ----
     if (product.trackingType === 'SERIAL') {
       if (!input.serialNo) {
-        throw new Error(`${product.sku} is SERIAL-tracked — a serial number is required`);
+        throw new Error(`${product.sku} is individually tracked — a device number or IMEI is required`);
       }
 
       const unit = await tx.units.findBySerial(input.serialNo);
-      if (!unit) throw new Error(`Unknown serial number: ${input.serialNo}`);
+      if (!unit) throw new Error(`Unknown device number or IMEI: ${input.serialNo}`);
       if (unit.productId !== product.id) {
-        throw new Error(`Serial ${input.serialNo} belongs to a different product`);
+        throw new Error(`Device number ${input.serialNo} belongs to a different product`);
       }
 
       const warrantyExpiresAt =
@@ -251,7 +251,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
 
     // ---- QUANTITY path ----
     const qty = input.quantity;
-    if (!qty) throw new Error(`${product.sku} is QUANTITY-tracked — a quantity is required`);
+    if (!qty) throw new Error(`${product.sku} is bulk/count-based — a quantity is required`);
 
     // Throws if this would take stock negative (mirrors the CHECK constraint).
     await tx.products._applyQuantityDelta(product.id, -qty);

@@ -70,7 +70,7 @@ function InvoiceDocument({
           <View key={item.id} style={styles.row} wrap={false}>
             <View style={styles.item}>
               <Text>{item.productName}</Text>
-              <Text style={styles.muted}>{item.sku}{item.serialNo ? ` / S/N ${item.serialNo}` : ''}</Text>
+              <Text style={styles.muted}>Code (SKU) {item.sku}{item.serialNo ? ` / Device no. ${item.serialNo}` : ''}</Text>
             </View>
             <Text style={styles.qty}>{item.quantity}</Text>
             <Text style={styles.amount}>{money(item.actualUnitPrice)}</Text>

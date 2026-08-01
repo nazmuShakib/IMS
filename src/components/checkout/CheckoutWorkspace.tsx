@@ -13,7 +13,7 @@ import {
 } from '@/actions/checkout';
 import { ScannerInput } from '@/components/search/ScannerInput';
 import { DiscardDraftControl } from '@/components/checkout/DiscardDraftControl';
-import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
+import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import type {
   CartDraft,
   Customer,
@@ -174,7 +174,10 @@ export function CheckoutWorkspace({
           <p className="eyebrow mb-4">Add items</p>
           <form action={addAction}>
             <input type="hidden" name="cartId" value={cart.id} />
-            <Field label="Scan serial, product barcode or SKU" hint="Serialized products require the exact serial/IMEI">
+            <Field
+              label={<HelpTerm description="Product code (SKU) is your shop's unique code; a device number or IMEI identifies one physical item.">Scan device number, barcode or product code (SKU)</HelpTerm>}
+              hint="Individually tracked products require the exact device number or IMEI"
+            >
               <ScannerInput
                 name="identifier"
                 autoFocus
@@ -190,7 +193,7 @@ export function CheckoutWorkspace({
           <div className="grid gap-4 sm:grid-cols-2">
             <form action={addAction}>
               <input type="hidden" name="cartId" value={cart.id} />
-              <Field label="Quantity product" hint="Mouse/manual alternative">
+              <Field label="Bulk/count-based product" hint="Mouse/manual alternative">
                 <Select name="productId" defaultValue="">
                   <option value="" disabled>Choose a product</option>
                   {quantityProducts.map((product) => (
@@ -204,9 +207,9 @@ export function CheckoutWorkspace({
             </form>
             <form action={addAction}>
               <input type="hidden" name="cartId" value={cart.id} />
-              <Field label="Serialized unit" hint="Choose the exact physical unit">
+              <Field label="Individually tracked item" hint="Choose the exact physical item">
                 <Select name="unitId" defaultValue="">
-                  <option value="" disabled>Choose a serial / IMEI</option>
+                  <option value="" disabled>Choose a device number / IMEI</option>
                   {units.map((unit) => (
                     <option key={unit.id} value={unit.id}>
                       {unit.serialNo} — {unit.sku} — {unit.productName}

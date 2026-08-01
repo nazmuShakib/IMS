@@ -113,7 +113,7 @@ export function InvoiceView({
                 <tr key={item.id}>
                   <td>
                     <strong>{item.productName}</strong>
-                    <span className="tnum">{item.sku}{item.serialNo ? ` · S/N ${item.serialNo}` : ''}</span>
+                    <span className="tnum">Code (SKU) {item.sku}{item.serialNo ? ` · Device no. ${item.serialNo}` : ''}</span>
                     {item.warrantyMonths ? <span>{item.warrantyMonths} month warranty</span> : null}
                   </td>
                   <td className="tnum">{item.quantity}</td>

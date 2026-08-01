@@ -35,7 +35,7 @@ export function Field({
   error,
   children,
 }: {
-  label: string;
+  label: ReactNode;
   hint?: string;
   error?: string;
   children: ReactNode;
@@ -50,6 +50,47 @@ export function Field({
         <span className="mt-1 block text-[12px] text-graphite">{hint}</span>
       ) : null}
     </label>
+  );
+}
+
+/** A concise visible term with an explanation available on hover or keyboard focus. */
+export function HelpTerm({
+  children,
+  description,
+  placement = 'top',
+  align = 'center',
+}: {
+  children: ReactNode;
+  description: string;
+  placement?: 'top' | 'bottom';
+  align?: 'start' | 'center' | 'end';
+}) {
+  const vertical = placement === 'top'
+    ? 'bottom-[calc(100%+0.4rem)]'
+    : 'top-[calc(100%+0.4rem)]';
+  const horizontal = {
+    start: 'left-0',
+    center: 'left-1/2 -translate-x-1/2',
+    end: 'right-0',
+  }[align];
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <span>{children}</span>
+      <span
+        tabIndex={0}
+        aria-label={`${String(children)}: ${description}`}
+        className="group relative inline-flex size-4 cursor-help items-center justify-center rounded-full border border-graphite/40 text-[10px] font-semibold normal-case text-graphite outline-none focus-visible:border-signal focus-visible:text-signal"
+      >
+        ?
+        <span
+          role="tooltip"
+          className={`pointer-events-none absolute z-[80] hidden w-64 rounded-[3px] bg-ink px-3 py-2 text-left text-[11px] font-normal normal-case leading-relaxed text-white shadow-lg group-hover:block group-focus:block ${vertical} ${horizontal}`}
+        >
+          {description}
+        </span>
+      </span>
+    </span>
   );
 }
 

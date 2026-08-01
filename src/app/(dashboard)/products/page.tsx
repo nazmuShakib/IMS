@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   EmptyState,
+  HelpTerm,
   Money,
   PageHeader,
   StockCount,
@@ -82,7 +83,7 @@ export default async function ProductsPage({
           <EmptyState
             title={
               q
-                ? `Nothing matches "${q}". Try a SKU, a model number, or part of the name.`
+                ? `Nothing matches "${q}". Try a product code (SKU), model number, or part of the name.`
                 : 'No products yet. Add the first one, or run `npm run seed` for demo stock.'
             }
             action={
@@ -98,9 +99,24 @@ export default async function ProductsPage({
             <table className="w-full">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
-                <th className="eyebrow px-4 py-2.5 text-left">SKU</th>
+                <th className="eyebrow px-4 py-2.5 text-left">
+                  <HelpTerm
+                    description="Your shop's unique code for identifying a product."
+                    placement="bottom"
+                    align="start"
+                  >
+                    Product code (SKU)
+                  </HelpTerm>
+                </th>
                 <th className="eyebrow px-4 py-2.5 text-left">Product</th>
-                <th className="eyebrow px-4 py-2.5 text-left">Tracking</th>
+                <th className="eyebrow px-4 py-2.5 text-left">
+                  <HelpTerm
+                    description="Serial means every physical item has its own device number or IMEI. Bulk/count means the product is tracked as a total quantity."
+                    placement="bottom"
+                  >
+                    Tracking method
+                  </HelpTerm>
+                </th>
                 <th className="eyebrow px-4 py-2.5 text-right">On hand</th>
                 {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Cost</th>}
                 <th className="eyebrow px-4 py-2.5 text-right">Price</th>
@@ -143,7 +159,7 @@ export default async function ProductsPage({
                     </td>
                     <td className="px-4 py-2.5">
                       <Badge tone={p.trackingType === 'SERIAL' ? 'signal' : 'neutral'}>
-                        {p.trackingType === 'SERIAL' ? 'Serial' : 'Bulk'}
+                        {p.trackingType === 'SERIAL' ? 'Serial' : 'Bulk/count'}
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-right">

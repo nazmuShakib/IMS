@@ -6,7 +6,7 @@ import type { Supplier } from '@/domain/types';
 import type { ProductDTO } from '@/lib/dto';
 import { toTaka } from '@/lib/money';
 import { receiveStockAction, type StockActionState } from '@/actions/stock';
-import { Button, Card, Field, Input, MonoInput, Select, Textarea } from '@/components/ui';
+import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { ScannerInput } from '@/components/search/ScannerInput';
 
 export function StockInForm({
@@ -124,14 +124,17 @@ export function StockInForm({
       <Card className="mb-4 p-5">
         <p className="eyebrow mb-4">What arrived</p>
         <div className="mb-4 max-w-md">
-          <Field label="Scan product barcode or SKU" hint="Optional — manual selection remains available">
+          <Field
+            label={<HelpTerm description="The product code (SKU) is your shop's unique code for a product.">Scan product barcode or product code (SKU)</HelpTerm>}
+            hint="Optional — manual selection remains available"
+          >
             <ScannerInput
               placeholder="Scan, then press Enter"
               onScan={(value) => {
                 const normalized = value.toLowerCase();
                 const match = products.find((item) => item.barcode?.toLowerCase() === normalized)
                   ?? products.find((item) => item.sku.toLowerCase() === normalized);
-                if (!match) { setScanError('No active product matches that barcode or SKU.'); return; }
+                if (!match) { setScanError('No active product matches that barcode or product code (SKU).'); return; }
                 setProductId(match.id); setScanError('');
               }}
             />
@@ -205,7 +208,7 @@ export function StockInForm({
         <Card className="mb-4 p-5">
           {isSerial ? (
             <>
-              <p className="eyebrow mb-1">Serial numbers</p>
+              <p className="eyebrow mb-1">Device numbers / IMEIs</p>
               <p className="mb-3 text-[12px] text-graphite">
                 One per line, or comma separated — paste straight from the delivery note.
                 Each one becomes a unit you can look up, sell and warranty individually.
@@ -213,7 +216,7 @@ export function StockInForm({
 
               <div className="mb-4 max-w-md">
                 <Field
-                  label="Scan serial / IMEI"
+                  label={<HelpTerm description="The unique serial number or IMEI printed on an individual device.">Scan device number / IMEI</HelpTerm>}
                   hint="Each scan is appended below. Configure the scanner to send Enter after the code."
                 >
                   <ScannerInput
@@ -221,7 +224,7 @@ export function StockInForm({
                     value={serialScan}
                     onValueChange={setSerialScan}
                     onScan={appendScannedSerial}
-                    placeholder="Scan IMEI or serial, then press Enter"
+                    placeholder="Scan device number or IMEI, then press Enter"
                     autoComplete="off"
                   />
                 </Field>

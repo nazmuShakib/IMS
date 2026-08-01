@@ -163,7 +163,7 @@ const products: ProductRepository = {
     return withLock(async () => {
       const rows = await readAll<Product>('products');
       if (rows.some((p) => p.sku.toLowerCase() === data.sku.toLowerCase())) {
-        throw new Error(`SKU already exists: ${data.sku}`);
+        throw new Error(`Product code (SKU) already exists: ${data.sku}`);
       }
       await writeAll('products', [...rows, data]);
       return data;

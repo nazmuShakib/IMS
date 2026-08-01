@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
-import { Badge, Card, EmptyState, PageHeader, SerialChip, StockCount, TableViewport } from '@/components/ui';
+import { Badge, Card, EmptyState, HelpTerm, PageHeader, SerialChip, StockCount, TableViewport } from '@/components/ui';
 import { formatBDT } from '@/lib/money';
 import { getAuthUserNames, getSession } from '@/lib/session';
 import { getDashboard } from '@/services/dashboard';
@@ -43,14 +43,14 @@ const KPI_TONES: Record<KpiTone, { border: string; wash: string; value: string; 
 };
 
 function Kpi({ label, value, note, tone }: {
-  label: string;
+  label: React.ReactNode;
   value: React.ReactNode;
   note?: string;
   tone: KpiTone;
 }) {
   const colors = KPI_TONES[tone];
   return (
-    <Card className={`overflow-hidden border-t-[3px] p-0 ${colors.border}`}>
+    <Card className={`relative overflow-visible border-t-[3px] p-0 ${colors.border}`}>
       <div className="p-4">
         <p className="eyebrow">{label}</p>
         <div className={`-mx-1 mt-2 rounded-[2px] px-2 py-2 ${colors.wash}`}>
@@ -76,7 +76,7 @@ export default async function DashboardPage() {
       <PageHeader title="Dashboard" count={`Updated ${dhaka(dashboard.generatedAt)}`} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi tone="units" label="Units in stock" value={dashboard.totalUnits.toLocaleString('en-BD')} note={`${dashboard.distinctSkus} stocked SKUs`} />
+        <Kpi tone="units" label="Units in stock" value={dashboard.totalUnits.toLocaleString('en-BD')} note={`${dashboard.distinctSkus} stocked product codes`} />
         <Kpi tone="low" label="Low stock" value={dashboard.lowStockCount} note={`${dashboard.outOfStockCount} out of stock`} />
         {dashboard.canSeeFinancials ? (
           <>
@@ -88,10 +88,14 @@ export default async function DashboardPage() {
               note={dashboard.potentialMargin < 0 ? 'Negative margin · retail value is below current cost' : 'Retail value minus current cost'}
             />
             <Kpi tone="revenue" label="Revenue · this month" value={formatBDT(dashboard.monthRevenue)} />
-            <Kpi tone="cogs" label="COGS · this month" value={formatBDT(dashboard.monthCogs)} />
+            <Kpi
+              tone="cogs"
+              label={<HelpTerm description="The purchase cost of the items sold during this month.">Cost of sold items (COGS) · this month</HelpTerm>}
+              value={formatBDT(dashboard.monthCogs)}
+            />
             <Kpi
               tone={dashboard.monthGrossProfit < 0 ? 'profitLoss' : dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'}
-              label="Gross profit · this month"
+              label={<HelpTerm description="Revenue minus the cost of the items sold, before other shop expenses.">Sales profit · this month</HelpTerm>}
               value={formatBDT(dashboard.monthGrossProfit)}
               note={dashboard.monthGrossProfit < 0 ? 'Loss this month' : dashboard.monthGrossProfit === 0 ? 'Break-even this month' : undefined}
             />

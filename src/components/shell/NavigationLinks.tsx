@@ -11,7 +11,7 @@ const CATALOG = [
 const STOCK = [
   { href: '/stock/in', label: 'Receive stock' },
   { href: '/stock/labels', label: 'Print labels' },
-  { href: '/stock/out', label: 'Inventory removal' },
+  { href: '/stock/out', label: 'Remove stock' },
   { href: '/stock/movements', label: 'Movement ledger' },
 ];
 
@@ -47,7 +47,7 @@ export function NavigationLinks({
       )}
 
       <p className="eyebrow mt-5 px-2 pb-1.5">After-sales</p>
-      <NavLink href="/warranty" onClick={onNavigate}>Warranty / RMA</NavLink>
+      <NavLink href="/warranty" onClick={onNavigate}>Warranty claims</NavLink>
 
       <p className="eyebrow mt-5 px-2 pb-1.5">Catalog</p>
       {CATALOG.map((item) => (

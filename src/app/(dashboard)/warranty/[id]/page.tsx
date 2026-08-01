@@ -26,7 +26,7 @@ export default async function WarrantyDetailPage({ params }: { params: Promise<{
   const canResolve = claim.status === 'APPROVED' || claim.status === 'READY_FOR_COLLECTION';
   const terminal = ['REPLACED', 'COMPLETED', 'CANCELLED'].includes(claim.status);
 
-  return <div className="print:max-w-none"><PageHeader title={claim.claimNumber} count="Warranty / RMA acknowledgement" action={<PrintButton />} />
+  return <div className="print:max-w-none"><PageHeader title={claim.claimNumber} count="Warranty claim acknowledgement" action={<PrintButton />} />
     <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
       <div className="space-y-4">
         <Card className="p-5"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-[17px] font-medium">{product?.name ?? 'Missing product'}</p>{unit && <p className="mt-1"><SerialChip serial={unit.serialNo} /></p>}</div><div className="text-right"><Badge tone={terminal ? 'ok' : 'signal'}>{claim.status}</Badge><p className="mt-1 text-[11px] text-graphite">Customer: {label(claim.coverage)}</p></div></div>

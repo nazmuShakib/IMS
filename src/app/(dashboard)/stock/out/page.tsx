@@ -20,7 +20,7 @@ export default async function StockOutPage({
   return (
     <>
       <PageHeader
-        title="Inventory removal"
+        title="Remove stock"
         count="Damage, loss, internal use, or return to supplier · all sales go through Checkout"
       />
       <StockOutForm

@@ -59,7 +59,7 @@ export async function recordLabelPrintAction(
   if (product.trackingType === 'SERIAL') {
     uniqueUnitIds = [...new Set(input.unitIds)];
     if (uniqueUnitIds.length === 0) {
-      return { error: 'Select at least one serialized unit.' };
+      return { error: 'Select at least one individually tracked item.' };
     }
     if (uniqueUnitIds.length * input.copies > 500) {
       return { error: 'A print job may contain at most 500 labels.' };
@@ -77,17 +77,17 @@ export async function recordLabelPrintAction(
       return { error: 'STAFF may only print labels for units currently in stock.' };
     }
     if (units.some((unit) => !isCode128Value(unit!.serialNo))) {
-      return { error: 'One or more serial numbers contain characters Code 128 cannot encode.' };
+      return { error: 'One or more device numbers contain characters Code 128 cannot encode.' };
     }
   } else {
     if (input.unitIds.length > 0) {
-      return { error: 'Quantity-tracked products do not have individual unit records.' };
+      return { error: 'Bulk/count-based products do not have individual item records.' };
     }
     if (!canPrintNonStock && product.quantityOnHand <= 0) {
       return { error: 'STAFF may only print labels for products currently in stock.' };
     }
     if (!isCode128Value(product.barcode ?? product.sku)) {
-      return { error: 'This product barcode or SKU contains characters Code 128 cannot encode.' };
+      return { error: 'This product barcode or product code (SKU) contains characters Code 128 cannot encode.' };
     }
   }
 

@@ -65,10 +65,10 @@ export async function lookupSerial(
 ): Promise<{ error?: string; found?: SerialLookup }> {
   const { role } = await getSession();
   const serial = str(fd, 'serialNo');
-  if (!serial) return { error: 'Enter a serial or IMEI' };
+  if (!serial) return { error: 'Enter a device number or IMEI' };
 
   const unit = await db.units.findBySerial(serial);
-  if (!unit) return { error: `No unit with serial ${serial}. Check the number, or receive it in first.` };
+  if (!unit) return { error: `No item with device number ${serial}. Check the number, or receive it first.` };
 
   if (unit.status !== 'IN_STOCK') {
     return {

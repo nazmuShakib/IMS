@@ -120,6 +120,8 @@ describe('Phase 4 dashboard', () => {
     expect(page).toContain('Break-even this month');
     expect(css).toContain('--color-metric-margin-loss: #9f1239');
     expect(css).toContain('--color-metric-profit-loss: #b3261e');
+    expect(page).toContain('relative overflow-visible border-t-[3px]');
+    expect(page).not.toContain('overflow-hidden border-t-[3px]');
   });
 
   it('renders daily stock movement as signed bars with a net line', () => {

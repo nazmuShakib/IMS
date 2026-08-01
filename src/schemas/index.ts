@@ -100,7 +100,7 @@ export const receiveStockSchema = z
     idempotencyKey: z.string().min(8),
   })
   .refine((i) => Boolean(i.serialNumbers?.length) !== Boolean(i.quantity), {
-    message: 'Provide serialNumbers (SERIAL products) or quantity (QUANTITY products) — not both, not neither',
+    message: 'Provide device numbers/IMEIs for individually tracked products or a quantity for bulk/count-based products.',
   })
   .refine(
     (i) => !i.serialNumbers || new Set(i.serialNumbers).size === i.serialNumbers.length,
@@ -128,7 +128,7 @@ export const stockOutSchema = z
     idempotencyKey: z.string().min(8),
   })
   .refine((i) => Boolean(i.serialNo) !== Boolean(i.quantity), {
-    message: 'Provide serialNo (SERIAL products) or quantity (QUANTITY products) — not both, not neither',
+    message: 'Provide a device number/IMEI for an individually tracked product or a quantity for a bulk/count-based product.',
   })
   .refine((i) => i.reason !== 'SALE' || i.salePrice !== undefined, {
     message: 'A SALE needs a selling price — the financial reports depend on it',

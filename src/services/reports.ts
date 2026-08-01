@@ -223,8 +223,8 @@ function saleRows(ctx: Context, filters: ReportFilters, now: Date): ReportResult
   const rows = [...buckets].map(([id, item]) => ({ id, cells: { group: item.label, quantity: item.quantity, revenue: item.revenue, cogs: item.cogs, profit: item.revenue - item.cogs, margin: item.revenue === 0 ? 0 : Math.round(((item.revenue - item.cogs) / item.revenue) * 10_000) / 100 } }));
   const sortKey = filters.sort ?? 'revenue'; const direction = filters.direction === 'asc' ? 1 : -1;
   rows.sort((a, b) => direction * (Number((a.cells as Record<string, ReportCell>)[sortKey] ?? 0) - Number((b.cells as Record<string, ReportCell>)[sortKey] ?? 0)));
-  return { kind: 'sales', title: 'Revenue, COGS & gross margin', description: `Sale economics grouped by ${groupBy}.`, generatedAt: now.toISOString(),
-    columns: [{ key: 'group', label: 'Period / group', type: 'text' }, { key: 'quantity', label: 'Units sold', type: 'number' }, ...moneyCols([['revenue', 'Revenue'], ['cogs', 'COGS'], ['profit', 'Gross profit']]), { key: 'margin', label: 'Margin %', type: 'number' }],
+  return { kind: 'sales', title: 'Revenue, cost and sales profit', description: `Sales results grouped by ${groupBy}.`, generatedAt: now.toISOString(),
+    columns: [{ key: 'group', label: 'Period / group', type: 'text' }, { key: 'quantity', label: 'Units sold', type: 'number' }, ...moneyCols([['revenue', 'Revenue'], ['cogs', 'Cost of sold items (COGS)'], ['profit', 'Sales profit']]), { key: 'margin', label: 'Profit margin %', type: 'number' }],
     rows, totals: { quantity: sum(rows, 'quantity'), revenue: sum(rows, 'revenue'), cogs: sum(rows, 'cogs'), profit: sum(rows, 'profit') } };
 }
 
@@ -242,7 +242,7 @@ function profitRows(ctx: Context, filters: ReportFilters, now: Date): ReportResu
   const sortKey = filters.sort ?? 'profit'; const direction = filters.direction === 'asc' ? 1 : -1;
   rows.sort((a, b) => direction * (Number((a.cells as Record<string, ReportCell>)[sortKey] ?? 0) - Number((b.cells as Record<string, ReportCell>)[sortKey] ?? 0)));
   return { ...base, kind: 'profit', title: 'Profit per product', description: 'Exact sale margin from snapshotted selling price and cost.',
-    columns: [{ key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'SKU', type: 'text' }, { key: 'quantity', label: 'Units sold', type: 'number' }, ...moneyCols([['revenue', 'Revenue'], ['cogs', 'COGS'], ['profit', 'Profit']]), { key: 'margin', label: 'Margin %', type: 'number' }],
+    columns: [{ key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'quantity', label: 'Units sold', type: 'number' }, ...moneyCols([['revenue', 'Revenue'], ['cogs', 'Cost of sold items (COGS)'], ['profit', 'Sales profit']]), { key: 'margin', label: 'Profit margin %', type: 'number' }],
     rows, totals: { quantity: sum(rows, 'quantity'), revenue: sum(rows, 'revenue'), cogs: sum(rows, 'cogs'), profit: sum(rows, 'profit') } };
 }
 
@@ -280,7 +280,7 @@ function agingRows(ctx: Context, filters: ReportFilters, now: Date): ReportResul
     if (remaining > 0) add(product.createdAt, remaining, product.avgCostPrice);
   }
   const rows = [...values].map(([id, item]) => ({ id, cells: { bucket: `${id} days`, quantity: item.quantity, value: item.value } }));
-  return { kind: 'aging', title: 'Stock aging', description: 'Current inventory grouped by age since receipt.', generatedAt: now.toISOString(), columns: [{ key: 'bucket', label: 'Age', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['value', 'Value at cost']])], rows, totals: { quantity: sum(rows, 'quantity'), value: sum(rows, 'value') }, note: 'Quantity-tracked stock uses FIFO reconstruction: outbound stock consumes the oldest receipts first.' };
+  return { kind: 'aging', title: 'Stock aging', description: 'Current inventory grouped by age since receipt.', generatedAt: now.toISOString(), columns: [{ key: 'bucket', label: 'Age', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['value', 'Value at cost']])], rows, totals: { quantity: sum(rows, 'quantity'), value: sum(rows, 'value') }, note: 'Bulk/count-based stock uses oldest stock first (FIFO) for this report.' };
 }
 
 function shrinkageRows(ctx: Context, filters: ReportFilters, now: Date): ReportResult {
@@ -294,7 +294,7 @@ function shrinkageRows(ctx: Context, filters: ReportFilters, now: Date): ReportR
     if (reason === 'DAMAGE') bucket.damage += value; else bucket.loss += value; buckets.set(product.id, bucket);
   }
   const rows = [...buckets].map(([id, item]) => ({ id, cells: { product: item.product.name, sku: item.product.sku, quantity: item.quantity, damage: item.damage, loss: item.loss, value: item.damage + item.loss } })).sort((a, b) => Number(b.cells.value) - Number(a.cells.value));
-  return { kind: 'shrinkage', title: 'Shrinkage', description: 'Damage and loss valued at snapshotted cost.', generatedAt: now.toISOString(), columns: [{ key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'SKU', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['damage', 'Damage'], ['loss', 'Loss'], ['value', 'Total']])], rows, totals: { quantity: sum(rows, 'quantity'), damage: sum(rows, 'damage'), loss: sum(rows, 'loss'), value: sum(rows, 'value') } };
+  return { kind: 'shrinkage', title: 'Shrinkage', description: 'Damage and loss valued at snapshotted cost.', generatedAt: now.toISOString(), columns: [{ key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['damage', 'Damage'], ['loss', 'Loss'], ['value', 'Total']])], rows, totals: { quantity: sum(rows, 'quantity'), damage: sum(rows, 'damage'), loss: sum(rows, 'loss'), value: sum(rows, 'value') } };
 }
 
 function movementRows(ctx: Context, filters: ReportFilters, now: Date): ReportResult {
@@ -305,7 +305,7 @@ function movementRows(ctx: Context, filters: ReportFilters, now: Date): ReportRe
     const product = ctx.productById.get(movement.productId)!;
     return { id: movement.id, cells: { date: movement.createdAt, product: product.name, sku: product.sku, type: movement.type, reason: movement.reason.replaceAll('_', ' '), quantity: movement.quantity, unitCost: movement.unitCost, unitPrice: movement.unitPrice, actor: movement.actorId ? (ctx.actorNames.get(movement.actorId) ?? 'Unknown user') : 'System', reference: movement.reference } };
   });
-  return { kind: 'movements', title: 'Movement audit', description: 'Append-only inventory ledger with complete operational filters.', generatedAt: now.toISOString(), columns: [{ key: 'date', label: 'Date', type: 'date' }, { key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'SKU', type: 'text' }, { key: 'type', label: 'Type', type: 'text' }, { key: 'reason', label: 'Reason', type: 'text' }, { key: 'quantity', label: 'Qty', type: 'number' }, ...moneyCols([['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']]), { key: 'actor', label: 'Actor', type: 'text' }, { key: 'reference', label: 'Reference', type: 'text' }], rows, totals: { quantity: sum(rows, 'quantity') } };
+  return { kind: 'movements', title: 'Movement audit', description: 'Append-only inventory ledger with complete operational filters.', generatedAt: now.toISOString(), columns: [{ key: 'date', label: 'Date', type: 'date' }, { key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'type', label: 'Type', type: 'text' }, { key: 'reason', label: 'Reason', type: 'text' }, { key: 'quantity', label: 'Qty', type: 'number' }, ...moneyCols([['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']]), { key: 'actor', label: 'Actor', type: 'text' }, { key: 'reference', label: 'Reference', type: 'text' }], rows, totals: { quantity: sum(rows, 'quantity') } };
 }
 
 export async function getReport(

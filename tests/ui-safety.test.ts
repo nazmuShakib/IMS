@@ -84,3 +84,19 @@ describe('responsive navigation', () => {
     expect(links).toContain("role === 'ADMIN'");
   });
 });
+
+describe('plain-language terminology', () => {
+  it('explains technical terms while preserving the requested navigation names', () => {
+    const ui = source('src/components/ui/index.tsx');
+    const navigation = source('src/components/shell/NavigationLinks.tsx');
+    const products = source('src/app/(dashboard)/products/page.tsx');
+    expect(ui).toContain('role="tooltip"');
+    expect(products).toContain('Product code (SKU)');
+    expect(products).toContain('placement="bottom"');
+    expect(products).toContain("p.trackingType === 'SERIAL' ? 'Serial' : 'Bulk/count'");
+    expect(navigation).toContain('Remove stock');
+    expect(navigation).toContain('Warranty claims');
+    expect(navigation).toContain('Movement ledger');
+    expect(navigation).toContain('Reconciliation');
+  });
+});

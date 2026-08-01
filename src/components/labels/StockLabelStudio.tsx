@@ -15,6 +15,7 @@ import {
   Card,
   EmptyState,
   Field,
+  HelpTerm,
   Input,
   Select,
   TableViewport,
@@ -60,7 +61,7 @@ function ProductLabel({
         <strong className="stock-label-name">{product.name}</strong>
       </div>
       <div className="stock-label-meta">
-        <span className="tnum">SKU {product.sku}</span>
+        <span className="tnum">Code (SKU) {product.sku}</span>
         {descriptor && <span>{descriptor}</span>}
       </div>
       <div className="stock-label-bars">
@@ -220,7 +221,10 @@ export function StockLabelStudio({
       <div className="label-screen-only">
         <Card className="mb-4 p-5">
           <div className="grid gap-4 md:grid-cols-2">
-            <Field label="Scan barcode, SKU or serial" hint="Scanner and keyboard entry are both supported">
+            <Field
+              label={<HelpTerm description="A product code (SKU) identifies a product type; a device number or IMEI identifies one physical item.">Scan barcode, product code (SKU) or device number</HelpTerm>}
+              hint="Scanner and keyboard entry are both supported"
+            >
               <ScannerInput
                 placeholder="Scan, then press Enter"
                 onScan={scan}
@@ -268,7 +272,7 @@ export function StockLabelStudio({
                 <div>
                   <p className="text-[16px] font-semibold">{product.name}</p>
                   <p className="tnum mt-0.5 text-[12px] text-graphite">
-                    {product.sku} · {product.trackingType}
+                    {product.sku} · {product.trackingType === 'SERIAL' ? 'Individually tracked' : 'Bulk/count-based'}
                     {product.brandName ? ` · ${product.brandName}` : ''}
                     {product.model ? ` · ${product.model}` : ''}
                   </p>
@@ -321,7 +325,7 @@ export function StockLabelStudio({
                       <thead className="sticky top-0 bg-card">
                         <tr className="border-b border-rule text-left">
                           <th className="w-10 px-3 py-2"><span className="sr-only">Select</span></th>
-                          <th className="eyebrow px-3 py-2">Serial / IMEI</th>
+                          <th className="eyebrow px-3 py-2">Device number / IMEI</th>
                           <th className="eyebrow px-3 py-2">Status</th>
                           <th className="eyebrow px-3 py-2">Received</th>
                         </tr>
@@ -358,7 +362,7 @@ export function StockLabelStudio({
                 </div>
               ) : (
                 <p className="mt-4 text-[12px] text-graphite">
-                  Quantity-tracked items use {product.barcode ? 'the product barcode' : 'the SKU'}.
+                  Bulk/count-based items use {product.barcode ? 'the product barcode' : 'the product code (SKU)'}.
                   Enter the number of identical labels required.
                 </p>
               )}

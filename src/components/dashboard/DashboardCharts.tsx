@@ -89,7 +89,7 @@ export function DashboardCharts({
       )}
 
       {moneyData && (
-        <ChartShell title="Revenue and gross margin · last 30 days">
+        <ChartShell title="Revenue and sales profit margin · last 30 days">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moneyData} margin={{ left: 8, right: 8, top: 4, bottom: 0 }}>
               <CartesianGrid stroke="#e6e9eb" vertical={false} />
@@ -98,7 +98,7 @@ export function DashboardCharts({
               <Tooltip formatter={(value) => `৳${Number(value).toLocaleString('en-BD')}`} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
               <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2e4bd8" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="margin" name="Gross margin" stroke="#1b7f5c" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="margin" name="Sales profit margin" stroke="#1b7f5c" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </ChartShell>
