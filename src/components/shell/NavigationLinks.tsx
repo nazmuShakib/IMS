@@ -15,6 +15,7 @@ import {
   PackagePlus,
   ReceiptText,
   ScrollText,
+  Settings,
   ShieldCheck,
   ShoppingCart,
   Tags,
@@ -90,6 +91,9 @@ export function NavigationLinks({
           <NavLink href="/audit" onClick={onNavigate} icon={icon(ScrollText)} tooltip={desktop ? t('navHelp.auditLog') : undefined} tooltipPlacement="top">{t('nav.auditLog')}</NavLink>
         </>
       )}
+
+      <p className="eyebrow mt-5 px-2 pb-1.5">{t('settings.title')}</p>
+      <NavLink href="/settings" onClick={onNavigate} icon={icon(Settings)}>{t('nav.settings')}</NavLink>
     </div>
   );
 }

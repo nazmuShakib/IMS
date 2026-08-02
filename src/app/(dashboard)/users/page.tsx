@@ -1,5 +1,6 @@
 import { changeUserRole, toggleUserActive } from '@/actions/users';
 import { CreateUserForm } from '@/components/auth/CreateUserForm';
+import { AdminPasswordReset, UserPhoneEditor } from '@/components/auth/UserSecurityControls';
 import { Badge, Button, Card, PageHeader, Select, TableViewport } from '@/components/ui';
 import { prisma } from '@/lib/prisma';
 import { getSession, requireRole } from '@/lib/session';
@@ -23,6 +24,7 @@ export default async function UsersPage() {
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-rule">
               <th className="eyebrow px-4 py-2.5 text-left">{t('users.user')}</th>
+              <th className="eyebrow px-4 py-2.5 text-left">{t('customers.mobile')}</th>
               <th className="eyebrow px-4 py-2.5 text-left">{t('users.role')}</th>
               <th className="eyebrow px-4 py-2.5 text-left">{t('common.status')}</th>
               <th className="eyebrow px-4 py-2.5 text-right">{t('users.action')}</th>
@@ -33,7 +35,9 @@ export default async function UsersPage() {
               <tr key={user.id} className="border-b border-rule-soft last:border-0">
                 <td className="px-4 py-3">
                   <p className="text-[13px] font-medium">{user.name}</p>
-                  <p className="tnum text-[11px] text-graphite">{user.email}</p>
+                </td>
+                <td className="px-4 py-3">
+                  <UserPhoneEditor userId={user.id} phone={user.phoneNumber} />
                 </td>
                 <td className="px-4 py-3">
                   {user.id === current.id ? (
@@ -62,12 +66,15 @@ export default async function UsersPage() {
                 </td>
                 <td className="px-4 py-3 text-right">
                   {user.id !== current.id && (
-                    <form action={toggleUserActive}>
-                      <input type="hidden" name="userId" value={user.id} />
-                      <Button type="submit" variant={user.isActive ? 'danger' : 'ghost'}>
-                        {user.isActive ? t('users.deactivate') : t('users.activate')}
-                      </Button>
-                    </form>
+                    <div className="flex justify-end gap-2">
+                      <AdminPasswordReset userId={user.id} userName={user.name} />
+                      <form action={toggleUserActive}>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <Button type="submit" variant={user.isActive ? 'danger' : 'ghost'}>
+                          {user.isActive ? t('users.deactivate') : t('users.activate')}
+                        </Button>
+                      </form>
+                    </div>
                   )}
                 </td>
               </tr>

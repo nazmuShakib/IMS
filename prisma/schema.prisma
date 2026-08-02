@@ -125,6 +125,8 @@ model User {
   name          String
   email         String    @unique
   emailVerified Boolean   @default(false)
+  phoneNumber         String?  @unique
+  phoneNumberVerified Boolean  @default(false)
   image         String?
   role          Role      @default(STAFF)
   isActive      Boolean   @default(true)

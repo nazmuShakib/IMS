@@ -2,7 +2,6 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { SignOutControl } from '@/components/auth/SignOutControl';
@@ -14,11 +13,9 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 export function MobileNavigation({
   role,
   userName,
-  languageSwitcher,
 }: {
   role: Role;
   userName: string;
-  languageSwitcher: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
   const { t } = useI18n();
@@ -101,7 +98,6 @@ export function MobileNavigation({
                 <Badge tone="signal">{role}</Badge>
                 <span className="text-[10px] text-graphite">{t('shell.authenticated')}</span>
               </div>
-              <div className="mt-3">{languageSwitcher}</div>
               <SignOutControl />
             </div>
           </aside>

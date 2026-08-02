@@ -100,6 +100,8 @@ export interface User {
   name: string;
   email: string;
   emailVerified: boolean;
+  phoneNumber: string | null;
+  phoneNumberVerified: boolean;
   image: string | null;
   role: Role;
   isActive: boolean;

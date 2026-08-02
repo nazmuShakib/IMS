@@ -149,12 +149,45 @@ describe('Server Action authorization boundaries', () => {
 describe('authentication and audit architecture', () => {
   const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
-  it('keeps public signup disabled and installs the admin and cookie plugins', () => {
+  it('keeps public signup disabled and installs phone, admin and cookie plugins', () => {
     const text = source('src/lib/auth.ts');
     expect(text).toContain('emailAndPassword:');
+    expect(text).toContain('enabled: false');
     expect(text).toContain('disableSignUp: true');
+    expect(text).toContain('phoneNumber({');
+    expect(text).toContain('phoneNumberValidator: isBangladeshMobile');
     expect(text).toContain('admin({');
     expect(text).toContain('nextCookies()');
+  });
+
+  it('uses mobile-only login while retaining hidden Better Auth email identifiers', () => {
+    const action = source('src/actions/auth.ts');
+    const login = source('src/components/auth/LoginForm.tsx');
+    const users = source('src/actions/users.ts');
+    expect(action).toContain('auth.api.signInPhoneNumber');
+    expect(action).not.toContain('signInEmail');
+    expect(login).toContain('name="phone"');
+    expect(users).toContain('generateInternalAuthEmail()');
+    expect(users).toContain('phoneNumberVerified: true');
+  });
+
+  it('supports self-service and administrator password changes with session revocation', () => {
+    const settings = source('src/actions/settings.ts');
+    const users = source('src/actions/users.ts');
+    expect(settings).toContain('auth.api.changePassword');
+    expect(settings).toContain('revokeOtherSessions: true');
+    expect(users).toContain('auth.api.setUserPassword');
+    expect(users).toContain('prisma.session.deleteMany');
+  });
+
+  it('provides accessible password visibility controls without changing form semantics', () => {
+    const input = source('src/components/auth/PasswordInput.tsx');
+    const login = source('src/components/auth/LoginForm.tsx');
+    const settings = source('src/components/auth/ChangePasswordForm.tsx');
+    expect(input).toContain("type={visible ? 'text' : 'password'}");
+    expect(input).toContain('aria-pressed={visible}');
+    expect(login).toContain('<PasswordInput');
+    expect(settings.match(/<PasswordInput/g)).toHaveLength(3);
   });
 
   it('uses proxy.ts only as an optimistic cookie guard', () => {
@@ -181,6 +214,7 @@ describe('authentication and audit architecture', () => {
   it('audits authentication, user, catalog, and stock mutations', () => {
     const text = [
       source('src/actions/auth.ts'),
+      source('src/actions/settings.ts'),
       source('src/actions/users.ts'),
       source('src/actions/catalog.ts'),
       source('src/actions/stock.ts'),
@@ -188,6 +222,7 @@ describe('authentication and audit architecture', () => {
     for (const action of [
       'auth.login',
       'auth.logout',
+      'auth.password_change',
       'user.create',
       'user.role_change',
       'user.activate',

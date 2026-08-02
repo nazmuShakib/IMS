@@ -1,11 +1,12 @@
 import { prismaAdapter } from 'better-auth/adapters/prisma';
 import { betterAuth } from 'better-auth';
 import { nextCookies } from 'better-auth/next-js';
-import { admin } from 'better-auth/plugins';
+import { admin, phoneNumber } from 'better-auth/plugins';
 import type { AccessControl } from 'better-auth/plugins/access';
 import { adminAc, defaultAc, userAc } from 'better-auth/plugins/admin/access';
 
 import { prisma } from '@/lib/prisma';
+import { isBangladeshMobile } from '@/lib/phone';
 
 export const auth = betterAuth({
   appName: 'Electronics Shop Inventory',
@@ -16,7 +17,9 @@ export const auth = betterAuth({
     transaction: true,
   }),
   emailAndPassword: {
-    enabled: true,
+    // Credential accounts still hold hashed passwords, but public email login
+    // is disabled. The phone-number plugin is the sole sign-in identifier.
+    enabled: false,
     disableSignUp: true,
     minPasswordLength: 12,
     maxPasswordLength: 128,
@@ -38,6 +41,13 @@ export const auth = betterAuth({
     },
   },
   plugins: [
+    phoneNumber({
+      phoneNumberValidator: isBangladeshMobile,
+      requireVerification: false,
+      sendOTP: async () => {
+        throw new Error('SMS verification is not configured for this application.');
+      },
+    }),
     admin({
       // Better Auth's public AccessControl type erases the concrete statement
       // keys; the roles retain their runtime controller from defaultAc.

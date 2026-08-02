@@ -20,6 +20,8 @@ function toDomainUser(user: Awaited<ReturnType<typeof prisma.user.findUniqueOrTh
     name: user.name,
     email: user.email,
     emailVerified: user.emailVerified,
+    phoneNumber: user.phoneNumber,
+    phoneNumberVerified: user.phoneNumberVerified,
     image: user.image,
     role: user.role,
     isActive: user.isActive,

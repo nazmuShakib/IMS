@@ -21,11 +21,13 @@ async function main() {
   // --- Users -------------------------------------------------------------
   const admin = await db.users.create({
     id: uuidv7(), name: 'Shop Owner', email: 'owner@shop.test',
-    emailVerified: true, image: null, role: 'ADMIN', isActive: true,
+    emailVerified: true, phoneNumber: null, phoneNumberVerified: false,
+    image: null, role: 'ADMIN', isActive: true,
   });
   await db.users.create({
     id: uuidv7(), name: 'Counter Staff', email: 'staff@shop.test',
-    emailVerified: true, image: null, role: 'STAFF', isActive: true,
+    emailVerified: true, phoneNumber: null, phoneNumberVerified: false,
+    image: null, role: 'STAFF', isActive: true,
   });
 
   // --- Catalog -----------------------------------------------------------

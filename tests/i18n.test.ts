@@ -39,12 +39,15 @@ describe('English and Bengali interface', () => {
     expect(migration).toContain("CHECK (\"locale\" IN ('en', 'bn'))");
   });
 
-  it('offers the switch in authenticated and login layouts without changing print data', () => {
-    const dashboard = source('src/app/(dashboard)/layout.tsx');
+  it('offers the switch in Settings and login without changing print data', () => {
+    const settings = source('src/app/(dashboard)/settings/page.tsx');
     const login = source('src/app/login/page.tsx');
     const invoice = source('src/components/invoices/InvoiceView.tsx');
     const label = source('src/components/labels/StockLabelStudio.tsx');
-    expect(dashboard).toContain('<LanguageSwitcher locale={locale}');
+    expect(settings).toContain('<LanguageSwitcher locale={locale}');
+    expect(settings).toContain('showBoth');
+    expect(source('src/components/i18n/LanguageSwitcher.tsx')).toContain('aria-pressed={selected}');
+    expect(source('src/app/(dashboard)/layout.tsx')).toContain('ml-auto hidden md:block');
     expect(login).toContain('<LanguageSwitcher locale={locale}');
     expect(invoice).not.toContain('LanguageSwitcher');
     expect(label).toContain('<ProductLabel');

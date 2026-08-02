@@ -37,7 +37,7 @@ const movements: StockMovement[] = [
 const category: Category = { id: 'c1', name: 'Devices', slug: 'devices', parentId: null, isActive: true, createdAt: '', updatedAt: '' };
 const brand: Brand = { id: 'b1', name: 'Acme', slug: 'acme', isActive: true, createdAt: '', updatedAt: '' };
 const supplier: Supplier = { id: 's1', name: 'Supplier', phone: null, email: null, address: null, note: null, isActive: true, createdAt: '', updatedAt: '' };
-const user: User = { id: 'legacy-user', name: 'Legacy', email: 'legacy@example.com', emailVerified: true, image: null, role: 'ADMIN', isActive: true, createdAt: '', updatedAt: '' };
+const user: User = { id: 'legacy-user', name: 'Legacy', email: 'legacy@example.com', emailVerified: true, phoneNumber: null, phoneNumberVerified: false, image: null, role: 'ADMIN', isActive: true, createdAt: '', updatedAt: '' };
 
 function repositories(): Repositories {
   return {

@@ -45,6 +45,8 @@ function user(row: Awaited<ReturnType<Client['user']['findUniqueOrThrow']>>): Us
     name: row.name,
     email: row.email,
     emailVerified: row.emailVerified,
+    phoneNumber: row.phoneNumber,
+    phoneNumberVerified: row.phoneNumberVerified,
     image: row.image,
     role: row.role,
     isActive: row.isActive,

@@ -47,7 +47,6 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <MobileNavigation
             role={role}
             userName={user.name}
-            languageSwitcher={<LanguageSwitcher locale={locale} compact />}
           />
           <CommandPalette />
           <div className="ml-auto hidden md:block"><LanguageSwitcher locale={locale} /></div>

@@ -60,7 +60,8 @@ const supplier: Supplier = {
 };
 
 const user: User = {
-  id: 'user-1', name: 'Test User', email: 'test@example.com', emailVerified: true, image: null,
+  id: 'user-1', name: 'Test User', email: 'test@example.com', emailVerified: true,
+  phoneNumber: null, phoneNumberVerified: false, image: null,
   role: 'ADMIN', isActive: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
 };
 

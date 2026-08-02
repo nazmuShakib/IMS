@@ -14,3 +14,9 @@ export function normalizeBangladeshMobile(value: string): string {
   if (/^1[3-9]\d{8}$/.test(digits)) return `0${digits}`;
   return digits;
 }
+
+/** Canonical authentication identifier. UI may accept 01… or +8801…. */
+export function normalizeBangladeshMobileE164(value: string): string {
+  const local = normalizeBangladeshMobile(value);
+  return /^01[3-9]\d{8}$/.test(local) ? `+88${local}` : local;
+}

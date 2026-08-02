@@ -13,6 +13,7 @@ const LABEL_KEYS: Record<string, MessageKey> = {
   'Loading customers…': 'loading.customers',
   'Loading invoices…': 'loading.invoices',
   'Loading users…': 'loading.users',
+  'Loading settings…': 'loading.settings',
   'Loading audit log…': 'loading.audit',
   'Loading reports…': 'loading.reports',
   'Loading stock receipt…': 'loading.receiveStock',

@@ -114,6 +114,8 @@ async function main() {
         name: 'Rollback checkout actor',
         email: `verify-${checkoutActorId}@example.invalid`,
         emailVerified: true,
+        phoneNumber: null,
+        phoneNumberVerified: false,
         image: null,
         role: 'STAFF',
         isActive: true,

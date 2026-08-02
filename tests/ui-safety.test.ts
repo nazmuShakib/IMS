@@ -56,6 +56,7 @@ describe('route loading feedback', () => {
     ['src/app/(dashboard)/brands/loading.tsx', 'Loading brands…'],
     ['src/app/(dashboard)/suppliers/loading.tsx', 'Loading suppliers…'],
     ['src/app/(dashboard)/users/loading.tsx', 'Loading users…'],
+    ['src/app/(dashboard)/settings/loading.tsx', 'Loading settings…'],
     ['src/app/(dashboard)/audit/loading.tsx', 'Loading audit log…'],
   ])('uses a page-specific message in %s', (file, label) => {
     expect(source(file)).toContain(label);
