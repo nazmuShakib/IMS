@@ -19,7 +19,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <I18nProvider locale={locale}>
     <div className="flex min-h-screen">
       {/* --- Sidebar ---------------------------------------------------- */}
-      <aside className="hidden w-52 shrink-0 flex-col overflow-hidden border-r border-rule bg-card print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
+      <aside className="desktop-sidebar hidden w-52 shrink-0 flex-col overflow-hidden border-r border-rule bg-card print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
         <div className="border-b border-rule px-4 py-4">
           <Link href="/" className="block">
             <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
@@ -28,7 +28,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
-          <NavigationLinks role={role} />
+          <NavigationLinks role={role} desktop />
         </nav>
 
         <div className="border-t border-rule px-4 py-3">

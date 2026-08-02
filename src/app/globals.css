@@ -93,6 +93,31 @@ html[lang='bn'] .eyebrow {
   color: var(--color-graphite);
 }
 
+/* The fixed desktop sidebar is viewed at a greater distance than the mobile
+   drawer, so give its navigation and account copy one extra size step. */
+@media screen and (min-width: 768px) {
+  .desktop-navigation a {
+    font-size: 14px;
+    line-height: 1.4;
+  }
+
+  .desktop-navigation .eyebrow {
+    font-size: 11px;
+  }
+
+  .desktop-sidebar > div:first-child > a > span:first-child {
+    font-size: 14px;
+  }
+
+  .desktop-sidebar > div:last-child > p {
+    font-size: 13px;
+  }
+
+  .desktop-sidebar > div:last-child button {
+    font-size: 12px;
+  }
+}
+
 :focus-visible {
   outline: 2px solid var(--color-signal);
   outline-offset: 2px;

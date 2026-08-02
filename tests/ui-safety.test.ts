@@ -74,7 +74,7 @@ describe('responsive navigation', () => {
     const mobile = source('src/components/shell/MobileNavigation.tsx');
     const links = source('src/components/shell/NavigationLinks.tsx');
     expect(layout).toContain('<MobileNavigation');
-    expect(layout).toContain('<NavigationLinks role={role} />');
+    expect(layout).toContain('<NavigationLinks role={role} desktop />');
     expect(mobile).toContain("aria-label={t('nav.openMenu')}");
     expect(mobile).toContain('role="dialog"');
     expect(mobile).toContain('md:hidden');

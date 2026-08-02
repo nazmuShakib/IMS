@@ -7,9 +7,11 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 export function NavigationLinks({
   role,
   onNavigate,
+  desktop = false,
 }: {
   role: Role;
   onNavigate?: () => void;
+  desktop?: boolean;
 }) {
   const { t } = useI18n();
   const catalog = [
@@ -25,7 +27,7 @@ export function NavigationLinks({
     { href: '/stock/movements', label: t('nav.movementLedger') },
   ];
   return (
-    <>
+    <div className={desktop ? 'desktop-navigation' : undefined}>
       <p className="eyebrow px-2 pb-1.5">{t('shell.overview')}</p>
       <NavLink href="/" onClick={onNavigate}>{t('nav.dashboard')}</NavLink>
 
@@ -65,6 +67,6 @@ export function NavigationLinks({
           <NavLink href="/audit" onClick={onNavigate}>{t('nav.auditLog')}</NavLink>
         </>
       )}
-    </>
+    </div>
   );
 }
