@@ -43,7 +43,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
       {/* --- Main ------------------------------------------------------- */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-14 shrink-0 items-center gap-3 border-b border-rule bg-card px-3 print:hidden">
+        <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 overflow-hidden border-b border-rule bg-card px-3 print:hidden sm:gap-3">
           <MobileNavigation
             role={role}
             userName={user.name}

@@ -70,6 +70,15 @@ describe('route loading feedback', () => {
 });
 
 describe('responsive navigation', () => {
+  it('keeps the topbar search shrinkable on narrow mobile screens', () => {
+    const layout = source('src/app/(dashboard)/layout.tsx');
+    const palette = source('src/components/search/CommandPalette.tsx');
+    expect(layout).toContain('min-w-0');
+    expect(layout).toContain('overflow-hidden');
+    expect(palette).toContain('min-w-0 max-w-xl flex-1');
+    expect(palette).toContain('flex-col items-start');
+  });
+
   it('provides the role-aware sidebar destinations through a mobile drawer', () => {
     const layout = source('src/app/(dashboard)/layout.tsx');
     const mobile = source('src/components/shell/MobileNavigation.tsx');

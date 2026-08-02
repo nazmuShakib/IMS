@@ -107,7 +107,7 @@ export function CommandPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex h-9 w-full max-w-xl items-center justify-between rounded-[3px] border border-rule bg-plate/60 px-3 text-left text-[13px] text-graphite transition-colors hover:border-graphite/50 hover:bg-card"
+        className="flex h-9 min-w-0 max-w-xl flex-1 items-center justify-between rounded-[3px] border border-rule bg-plate/60 px-3 text-left text-[13px] text-graphite transition-colors hover:border-graphite/50 hover:bg-card"
         aria-label={t('search.open')}
       >
         <span className="truncate">{t('search.trigger')}</span>
@@ -116,7 +116,7 @@ export function CommandPalette() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 p-4 pt-[10vh]"
+          className="fixed inset-0 z-50 flex items-start justify-center bg-ink/40 p-2 pt-[7vh] sm:p-4 sm:pt-[10vh]"
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setOpen(false);
           }}
@@ -124,20 +124,20 @@ export function CommandPalette() {
           <Command
             shouldFilter={false}
             loop
-            className="w-full max-w-2xl overflow-hidden rounded-[3px] border border-rule bg-card shadow-2xl"
+            className="min-w-0 w-full max-w-2xl overflow-hidden rounded-[3px] border border-rule bg-card shadow-2xl"
             onKeyDown={(event) => {
               if (event.key === 'Escape') setOpen(false);
             }}
           >
-            <div className="flex items-center border-b border-rule px-4">
-              <span className="mr-3 text-graphite">⌕</span>
+            <div className="flex min-w-0 items-center border-b border-rule px-3 sm:px-4">
+              <span className="mr-2 shrink-0 text-graphite sm:mr-3">⌕</span>
               <ScannerInput
                 ref={inputRef}
                 value={query}
                 onValueChange={setQuery}
                 onScan={() => { immediateScan.current = true; setScanRequest((value) => value + 1); }}
                 placeholder={t('search.placeholder')}
-                className="h-12 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
+                className="h-12 min-w-0 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
               />
               {loading && <span className="text-[11px] text-graphite">{t('search.searchingShort')}</span>}
             </div>
@@ -158,14 +158,14 @@ export function CommandPalette() {
                       key={unit.id}
                       value={`unit-${unit.id}`}
                       onSelect={() => go(`/products/${unit.productId}#unit-${unit.id}`)}
-                      className="flex cursor-pointer items-start justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
+                      className="flex min-w-0 cursor-pointer flex-col items-start gap-2 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal sm:flex-row sm:justify-between sm:gap-4"
                     >
-                      <span>
+                      <span className="min-w-0 max-w-full">
                         <span className="font-medium">{unit.productName}</span>
-                        <span className="tnum mt-0.5 block text-[11px] text-graphite">{unit.serialNo} · {unit.sku}</span>
-                        <span className="mt-1 block text-[11px] text-graphite">Received {date(unit.receivedAt)} · {unit.supplierName ?? 'Unknown supplier'} · {unit.soldAt ? `Sold ${date(unit.soldAt)}` : unit.status.replace('_', ' ')}</span>
+                        <span className="tnum mt-0.5 block break-all text-[11px] text-graphite">{unit.serialNo} · {unit.sku}</span>
+                        <span className="mt-1 block break-words text-[11px] text-graphite">Received {date(unit.receivedAt)} · {unit.supplierName ?? 'Unknown supplier'} · {unit.soldAt ? `Sold ${date(unit.soldAt)}` : unit.status.replace('_', ' ')}</span>
                       </span>
-                      <span className="shrink-0 text-right text-[11px]">
+                      <span className="shrink-0 text-left text-[11px] sm:text-right">
                         <span className={unit.underWarranty ? 'text-ok' : 'text-graphite'}>{unit.warrantyExpiresAt ? (unit.underWarranty ? `Warranty to ${date(unit.warrantyExpiresAt)}` : `Warranty ended ${date(unit.warrantyExpiresAt)}`) : 'No warranty date'}</span>
                         {unit.costPrice !== undefined && <span className="tnum mt-1 block text-graphite">Cost {formatBDT(unit.costPrice)}</span>}
                       </span>
@@ -181,9 +181,9 @@ export function CommandPalette() {
                       key={product.id}
                       value={`product-${product.id}`}
                       onSelect={() => go(`/products/${product.id}`)}
-                      className="flex cursor-pointer items-center justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
+                      className="flex min-w-0 cursor-pointer flex-col items-start gap-2 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal sm:flex-row sm:items-center sm:justify-between sm:gap-4"
                     >
-                      <span><span className="font-medium">{product.name}</span>{!product.isActive && <span className="ml-2 text-[10px] font-semibold text-out">{t('search.inactive')}</span>}<span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
+                      <span className="min-w-0 max-w-full"><span className="font-medium">{product.name}</span>{!product.isActive && <span className="ml-2 text-[10px] font-semibold text-out">{t('search.inactive')}</span>}<span className="tnum mt-0.5 block break-all text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
                       <span className={`tnum shrink-0 text-[11px] ${product.onHand > 0 ? 'text-graphite' : 'text-out'}`}>{product.onHand > 0 ? `${product.onHand} on hand` : 'Unavailable'}</span>
                     </Command.Item>
                   ))}
