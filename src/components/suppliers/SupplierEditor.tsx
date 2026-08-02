@@ -5,9 +5,11 @@ import { useActionState, useEffect, useState } from 'react';
 import { updateSupplier } from '@/actions/catalog';
 import { Button, Field, Input } from '@/components/ui';
 import type { Supplier } from '@/domain/types';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function SupplierEditor({ supplier }: { supplier: Supplier }) {
   const [open, setOpen] = useState(false);
+  const { t, message } = useI18n();
   const [state, action, pending] = useActionState(updateSupplier, {});
 
   useEffect(() => {
@@ -26,7 +28,7 @@ export function SupplierEditor({ supplier }: { supplier: Supplier }) {
   return (
     <>
       <Button type="button" variant="ghost" onClick={() => setOpen(true)}>
-        Edit
+        {t('suppliers.editAction')}
       </Button>
 
       {open && (
@@ -43,26 +45,26 @@ export function SupplierEditor({ supplier }: { supplier: Supplier }) {
             className="max-h-[calc(100dvh-2rem)] w-full max-w-xl overflow-y-auto rounded-[3px] border border-rule bg-card p-5 shadow-xl"
           >
             <h2 id={`edit-supplier-${supplier.id}`} className="text-[16px] font-semibold">
-              Edit supplier
+              {t('suppliers.edit')}
             </h2>
             <p className="mt-1 text-[12px] text-graphite">
-              Update contact details without changing existing stock or purchase records.
+              {t('suppliers.editHelp')}
             </p>
 
             <form action={action} className="mt-5">
               <input type="hidden" name="id" value={supplier.id} />
               {state.error && (
                 <p className="mb-3 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-                  {state.error}
+                  {message(state.error)}
                 </p>
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Field label="Name" error={state.fieldErrors?.name}>
+                <Field label={t('common.name')} error={state.fieldErrors?.name}>
                   <Input name="name" required defaultValue={supplier.name} />
                 </Field>
                 <Field
-                  label="Bangladeshi mobile"
-                  hint="Use 01712345678 or +8801712345678"
+                  label={t('customers.mobile')}
+                  hint={t('customers.mobileHint')}
                   error={state.fieldErrors?.phone}
                 >
                   <Input
@@ -74,19 +76,19 @@ export function SupplierEditor({ supplier }: { supplier: Supplier }) {
                     defaultValue={supplier.phone ?? ''}
                   />
                 </Field>
-                <Field label="Email" error={state.fieldErrors?.email}>
+                <Field label={t('common.email')} error={state.fieldErrors?.email}>
                   <Input name="email" type="email" defaultValue={supplier.email ?? ''} />
                 </Field>
-                <Field label="Address" error={state.fieldErrors?.address}>
+                <Field label={t('common.address')} error={state.fieldErrors?.address}>
                   <Input name="address" defaultValue={supplier.address ?? ''} />
                 </Field>
               </div>
               <div className="mt-5 flex justify-end gap-2">
                 <Button type="button" variant="ghost" onClick={() => setOpen(false)} disabled={pending}>
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
                 <Button type="submit" disabled={pending}>
-                  {pending ? 'Saving…' : 'Save changes'}
+                  {pending ? t('common.saving') : t('common.saveChanges')}
                 </Button>
               </div>
             </form>

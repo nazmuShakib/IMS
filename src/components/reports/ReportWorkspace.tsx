@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Card } from '@/components/ui';
 import type { ReportKind } from '@/services/reports';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 interface ReportTab {
   id: ReportKind;
@@ -27,6 +28,7 @@ export function ReportWorkspace({
   children: ReactNode;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [selectedReport, setSelectedReport] = useState(confirmedReport);
   const [loadingScope, setLoadingScope] = useState<LoadingScope>(null);
   const [refreshPending, startRefreshing] = useTransition();
@@ -112,7 +114,7 @@ export function ReportWorkspace({
 
       {loadingScope === 'tab' ? (
         <Card className="flex min-h-[24rem] items-center justify-center">
-          <LoadingScreen compact label={`Loading ${selectedLabel}…`} />
+          <LoadingScreen compact label={t('reports.loading', { report: selectedLabel })} />
         </Card>
       ) : (
         <>
@@ -127,7 +129,7 @@ export function ReportWorkspace({
 
           {loadingScope === 'output' ? (
             <Card>
-              <LoadingScreen compact label={`Filtering ${selectedLabel}…`} />
+              <LoadingScreen compact label={t('reports.filtering', { report: selectedLabel })} />
             </Card>
           ) : results}
         </>

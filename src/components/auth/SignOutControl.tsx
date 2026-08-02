@@ -5,9 +5,11 @@ import { createPortal } from 'react-dom';
 
 import { logoutAction } from '@/actions/auth';
 import { Button } from '@/components/ui';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function SignOutControl() {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +41,7 @@ export function SignOutControl() {
         onClick={() => setOpen(true)}
         className="mt-2 text-[11px] text-graphite underline underline-offset-2 hover:text-ink"
       >
-        Sign out
+        {t('auth.signOut')}
       </button>
 
       {open && createPortal(
@@ -57,18 +59,18 @@ export function SignOutControl() {
             className="w-full max-w-sm rounded-[3px] border border-rule bg-card p-5 shadow-xl"
           >
             <h2 id="sign-out-title" className="text-[16px] font-semibold">
-              Sign out?
+              {t('auth.signOutQuestion')}
             </h2>
             <p id="sign-out-description" className="mt-2 text-[13px] text-graphite">
-              You will need to enter your email and password to access the inventory again.
+              {t('auth.signOutDescription')}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} autoFocus>
-                Cancel
+                {t('common.cancel')}
               </Button>
               <form action={logoutAction}>
                 <Button type="submit" variant="danger">
-                  Sign out
+                  {t('auth.signOut')}
                 </Button>
               </form>
             </div>

@@ -4,36 +4,38 @@ import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
 import { SupplierEditor } from '@/components/suppliers/SupplierEditor';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
 import { getSession } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 
 export const dynamic = 'force-dynamic';
 
 export default async function SuppliersPage() {
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const suppliers = await db.suppliers.findAll();
 
   return (
     <>
       <PageHeader
-        title="Suppliers"
-        count={`${suppliers.length} suppliers · purchase orders are Phase 7`}
+        title={t('nav.suppliers')}
+        count={t('catalog.supplierCount', { count: suppliers.length })}
       />
 
       {role !== 'STAFF' && <div className="mb-4">
         <QuickCreateForm
           action={createSupplier}
-          submitLabel="Add supplier"
+          submitLabel={t('catalog.addSupplier')}
           fields={[
-            { name: 'name', label: 'Name', placeholder: 'Dhaka Electronics Importers', required: true },
-            { name: 'phone', label: 'Bangladeshi mobile', type: 'tel', placeholder: '01712345678' },
-            { name: 'email', label: 'Email', type: 'email', placeholder: 'sales@example.com' },
-            { name: 'address', label: 'Address', placeholder: 'Motijheel, Dhaka' },
+            { name: 'name', label: t('common.name'), placeholder: 'Dhaka Electronics Importers', required: true },
+            { name: 'phone', label: t('customers.mobile'), type: 'tel', placeholder: '01712345678' },
+            { name: 'email', label: t('common.email'), type: 'email', placeholder: 'sales@example.com' },
+            { name: 'address', label: t('common.address'), placeholder: 'Motijheel, Dhaka' },
           ]}
         />
       </div>}
 
       <Card>
         {suppliers.length === 0 ? (
-          <EmptyState title="No suppliers yet. Each unit you receive records who it came from — worth setting up before Phase 2." />
+          <EmptyState title={t('catalog.noSuppliers')} />
         ) : (
           <ul>
             {suppliers.map((s) => (

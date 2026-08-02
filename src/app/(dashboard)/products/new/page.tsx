@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { db } from '@/repositories';
-import { requireRole } from '@/lib/session';
+import { getSession, requireRole } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { createProduct } from '@/actions/catalog';
 import { ProductForm } from '@/components/catalog/ProductForm';
 import { PageHeader, EmptyState, Card, Button } from '@/components/ui';
@@ -9,6 +10,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function NewProductPage() {
   await requireRole('ADMIN', 'MANAGER'); // guard the page, not just the action
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
 
   const [categories, brands] = await Promise.all([
     db.categories.findAll(),
@@ -18,13 +21,13 @@ export default async function NewProductPage() {
   if (categories.length === 0) {
     return (
       <>
-        <PageHeader title="Add product" />
+        <PageHeader title={t('products.add')} />
         <Card>
           <EmptyState
-            title="A product needs a category. Create one first."
+            title={t('products.categoryRequired')}
             action={
               <Link href="/categories">
-                <Button>Go to categories</Button>
+                <Button>{t('products.goCategories')}</Button>
               </Link>
             }
           />
@@ -35,7 +38,7 @@ export default async function NewProductPage() {
 
   return (
     <>
-      <PageHeader title="Add product" count="Stock starts at zero — receive it in Phase 2" />
+      <PageHeader title={t('products.add')} count={t('products.startsZero')} />
       <ProductForm action={createProduct} categories={categories} brands={brands} />
     </>
   );

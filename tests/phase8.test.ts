@@ -36,8 +36,8 @@ describe('Phase 8 customer and checkout decisions', () => {
     const action = source('src/actions/catalog.ts');
     const repositories = source('src/repositories/types.ts');
     expect(page).toContain("role !== 'STAFF' && <SupplierEditor");
-    expect(editor).toContain('Edit supplier');
-    expect(editor).toContain('Save changes');
+    expect(editor).toContain("t('suppliers.edit')");
+    expect(editor).toContain("t('common.saveChanges')");
     expect(action).toContain('export async function updateSupplier');
     expect(action).toContain("action: 'supplier.update'");
     expect(action).toContain('normalizeBangladeshMobile(parsed.data.phone)');
@@ -64,7 +64,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     const register = source('src/components/customers/CustomerRegister.tsx');
     expect(register).toContain('setFiltering(true)');
     expect(register).toContain('setFiltering(false)');
-    expect(register).toContain('Searching customers…');
+    expect(register).toContain("t('loading.searchCustomers')");
     expect(register).toContain('window.history.pushState');
     expect(register).toContain('router.refresh()');
   });
@@ -89,7 +89,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(service).toContain('await tx.carts.delete(cart.id)');
     expect(action).toContain("action: 'cart.discard'");
     expect(control).toContain('role="alertdialog"');
-    expect(control).toContain('Inventory will not change');
+    expect(control).toContain("t('checkout.inventoryUnchanged')");
   });
 
   it('allows STAFF checkout while preserving immutable price snapshots', () => {
@@ -104,10 +104,10 @@ describe('Phase 8 customer and checkout decisions', () => {
   it('requires confirmation before completing a sale', () => {
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     expect(workspace).toContain('role="alertdialog"');
-    expect(workspace).toContain('Complete this sale?');
-    expect(workspace).toContain('reduce available stock');
+    expect(workspace).toContain("t('checkout.confirmTitle')");
+    expect(workspace).toContain("t('checkout.confirmDescription'");
     expect(workspace).toContain("formAction={completeAction}");
-    expect(workspace).toContain('Yes, complete sale');
+    expect(workspace).toContain("t('checkout.yesComplete')");
   });
 });
 
@@ -172,11 +172,11 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(register).toContain('name="paymentStatus"');
     expect(register).toContain('name="paymentMethod"');
     expect(register).toContain('name="customerType"');
-    expect(register).toContain('Walk-in only');
+    expect(register).toContain("t('invoices.walkInOnly')");
     expect(register).toContain('name="minTotal"');
     expect(register).toContain('name="maxTotal"');
     expect(register).toContain('useTransition');
-    expect(register).toContain('Filtering invoices…');
+    expect(register).toContain("t('loading.filterInvoices')");
     expect(register).toContain('setValues(next)');
     expect(register).toContain('setFiltering(true)');
     expect(register).toContain('setFiltering(false)');

@@ -1,6 +1,7 @@
 import { CheckoutWorkspace } from '@/components/checkout/CheckoutWorkspace';
 import { PageHeader } from '@/components/ui';
-import { requireCapability } from '@/lib/session';
+import { getSession, requireCapability } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import { getOrCreateCart } from '@/services/checkout';
 
@@ -8,6 +9,8 @@ export const dynamic = 'force-dynamic';
 
 export default async function CheckoutPage() {
   const actor = await requireCapability('CHECKOUT');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const cart = await getOrCreateCart(actor.id);
   const [items, products, units, customers] = await Promise.all([
     db.carts.findItems(cart.id),
@@ -35,8 +38,8 @@ export default async function CheckoutPage() {
   return (
     <>
       <PageHeader
-        title="Checkout"
-        count="Server-persisted draft · scan or use the mouse · one transaction at completion"
+        title={t('checkout.title')}
+        count={t('checkout.help')}
       />
       <CheckoutWorkspace
         cart={cart}

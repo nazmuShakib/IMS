@@ -2,27 +2,30 @@ import { changeUserRole, toggleUserActive } from '@/actions/users';
 import { CreateUserForm } from '@/components/auth/CreateUserForm';
 import { Badge, Button, Card, PageHeader, Select, TableViewport } from '@/components/ui';
 import { prisma } from '@/lib/prisma';
-import { requireRole } from '@/lib/session';
+import { getSession, requireRole } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 
 export const dynamic = 'force-dynamic';
 
 export default async function UsersPage() {
   const current = await requireRole('ADMIN');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const users = await prisma.user.findMany({ orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });
 
   return (
     <>
-      <PageHeader title="Users" count={`${users.length} accounts`} />
+      <PageHeader title={t('nav.users')} count={t('users.accounts', { count: users.length })} />
       <CreateUserForm />
       <Card>
         <TableViewport>
           <table className="w-full">
           <thead className="sticky top-0 z-10 bg-card">
             <tr className="border-b border-rule">
-              <th className="eyebrow px-4 py-2.5 text-left">User</th>
-              <th className="eyebrow px-4 py-2.5 text-left">Role</th>
-              <th className="eyebrow px-4 py-2.5 text-left">Status</th>
-              <th className="eyebrow px-4 py-2.5 text-right">Action</th>
+              <th className="eyebrow px-4 py-2.5 text-left">{t('users.user')}</th>
+              <th className="eyebrow px-4 py-2.5 text-left">{t('users.role')}</th>
+              <th className="eyebrow px-4 py-2.5 text-left">{t('common.status')}</th>
+              <th className="eyebrow px-4 py-2.5 text-right">{t('users.action')}</th>
             </tr>
           </thead>
           <tbody>
@@ -44,17 +47,17 @@ export default async function UsersPage() {
                         defaultValue={user.role}
                         className="max-w-32"
                       >
-                        <option value="STAFF">Staff</option>
-                        <option value="MANAGER">Manager</option>
-                        <option value="ADMIN">Admin</option>
+                        <option value="STAFF">{t('users.staff')}</option>
+                        <option value="MANAGER">{t('users.manager')}</option>
+                        <option value="ADMIN">{t('users.admin')}</option>
                       </Select>
-                      <Button type="submit" variant="ghost">Save</Button>
+                      <Button type="submit" variant="ghost">{t('common.save')}</Button>
                     </form>
                   )}
                 </td>
                 <td className="px-4 py-3">
                   <Badge tone={user.isActive ? 'ok' : 'out'}>
-                    {user.isActive ? 'Active' : 'Inactive'}
+                    {user.isActive ? t('common.active') : t('common.inactive')}
                   </Badge>
                 </td>
                 <td className="px-4 py-3 text-right">
@@ -62,7 +65,7 @@ export default async function UsersPage() {
                     <form action={toggleUserActive}>
                       <input type="hidden" name="userId" value={user.id} />
                       <Button type="submit" variant={user.isActive ? 'danger' : 'ghost'}>
-                        {user.isActive ? 'Deactivate' : 'Activate'}
+                        {user.isActive ? t('users.deactivate') : t('users.activate')}
                       </Button>
                     </form>
                   )}

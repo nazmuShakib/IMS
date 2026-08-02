@@ -4,26 +4,28 @@ import { useActionState } from 'react';
 
 import { loginAction, type LoginState } from '@/actions/auth';
 import { Button, Field, Input } from '@/components/ui';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function LoginForm({ next }: { next?: string }) {
   const [state, action, pending] = useActionState<LoginState, FormData>(loginAction, {});
+  const { t, message } = useI18n();
 
   return (
     <form action={action} className="space-y-4">
       {next && <input type="hidden" name="next" value={next} />}
-      <Field label="Email">
+      <Field label={t('auth.email')}>
         <Input name="email" type="email" autoComplete="email" required autoFocus />
       </Field>
-      <Field label="Password">
+      <Field label={t('auth.password')}>
         <Input name="password" type="password" autoComplete="current-password" required />
       </Field>
       {state.error && (
         <p className="rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[12px] text-out">
-          {state.error}
+          {message(state.error)}
         </p>
       )}
       <Button type="submit" disabled={pending} className="w-full">
-        {pending ? 'Signing in…' : 'Sign in'}
+        {pending ? t('auth.signingIn') : t('auth.signIn')}
       </Button>
     </form>
   );

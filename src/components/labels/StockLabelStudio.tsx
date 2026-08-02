@@ -22,6 +22,8 @@ import {
 } from '@/components/ui';
 import type { Role, TrackingType, UnitStatus } from '@/domain/types';
 import type { SearchResponse } from '@/lib/search';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { domainLabel } from '@/lib/i18n/domain';
 
 export interface LabelProductOption {
   id: string;
@@ -94,6 +96,7 @@ export function StockLabelStudio({
   resultVersion: string;
 }) {
   const router = useRouter();
+  const { locale, t, message } = useI18n();
   const [selectedProductId, setSelectedProductId] = useState(product?.id ?? '');
   const [selected, setSelected] = useState(() => new Set(initialUnitIds));
   const [copies, setCopies] = useState<number | ''>(Math.max(1, initialCopies));
@@ -222,23 +225,23 @@ export function StockLabelStudio({
         <Card className="mb-4 p-5">
           <div className="grid gap-4 md:grid-cols-2">
             <Field
-              label={<HelpTerm description="A product code (SKU) identifies a product type; a device number or IMEI identifies one physical item.">Scan barcode, product code (SKU) or device number</HelpTerm>}
-              hint="Scanner and keyboard entry are both supported"
+              label={<HelpTerm description={t('term.trackingHelp')}>{t('labels.scan')}</HelpTerm>}
+              hint={t('labels.scanHint')}
             >
               <ScannerInput
-                placeholder="Scan, then press Enter"
+                placeholder={t('stock.scanEnter')}
                 onScan={scan}
                 onValueChange={() => setScanError('')}
                 disabled={loading}
               />
             </Field>
-            <Field label="Product">
+            <Field label={t('common.product')}>
               <Select
                 value={selectedProductId}
                 onChange={(event) => navigateToProduct(event.target.value)}
                 disabled={loading}
               >
-                <option value="" disabled>Choose a product</option>
+                <option value="" disabled>{t('stock.chooseProduct')}</option>
                 {products.map((item) => (
                   <option key={item.id} value={item.id}>
                     {item.sku} — {item.name}{item.isActive ? '' : ' (inactive)'}
@@ -254,12 +257,12 @@ export function StockLabelStudio({
           <Card>
             <LoadingScreen
               compact
-              label={searching ? 'Searching inventory…' : 'Loading product labels…'}
+              label={searching ? t('search.searching') : t('loading.productLabels')}
             />
           </Card>
         ) : !product ? (
           <Card>
-            <EmptyState title="Choose or scan a product to prepare its labels." />
+            <EmptyState title={t('labels.chooseHelp')} />
           </Card>
         ) : (
           <form action={formAction}>
@@ -272,13 +275,16 @@ export function StockLabelStudio({
                 <div>
                   <p className="text-[16px] font-semibold">{product.name}</p>
                   <p className="tnum mt-0.5 text-[12px] text-graphite">
-                    {product.sku} · {product.trackingType === 'SERIAL' ? 'Individually tracked' : 'Bulk/count-based'}
+                    {product.sku} · {product.trackingType === 'SERIAL' ? t('products.serialTracking') : t('products.bulkTracking')}
                     {product.brandName ? ` · ${product.brandName}` : ''}
                     {product.model ? ` · ${product.model}` : ''}
                   </p>
                 </div>
                 <p className="tnum text-[12px] text-graphite">
-                  {labelCount} {labelCount === 1 ? 'label' : 'labels'}
+                  {t('labels.count', {
+                    count: labelCount,
+                    kind: t(labelCount === 1 ? 'labels.label' : 'labels.labels'),
+                  })}
                 </p>
               </div>
 
@@ -286,18 +292,18 @@ export function StockLabelStudio({
                 <div className="mt-5">
                   <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                     <div className="w-52">
-                      <Field label="Unit status">
+                      <Field label={t('labels.unitStatus')}>
                         <Select
                           value={statusFilter}
                           onChange={(event) => setStatusFilter(event.target.value as UnitStatus | 'ALL')}
                         >
-                          <option value="IN_STOCK">In stock</option>
-                          {role !== 'STAFF' && <option value="ALL">All statuses</option>}
+                          <option value="IN_STOCK">{t('common.inStock')}</option>
+                          {role !== 'STAFF' && <option value="ALL">{t('labels.allStatuses')}</option>}
                           {role !== 'STAFF' && [...new Set(units.map((unit) => unit.status))]
                             .filter((status) => status !== 'IN_STOCK')
                             .map((status) => (
                               <option key={status} value={status}>
-                                {status.replaceAll('_', ' ')}
+                                {domainLabel(t, status)}
                               </option>
                             ))}
                         </Select>
@@ -313,10 +319,10 @@ export function StockLabelStudio({
                           return next;
                         })}
                       >
-                        Select visible
+                        {t('labels.selectVisible')}
                       </Button>
                       <Button type="button" variant="ghost" onClick={() => setSelected(new Set())}>
-                        Clear
+                        {t('common.clear')}
                       </Button>
                     </div>
                   </div>
@@ -324,10 +330,10 @@ export function StockLabelStudio({
                     <table className="w-full border-collapse text-[12px]">
                       <thead className="sticky top-0 bg-card">
                         <tr className="border-b border-rule text-left">
-                          <th className="w-10 px-3 py-2"><span className="sr-only">Select</span></th>
-                          <th className="eyebrow px-3 py-2">Device number / IMEI</th>
-                          <th className="eyebrow px-3 py-2">Status</th>
-                          <th className="eyebrow px-3 py-2">Received</th>
+                          <th className="w-10 px-3 py-2"><span className="sr-only">{t('labels.select')}</span></th>
+                          <th className="eyebrow px-3 py-2">{t('term.deviceNumber')}</th>
+                          <th className="eyebrow px-3 py-2">{t('common.status')}</th>
+                          <th className="eyebrow px-3 py-2">{t('labels.received')}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -342,7 +348,7 @@ export function StockLabelStudio({
                               />
                             </td>
                             <td className="tnum px-3 py-2">{unit.serialNo}</td>
-                            <td className="px-3 py-2">{unit.status.replaceAll('_', ' ')}</td>
+                            <td className="px-3 py-2">{domainLabel(t, unit.status)}</td>
                             <td className="tnum px-3 py-2">
                               {new Intl.DateTimeFormat('en-BD', {
                                 timeZone: 'Asia/Dhaka',
@@ -355,21 +361,22 @@ export function StockLabelStudio({
                     </table>
                     {visibleUnits.length === 0 && (
                       <p className="p-5 text-center text-[12px] text-graphite">
-                        No units have this status.
+                        {t('labels.noUnits')}
                       </p>
                     )}
                   </TableViewport>
                 </div>
               ) : (
                 <p className="mt-4 text-[12px] text-graphite">
-                  Bulk/count-based items use {product.barcode ? 'the product barcode' : 'the product code (SKU)'}.
-                  Enter the number of identical labels required.
+                  {t('labels.bulkHelp', {
+                    identifier: t(product.barcode ? 'labels.productBarcode' : 'labels.productCode'),
+                  })}
                 </p>
               )}
 
               <div className="mt-5 grid gap-4 sm:grid-cols-3">
                 <Field
-                  label={product.trackingType === 'SERIAL' ? 'Copies per selected unit' : 'Number of labels'}
+                  label={product.trackingType === 'SERIAL' ? t('labels.copies') : t('labels.number')}
                 >
                   <Input
                     name="copies"
@@ -395,13 +402,13 @@ export function StockLabelStudio({
                     }}
                   />
                   <p id="label-count-help" className="mt-1 text-[11px] text-graphite">
-                    You can print 1–500 labels per job.
+                    {t('labels.rangeHelp')}
                   </p>
                 </Field>
-                <Field label="Print layout">
+                <Field label={t('labels.layout')}>
                   <Select value={layout} onChange={(event) => setLayout(event.target.value as 'thermal' | 'a4')}>
-                    <option value="thermal">Thermal — 50 × 25 mm</option>
-                    <option value="a4">A4 adhesive sheet</option>
+                    <option value="thermal">{t('labels.thermal')}</option>
+                    <option value="a4">{t('labels.a4')}</option>
                   </Select>
                 </Field>
                 <div className="flex items-end">
@@ -410,27 +417,30 @@ export function StockLabelStudio({
                     type="submit"
                     disabled={pending || labelCount === 0 || labelCount > 500}
                   >
-                    {pending ? 'Preparing…' : `Print ${labelCount || ''} label${labelCount === 1 ? '' : 's'}`}
+                    {pending ? t('labels.preparing') : t('labels.printCount', {
+                      count: labelCount || '',
+                      kind: t(labelCount === 1 ? 'labels.label' : 'labels.labels'),
+                    })}
                   </Button>
                 </div>
               </div>
-              {state.error && <p className="mt-3 text-[12px] text-out">{state.error}</p>}
+              {state.error && <p className="mt-3 text-[12px] text-out">{message(state.error)}</p>}
               {labelCount > 500 && (
-                <p className="mt-3 text-[12px] text-out">A print job may contain at most 500 labels.</p>
+                <p className="mt-3 text-[12px] text-out">{t('labels.maxError')}</p>
               )}
               {role === 'STAFF' && (
                 <p className="mt-3 text-[11px] text-graphite">
-                  STAFF can print and reprint labels for in-stock items only.
+                  {t('labels.staffHelp')}
                 </p>
               )}
               <p className="mt-1 text-[11px] text-graphite">
-                In the browser print dialog, use 100% scale and disable headers and footers.
+                {t('labels.dialogHelp')}
               </p>
             </Card>
 
             {labels.length > 0 && (
               <Card className="mb-4 overflow-auto p-4">
-                <p className="eyebrow mb-3">Print preview</p>
+                <p className="eyebrow mb-3">{t('labels.preview')}</p>
                 <div className="label-preview-grid">
                   {labels.slice(0, 12).map((label) => (
                     <ProductLabel
@@ -443,7 +453,7 @@ export function StockLabelStudio({
                 </div>
                 {labels.length > 12 && (
                   <p className="mt-3 text-[11px] text-graphite">
-                    Preview shows the first 12 of {labels.length} labels.
+                    {t('labels.previewCount', { count: labels.length })}
                   </p>
                 )}
               </Card>

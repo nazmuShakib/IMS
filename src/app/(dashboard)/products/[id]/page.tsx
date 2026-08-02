@@ -17,6 +17,9 @@ import {
   StockCount,
   TableViewport,
 } from '@/components/ui';
+import { createTranslator } from '@/lib/i18n/messages';
+import type { Locale } from '@/lib/i18n/config';
+import { domainLabel } from '@/lib/i18n/domain';
 
 export const dynamic = 'force-dynamic';
 
@@ -30,7 +33,7 @@ const STATUS_TONE: Record<UnitStatus, 'ok' | 'neutral' | 'out' | 'low'> = {
   VOID: 'neutral', // entered in error and reversed out — not stock, not a sale
 };
 
-const dhaka = (iso: string) =>
+const dhaka = (iso: string, _locale: Locale) =>
   new Date(iso).toLocaleDateString('en-GB', {
     timeZone: 'Asia/Dhaka',
     day: '2-digit',
@@ -40,7 +43,8 @@ const dhaka = (iso: string) =>
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const showCosts = canSeeCosts(role);
 
   const raw = await db.products.findById(id);
@@ -83,26 +87,26 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           <div className="flex gap-2">
             {product.isActive && (
               <Link href={`/stock/in?product=${product.id}`}>
-                <Button>Receive stock</Button>
+                <Button>{t('stock.receiveTitle')}</Button>
               </Link>
             )}
             {role !== 'STAFF' && (
               <Link href={`/products/${product.id}/edit`}>
-                <Button variant="ghost">Edit</Button>
+                <Button variant="ghost">{t('common.edit')}</Button>
               </Link>
             )}
             {role === 'ADMIN' && (product.isActive ? (
               <form action={archiveProduct}>
                 <input type="hidden" name="id" value={product.id} />
                 <Button variant="danger" type="submit">
-                  Archive
+                  {t('products.archive')}
                 </Button>
               </form>
             ) : (
               <form action={restoreProduct}>
                 <input type="hidden" name="id" value={product.id} />
                 <Button variant="ghost" type="submit">
-                  Restore
+                  {t('products.restore')}
                 </Button>
               </form>
             ))}
@@ -112,8 +116,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       {!product.isActive && (
         <div className="mb-4 rounded-[3px] border border-low/20 bg-low-wash px-3 py-2 text-[13px] text-low">
-          Archived. It stays here because its units and ledger history still refer to it —
-          nothing is ever hard-deleted.
+          {t('products.archivedHelp')}
         </div>
       )}
 
@@ -121,17 +124,17 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       <Card className="mb-4">
         <dl className="grid grid-cols-2 divide-rule sm:grid-cols-4 sm:divide-x">
           <div className="p-4">
-            <dt className="eyebrow">On hand</dt>
+            <dt className="eyebrow">{t('products.onHand')}</dt>
             <dd className="mt-1">
               <StockCount onHand={onHand} reorderPoint={product.reorderPoint} />
               <span className="mt-0.5 block text-[11px] text-graphite">
-                reorder at {product.reorderPoint}
+                {t('products.reorderAt', { count: product.reorderPoint })}
               </span>
             </dd>
           </div>
 
           <div className="p-4">
-            <dt className="eyebrow">Selling price</dt>
+            <dt className="eyebrow">{t('products.sellingPrice')}</dt>
             <dd className="mt-1">
               <Money value={product.defaultSalePrice} />
             </dd>
@@ -139,7 +142,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
           {showCosts && (
             <div className="p-4">
-              <dt className="eyebrow">Cost price</dt>
+              <dt className="eyebrow">{t('products.costPrice')}</dt>
               <dd className="mt-1">
                 <Money value={product.defaultCostPrice ?? null} muted />
               </dd>
@@ -148,11 +151,11 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
           {showCosts && (
             <div className="p-4">
-              <dt className="eyebrow">Stock value</dt>
+              <dt className="eyebrow">{t('products.stockValue')}</dt>
               <dd className="mt-1">
                 <Money value={stockValue} />
                 <span className="mt-0.5 block text-[11px] text-graphite">
-                  {raw.trackingType === 'SERIAL' ? 'sum of unit costs' : 'weighted average'}
+                  {t(raw.trackingType === 'SERIAL' ? 'products.sumUnitCosts' : 'products.weightedAverage')}
                 </span>
               </dd>
             </div>
@@ -162,24 +165,24 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       <div className="mb-4 grid gap-4 sm:grid-cols-2">
         <Card className="p-4">
-          <p className="eyebrow mb-3">Details</p>
+          <p className="eyebrow mb-3">{t('products.details')}</p>
           <dl className="space-y-2 text-[13px]">
             {[
-              ['Brand', brand?.name ?? '—'],
-              ['Category', category?.name ?? '—'],
-              ['Model', raw.model ?? '—'],
-              ['Barcode', raw.barcode ?? '—'],
+              [t('common.brand'), brand?.name ?? '—'],
+              [t('common.category'), category?.name ?? '—'],
+              [t('products.model'), raw.model ?? '—'],
+              [t('common.barcode'), raw.barcode ?? '—'],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between gap-4">
                 <dt className="text-graphite">{k}</dt>
-                <dd className={k === 'Model' || k === 'Barcode' ? 'tnum' : ''}>{v}</dd>
+                <dd className={k === t('products.model') || k === t('common.barcode') ? 'tnum' : ''}>{v}</dd>
               </div>
             ))}
             <div className="flex justify-between gap-4">
-              <dt className="text-graphite">Tracking</dt>
+              <dt className="text-graphite">{t('products.tracking')}</dt>
               <dd>
                 <Badge tone={raw.trackingType === 'SERIAL' ? 'signal' : 'neutral'}>
-                  {raw.trackingType === 'SERIAL' ? 'Serial' : 'Bulk'}
+                  {raw.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')}
                 </Badge>
               </dd>
             </div>
@@ -187,9 +190,9 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         </Card>
 
         <Card className="p-4">
-          <p className="eyebrow mb-3">Description</p>
+          <p className="eyebrow mb-3">{t('common.description')}</p>
           <p className="text-[13px] leading-relaxed text-graphite">
-            {raw.description || 'No description.'}
+            {raw.description || t('products.noDescription')}
           </p>
         </Card>
       </div>
@@ -199,19 +202,19 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
         <Card>
           <div className="flex items-center justify-between border-b border-rule px-4 py-3">
             <div>
-              <p className="text-[13px] font-medium">Units</p>
+              <p className="text-[13px] font-medium">{t('stock.units')}</p>
               <p className="tnum mt-0.5 text-[11px] text-graphite">
-                {inStock.length} in stock · {units.length} total, all time
+                {t('products.unitsSummary', { stock: inStock.length, total: units.length })}
               </p>
             </div>
           </div>
 
           {units.length === 0 ? (
             <EmptyState
-              title="No items yet. Receive stock and each phone, laptop or TV will appear here with its own device number or IMEI."
+              title={t('products.noUnits')}
               action={
                 <Link href={`/stock/in?product=${product.id}`}>
-                  <Button variant="ghost">Receive stock</Button>
+                  <Button variant="ghost">{t('stock.receiveTitle')}</Button>
                 </Link>
               }
             />
@@ -220,12 +223,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
               <table className="w-full">
               <thead className="sticky top-0 z-10 bg-card">
                 <tr className="border-b border-rule">
-                  <th className="eyebrow px-4 py-2.5 text-left">Device number / IMEI</th>
-                  <th className="eyebrow px-4 py-2.5 text-left">Status</th>
-                  <th className="eyebrow px-4 py-2.5 text-left">Received</th>
-                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Cost</th>}
-                  <th className="eyebrow px-4 py-2.5 text-right">Sold for</th>
-                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Profit</th>}
+                  <th className="eyebrow px-4 py-2.5 text-left">{t('term.deviceNumber')}</th>
+                  <th className="eyebrow px-4 py-2.5 text-left">{t('common.status')}</th>
+                  <th className="eyebrow px-4 py-2.5 text-left">{t('labels.received')}</th>
+                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
+                  <th className="eyebrow px-4 py-2.5 text-right">{t('products.soldFor')}</th>
+                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('products.profit')}</th>}
                 </tr>
               </thead>
               <tbody>
@@ -249,18 +252,18 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                               href={`/stock/out?serial=${encodeURIComponent(u.serialNo)}`}
                               className="ml-2 text-[11px] text-signal underline underline-offset-2"
                             >
-                              Sell
+                              {t('products.sell')}
                             </Link>
                           </>
                         )}
                       </td>
                       <td className="px-4 py-2.5">
                         <Badge tone={STATUS_TONE[u.status]}>
-                          {u.status.replace('_', ' ')}
+                          {domainLabel(t, u.status)}
                         </Badge>
                       </td>
                       <td className="tnum px-4 py-2.5 text-[12px] text-graphite">
-                        {dhaka(u.receivedAt)}
+                        {dhaka(u.receivedAt, locale)}
                       </td>
                       {showCosts && (
                         <td className="px-4 py-2.5 text-right">

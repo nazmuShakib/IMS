@@ -3,6 +3,7 @@ import { db } from '@/repositories';
 import { getSession, canSeeCosts } from '@/lib/session';
 import { toProductDTO } from '@/lib/dto';
 import { getOnHand } from '@/services/stock';
+import { createTranslator } from '@/lib/i18n/messages';
 import {
   Badge,
   Button,
@@ -24,7 +25,8 @@ export default async function ProductsPage({
   searchParams: Promise<{ q?: string; archived?: string }>;
 }) {
   const { q, archived } = await searchParams;
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const showCosts = canSeeCosts(role);
   const showArchived = archived === '1';
 
@@ -54,16 +56,16 @@ export default async function ProductsPage({
   return (
     <>
       <PageHeader
-        title="Products"
+        title={t('products.title')}
         count={
           q
-            ? `${rows.length} matching "${q}"`
-            : `${rows.length} products · ${lowCount} need attention`
+            ? t('products.matching', { count: rows.length, query: q })
+            : t('products.summary', { count: rows.length, low: lowCount })
         }
         action={
           role !== 'STAFF' ? (
             <Link href="/products/new">
-              <Button>Add product</Button>
+              <Button>{t('products.add')}</Button>
             </Link>
           ) : undefined
         }
@@ -71,9 +73,9 @@ export default async function ProductsPage({
 
       {q && (
         <p className="mb-3 text-[12px] text-graphite">
-          Showing search results.{' '}
+          {t('products.showingSearch')}{' '}
           <Link href="/products" className="text-signal underline underline-offset-2">
-            Clear
+            {t('common.clear')}
           </Link>
         </p>
       )}
@@ -83,13 +85,13 @@ export default async function ProductsPage({
           <EmptyState
             title={
               q
-                ? `Nothing matches "${q}". Try a product code (SKU), model number, or part of the name.`
-                : 'No products yet. Add the first one, or run `npm run seed` for demo stock.'
+                ? t('products.noMatch', { query: q })
+                : t('products.empty')
             }
             action={
               !q && role !== 'STAFF' && (
                 <Link href="/products/new">
-                  <Button variant="ghost">Add product</Button>
+                  <Button variant="ghost">{t('products.add')}</Button>
                 </Link>
               )
             }
@@ -101,25 +103,25 @@ export default async function ProductsPage({
               <tr className="border-b border-rule">
                 <th className="eyebrow px-4 py-2.5 text-left">
                   <HelpTerm
-                    description="Your shop's unique code for identifying a product."
+                    description={t('term.productCodeHelp')}
                     placement="bottom"
                     align="start"
                   >
-                    Product code (SKU)
+                    {t('term.productCode')}
                   </HelpTerm>
                 </th>
-                <th className="eyebrow px-4 py-2.5 text-left">Product</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('common.product')}</th>
                 <th className="eyebrow px-4 py-2.5 text-left">
                   <HelpTerm
-                    description="Serial means every physical item has its own device number or IMEI. Bulk/count means the product is tracked as a total quantity."
+                    description={t('term.trackingHelp')}
                     placement="bottom"
                   >
-                    Tracking method
+                    {t('term.trackingMethod')}
                   </HelpTerm>
                 </th>
-                <th className="eyebrow px-4 py-2.5 text-right">On hand</th>
-                {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Cost</th>}
-                <th className="eyebrow px-4 py-2.5 text-right">Price</th>
+                <th className="eyebrow px-4 py-2.5 text-right">{t('products.onHand')}</th>
+                {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
+                <th className="eyebrow px-4 py-2.5 text-right">{t('common.price')}</th>
               </tr>
             </thead>
             <tbody>
@@ -152,14 +154,14 @@ export default async function ProductsPage({
                         <span className="text-[13px] font-medium">{p.name}</span>
                         <span className="mt-0.5 block text-[11px] text-graphite">
                           {brandName.get(p.brandId ?? '') ?? '—'} ·{' '}
-                          {catName.get(p.categoryId) ?? 'Uncategorised'}
-                          {!p.isActive && ' · archived'}
+                          {catName.get(p.categoryId) ?? t('products.uncategorised')}
+                          {!p.isActive && ` · ${t('products.archived')}`}
                         </span>
                       </Link>
                     </td>
                     <td className="px-4 py-2.5">
                       <Badge tone={p.trackingType === 'SERIAL' ? 'signal' : 'neutral'}>
-                        {p.trackingType === 'SERIAL' ? 'Serial' : 'Bulk/count'}
+                        {p.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')}
                       </Badge>
                     </td>
                     <td className="px-4 py-2.5 text-right">
@@ -188,7 +190,7 @@ export default async function ProductsPage({
             href={showArchived ? '/products' : '/products?archived=1'}
             className="underline underline-offset-2 hover:text-ink"
           >
-            {showArchived ? 'Hide archived products' : 'Show archived products'}
+            {showArchived ? t('products.hideArchived') : t('products.showArchived')}
           </Link>
         </p>
       )}

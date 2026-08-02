@@ -15,6 +15,7 @@ import {
 } from 'recharts';
 
 import type { DailyFinancialPoint, DailyOperationsPoint } from '@/services/dashboard';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 const shortDate = (value: string) => value.slice(5);
 const taka = (value: number) => Math.round(value / 100);
@@ -36,6 +37,7 @@ export function DashboardCharts({
   operations: DailyOperationsPoint[];
   financials?: DailyFinancialPoint[];
 }) {
+  const { t } = useI18n();
   const moneyData = financials?.map((point) => ({
     ...point,
     stockValue: taka(point.stockValue),
@@ -50,7 +52,7 @@ export function DashboardCharts({
 
   return (
     <div className="grid gap-4 lg:grid-cols-2">
-      <ChartShell title="Daily stock movement · last 30 days">
+      <ChartShell title={t('dashboard.chartMovement')}>
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={operationsData}
@@ -67,29 +69,29 @@ export function DashboardCharts({
             />
             <Legend wrapperStyle={{ fontSize: 11 }} />
             <ReferenceLine y={0} stroke="#9ca3af" />
-            <Bar dataKey="stockIn" name="Stock in" fill="#1b7f5c" stackId="movement" maxBarSize={22} />
-            <Bar dataKey="stockOut" name="Stock out" fill="#b3261e" stackId="movement" maxBarSize={22} />
-            <Line type="monotone" dataKey="net" name="Net" stroke="#626c76" dot={false} strokeWidth={1.5} />
+            <Bar dataKey="stockIn" name={t('dashboard.stockIn')} fill="#1b7f5c" stackId="movement" maxBarSize={22} />
+            <Bar dataKey="stockOut" name={t('dashboard.stockOut')} fill="#b3261e" stackId="movement" maxBarSize={22} />
+            <Line type="monotone" dataKey="net" name={t('dashboard.net')} stroke="#626c76" dot={false} strokeWidth={1.5} />
           </ComposedChart>
         </ResponsiveContainer>
       </ChartShell>
 
       {moneyData && (
-        <ChartShell title="Stock value at cost · last 30 days">
+        <ChartShell title={t('dashboard.chartStockValue')}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moneyData} margin={{ left: 8, right: 8, top: 4, bottom: 0 }}>
               <CartesianGrid stroke="#e6e9eb" vertical={false} />
               <XAxis dataKey="date" tickFormatter={shortDate} tick={{ fontSize: 10 }} minTickGap={24} />
               <YAxis tickFormatter={moneyTick} tick={{ fontSize: 10 }} width={54} />
               <Tooltip formatter={(value) => `৳${Number(value).toLocaleString('en-BD')}`} />
-              <Line type="monotone" dataKey="stockValue" name="Stock value" stroke="#2e4bd8" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="stockValue" name={t('dashboard.stockValue')} stroke="#2e4bd8" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </ChartShell>
       )}
 
       {moneyData && (
-        <ChartShell title="Revenue and sales profit margin · last 30 days">
+        <ChartShell title={t('dashboard.chartRevenue')}>
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={moneyData} margin={{ left: 8, right: 8, top: 4, bottom: 0 }}>
               <CartesianGrid stroke="#e6e9eb" vertical={false} />
@@ -97,8 +99,8 @@ export function DashboardCharts({
               <YAxis tickFormatter={moneyTick} tick={{ fontSize: 10 }} width={54} />
               <Tooltip formatter={(value) => `৳${Number(value).toLocaleString('en-BD')}`} />
               <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Line type="monotone" dataKey="revenue" name="Revenue" stroke="#2e4bd8" dot={false} strokeWidth={2} />
-              <Line type="monotone" dataKey="margin" name="Sales profit margin" stroke="#1b7f5c" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="revenue" name={t('dashboard.revenue')} stroke="#2e4bd8" dot={false} strokeWidth={2} />
+              <Line type="monotone" dataKey="margin" name={t('dashboard.salesMargin')} stroke="#1b7f5c" dot={false} strokeWidth={2} />
             </LineChart>
           </ResponsiveContainer>
         </ChartShell>

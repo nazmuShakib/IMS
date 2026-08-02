@@ -11,12 +11,14 @@ import {
 } from '@/actions/stock';
 import { Button, Card, Field, Input, MonoInput, Select, SerialChip } from '@/components/ui';
 import { ScannerInput } from '@/components/search/ScannerInput';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import type { MessageKey } from '@/lib/i18n/messages';
 
 const REASONS = [
-  ['DAMAGE', 'Damaged / unsellable'],
-  ['LOSS', 'Lost or stolen'],
-  ['INTERNAL_USE', 'Shop use / demo / gift'],
-  ['RETURN_TO_SUPPLIER', 'Returned to supplier'],
+  ['DAMAGE', 'stock.damaged'],
+  ['LOSS', 'stock.lost'],
+  ['INTERNAL_USE', 'stock.internalUse'],
+  ['RETURN_TO_SUPPLIER', 'stock.returnSupplier'],
 ] as const;
 
 /**
@@ -34,14 +36,15 @@ export function StockOutForm({
   initialSerial?: string;
 }) {
   const [mode, setMode] = useState<'serial' | 'bulk'>('serial');
+  const { t } = useI18n();
 
   return (
     <>
       <div className="mb-4 inline-flex rounded-[3px] border border-rule bg-card p-0.5">
         {(
           [
-            ['serial', 'By serial / IMEI'],
-            ['bulk', 'By quantity'],
+            ['serial', t('stock.bySerial')],
+            ['bulk', t('stock.byQuantity')],
           ] as const
         ).map(([m, label]) => (
           <button
@@ -69,6 +72,7 @@ export function StockOutForm({
 /* -------------------------------------------------------------------------- */
 
 function SerialFlow({ initialSerial }: { initialSerial?: string }) {
+  const { t, message } = useI18n();
   const [lookup, lookupAction, looking] = useActionState(lookupSerial, {});
   const [out, outAction, submitting] = useActionState<StockActionState, FormData>(
     stockOutAction,
@@ -88,10 +92,9 @@ function SerialFlow({ initialSerial }: { initialSerial?: string }) {
     <>
       {/* Step 1 — identify the device */}
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-1">Scan or type the device number / IMEI</p>
+        <p className="eyebrow mb-1">{t('stock.scanOrTypeDevice')}</p>
         <p className="mb-3 text-[12px] text-graphite">
-          A barcode scanner types the number and presses Enter — this box already works with
-          one.
+          {t('stock.scannerHelp')}
         </p>
 
         <form action={lookupAction} className="flex gap-2">
@@ -103,11 +106,11 @@ function SerialFlow({ initialSerial }: { initialSerial?: string }) {
             className="max-w-xs"
           />
           <Button type="submit" variant="ghost" disabled={looking}>
-            {looking ? 'Finding…' : 'Find'}
+            {looking ? t('stock.finding') : t('stock.find')}
           </Button>
         </form>
 
-        {lookup.error && <p className="mt-3 text-[13px] text-out">{lookup.error}</p>}
+        {lookup.error && <p className="mt-3 text-[13px] text-out">{message(lookup.error)}</p>}
       </Card>
 
       {/* Step 2 — confirm and record */}
@@ -115,14 +118,14 @@ function SerialFlow({ initialSerial }: { initialSerial?: string }) {
 
       {out.ok && (
         <Card className="border-ok/30 bg-ok-wash p-5">
-          <p className="text-[13px] font-medium text-ok">{out.ok}</p>
+          <p className="text-[13px] font-medium text-ok">{message(out.ok)}</p>
           <p className="mt-3 flex gap-2">
             <Button variant="ghost" type="button" onClick={() => window.location.reload()}>
-              Next device
+              {t('stock.nextDevice')}
             </Button>
             <Link href="/stock/movements">
               <Button variant="ghost" type="button">
-                See the ledger
+                {t('stock.seeLedger')}
               </Button>
             </Link>
           </p>
@@ -146,6 +149,7 @@ function ConfirmUnit({
   error?: string;
 }) {
   const [reason, setReason] = useState<string>('DAMAGE');
+  const { t, message } = useI18n();
 
   return (
     <form action={action}>
@@ -155,7 +159,7 @@ function ConfirmUnit({
 
       {error && (
         <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {error}
+          {message(error)}
         </div>
       )}
 
@@ -170,11 +174,11 @@ function ConfirmUnit({
 
         <div className="p-5">
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Why is it leaving?">
+            <Field label={t('stock.whyLeaving')}>
               <Select name="reason" value={reason} onChange={(e) => setReason(e.target.value)}>
                 {REASONS.map(([v, label]) => (
                   <option key={v} value={v}>
-                    {label}
+                    {t(label as MessageKey)}
                   </option>
                 ))}
               </Select>
@@ -183,7 +187,7 @@ function ConfirmUnit({
           </div>
 
           <div className="mt-4">
-            <Field label="Note" hint="Goes in the audit trail">
+            <Field label={t('common.note')} hint={t('stock.auditNote')}>
               <Input name="note" placeholder="Screen cracked in the back room" />
             </Field>
           </div>
@@ -191,7 +195,7 @@ function ConfirmUnit({
       </Card>
 
       <Button type="submit" disabled={pending}>
-        {pending ? 'Recording…' : 'Remove from stock'}
+        {pending ? t('stock.recording') : t('stock.remove')}
       </Button>
     </form>
   );
@@ -200,6 +204,7 @@ function ConfirmUnit({
 /* -------------------------------------------------------------------------- */
 
 function BulkFlow({ products }: { products: ProductDTO[] }) {
+  const { t, message } = useI18n();
   const [state, formAction, pending] = useActionState<StockActionState, FormData>(
     stockOutAction,
     {},
@@ -219,7 +224,7 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
     return (
       <Card className="p-5">
         <p className="text-[13px] text-graphite">
-          No bulk/count-based products yet. Individually tracked products use the other tab.
+          {t('stock.noBulk')}
         </p>
       </Card>
     );
@@ -231,18 +236,18 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
 
       {state.error && (
         <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {state.error}
+          {message(state.error)}
         </div>
       )}
       {state.ok && (
         <div className="mb-4 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
-          {state.ok}
+          {message(state.ok)}
         </div>
       )}
 
       <Card className="mb-4 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Product">
+          <Field label={t('common.product')}>
             <Select
               name="productId"
               required
@@ -250,19 +255,19 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
               onChange={(e) => setProductId(e.target.value)}
             >
               <option value="" disabled>
-                Choose a product
+                {t('stock.chooseProduct')}
               </option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
-                  {p.sku} — {p.name} ({p.quantityOnHand} on hand)
+                  {p.sku} — {p.name} ({t('stock.onHandCount', { count: p.quantityOnHand })})
                 </option>
               ))}
             </Select>
           </Field>
 
           <Field
-            label="How many"
-            hint={product ? `${product.quantityOnHand} on hand` : undefined}
+            label={t('stock.howMany')}
+            hint={product ? t('stock.onHandCount', { count: product.quantityOnHand }) : undefined}
           >
             <MonoInput
               name="quantity"
@@ -275,27 +280,27 @@ function BulkFlow({ products }: { products: ProductDTO[] }) {
             />
           </Field>
 
-          <Field label="Why is it leaving?">
+          <Field label={t('stock.whyLeaving')}>
             <Select name="reason" value={reason} onChange={(e) => setReason(e.target.value)}>
               {REASONS.map(([v, label]) => (
                 <option key={v} value={v}>
-                  {label}
+                  {t(label as MessageKey)}
                 </option>
               ))}
             </Select>
           </Field>
 
-          <Field label="Reference">
+          <Field label={t('common.reference')}>
             <MonoInput name="reference" placeholder="MEMO-2003" />
           </Field>
-          <Field label="Note">
+          <Field label={t('common.note')}>
             <Input name="note" />
           </Field>
         </div>
       </Card>
 
       <Button type="submit" disabled={pending || !product}>
-        {pending ? 'Recording…' : 'Remove from stock'}
+        {pending ? t('stock.recording') : t('stock.remove')}
       </Button>
     </form>
   );

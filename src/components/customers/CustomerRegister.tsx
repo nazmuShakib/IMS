@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Button, Card, EmptyState, Input, TableViewport } from '@/components/ui';
 import type { Customer } from '@/domain/types';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function CustomerRegister({
   confirmedQuery,
@@ -18,6 +19,7 @@ export function CustomerRegister({
   resultVersion: string;
 }) {
   const router = useRouter();
+  const { t } = useI18n();
   const [query, setQuery] = useState(confirmedQuery);
   const [filtering, setFiltering] = useState(false);
   const [refreshPending, startRefreshing] = useTransition();
@@ -56,32 +58,32 @@ export function CustomerRegister({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           disabled={pending}
-          placeholder="Search customer name or phone"
-          aria-label="Search customers"
+          placeholder={t('customers.searchPlaceholder')}
+          aria-label={t('nav.customers')}
         />
         <Button type="submit" disabled={pending}>
-          {pending ? 'Searching…' : 'Search'}
+          {pending ? t('customers.searching') : t('common.search')}
         </Button>
         <Button type="button" variant="ghost" disabled={pending} onClick={() => navigate('')}>
-          Reset
+          {t('common.reset')}
         </Button>
       </form>
 
       {pending ? (
         <Card>
-          <LoadingScreen compact label="Searching customers…" />
+          <LoadingScreen compact label={t('loading.searchCustomers')} />
         </Card>
       ) : (
         <Card>
           {customers.length === 0 ? (
-            <EmptyState title={confirmedQuery ? 'No customers match this search.' : 'No saved customers yet.'} />
+            <EmptyState title={confirmedQuery ? t('customers.noMatch') : t('customers.empty')} />
           ) : (
             <TableViewport>
               <table className="w-full border-collapse text-[12px]">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-rule text-left">
-                    <th className="eyebrow px-4 py-2.5">Name</th>
-                    <th className="eyebrow px-4 py-2.5">Phone</th>
+                    <th className="eyebrow px-4 py-2.5">{t('common.name')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('common.phone')}</th>
                     <th className="eyebrow px-4 py-2.5"><span className="sr-only">History</span></th>
                   </tr>
                 </thead>
@@ -96,7 +98,7 @@ export function CustomerRegister({
                       <td className="tnum px-4 py-3">{customer.phone ?? '—'}</td>
                       <td className="px-4 py-3 text-right">
                         <Link href={`/customers/${customer.id}`} className="text-signal">
-                          Purchase history
+                          {t('customers.purchaseHistory')}
                         </Link>
                       </td>
                     </tr>

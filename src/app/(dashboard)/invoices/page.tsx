@@ -11,7 +11,8 @@ import {
   type PaymentMethod,
   type PaymentStatus,
 } from '@/domain/types';
-import { requireCapability } from '@/lib/session';
+import { getSession, requireCapability } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import type { SaleFilters } from '@/repositories/types';
 
@@ -42,6 +43,8 @@ export default async function InvoicesPage({
   searchParams: Promise<RawParams>;
 }) {
   await requireCapability('VIEW_INVOICES');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const raw = await searchParams;
   const query = one(raw, 'q');
   const from = one(raw, 'from');
@@ -89,9 +92,12 @@ export default async function InvoicesPage({
   return (
     <>
       <PageHeader
-        title="Invoices"
-        count={`${sales.length}${sales.length === 500 ? '+' : ''} ${hasFilters ? 'matching' : 'recent'} immutable invoices`}
-        action={<Link href="/checkout" className="rounded-[3px] bg-signal px-3.5 py-2 text-[13px] font-medium text-white">New checkout</Link>}
+        title={t('invoices.title')}
+        count={t('invoices.summary', {
+          count: `${sales.length}${sales.length === 500 ? '+' : ''}`,
+          kind: t(hasFilters ? 'invoices.matching' : 'invoices.recent'),
+        })}
+        action={<Link href="/checkout" className="rounded-[3px] bg-signal px-3.5 py-2 text-[13px] font-medium text-white">{t('invoices.newCheckout')}</Link>}
       />
       <InvoiceRegister
         confirmedFilters={confirmedFilters}

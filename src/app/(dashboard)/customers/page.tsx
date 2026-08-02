@@ -1,7 +1,8 @@
 import { CreateCustomerForm } from '@/components/customers/CreateCustomerForm';
 import { CustomerRegister } from '@/components/customers/CustomerRegister';
 import { Card, PageHeader } from '@/components/ui';
-import { requireCapability } from '@/lib/session';
+import { getSession, requireCapability } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,8 @@ export default async function CustomersPage({
   searchParams: Promise<{ q?: string }>;
 }) {
   await requireCapability('MANAGE_CUSTOMERS');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const { q = '' } = await searchParams;
   const customers = q.trim()
     ? await db.customers.search(q, 100)
@@ -19,11 +22,14 @@ export default async function CustomersPage({
   return (
     <>
       <PageHeader
-        title="Customers"
-        count={`${customers.length} ${q ? 'matching' : 'reusable'} customer records`}
+        title={t('customers.title')}
+        count={t('customers.summary', {
+          count: customers.length,
+          kind: t(q ? 'customers.matching' : 'customers.reusable'),
+        })}
       />
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-4">New customer</p>
+        <p className="eyebrow mb-4">{t('customers.new')}</p>
         <CreateCustomerForm />
       </Card>
       <CustomerRegister

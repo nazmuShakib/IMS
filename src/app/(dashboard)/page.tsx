@@ -5,10 +5,12 @@ import { Badge, Card, EmptyState, HelpTerm, PageHeader, SerialChip, StockCount, 
 import { formatBDT } from '@/lib/money';
 import { getAuthUserNames, getSession } from '@/lib/session';
 import { getDashboard } from '@/services/dashboard';
+import { createTranslator } from '@/lib/i18n/messages';
+import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
 
-const dhaka = (iso: string) =>
+const dhaka = (iso: string, _locale: Locale) =>
   new Date(iso).toLocaleString('en-GB', {
     timeZone: 'Asia/Dhaka',
     day: '2-digit',
@@ -63,7 +65,8 @@ function Kpi({ label, value, note, tone }: {
 }
 
 export default async function DashboardPage() {
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const dashboard = await getDashboard(role);
   const authActorNames = await getAuthUserNames(dashboard.recentActivity.map((item) => item.actorId));
   const recentActivity = dashboard.recentActivity.map((item) => ({
@@ -73,35 +76,35 @@ export default async function DashboardPage() {
 
   return (
     <>
-      <PageHeader title="Dashboard" count={`Updated ${dhaka(dashboard.generatedAt)}`} />
+      <PageHeader title={t('dashboard.title')} count={t('dashboard.updated', { date: dhaka(dashboard.generatedAt, locale) })} />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Kpi tone="units" label="Units in stock" value={dashboard.totalUnits.toLocaleString('en-BD')} note={`${dashboard.distinctSkus} stocked product codes`} />
-        <Kpi tone="low" label="Low stock" value={dashboard.lowStockCount} note={`${dashboard.outOfStockCount} out of stock`} />
+        <Kpi tone="units" label={t('dashboard.unitsInStock')} value={dashboard.totalUnits.toLocaleString('en-BD')} note={t('dashboard.stockedCodes', { count: dashboard.distinctSkus })} />
+        <Kpi tone="low" label={t('dashboard.lowStock')} value={dashboard.lowStockCount} note={t('dashboard.outOfStockCount', { count: dashboard.outOfStockCount })} />
         {dashboard.canSeeFinancials ? (
           <>
-            <Kpi tone="stock" label="Stock value · cost" value={formatBDT(dashboard.stockValueAtCost)} note={`Retail ${formatBDT(dashboard.stockValueAtRetail)}`} />
+            <Kpi tone="stock" label={t('dashboard.stockValueCost')} value={formatBDT(dashboard.stockValueAtCost)} note={t('dashboard.retail', { value: formatBDT(dashboard.stockValueAtRetail) })} />
             <Kpi
               tone={dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'}
-              label="Potential margin"
+              label={t('dashboard.potentialMargin')}
               value={formatBDT(dashboard.potentialMargin)}
               note={dashboard.potentialMargin < 0 ? 'Negative margin · retail value is below current cost' : 'Retail value minus current cost'}
             />
-            <Kpi tone="revenue" label="Revenue · this month" value={formatBDT(dashboard.monthRevenue)} />
+            <Kpi tone="revenue" label={t('dashboard.revenueMonth')} value={formatBDT(dashboard.monthRevenue)} />
             <Kpi
               tone="cogs"
-              label={<HelpTerm description="The purchase cost of the items sold during this month.">Cost of sold items (COGS) · this month</HelpTerm>}
+              label={<HelpTerm description={t('term.cogsHelp')}>{t('dashboard.cogsMonth')}</HelpTerm>}
               value={formatBDT(dashboard.monthCogs)}
             />
             <Kpi
               tone={dashboard.monthGrossProfit < 0 ? 'profitLoss' : dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'}
-              label={<HelpTerm description="Revenue minus the cost of the items sold, before other shop expenses.">Sales profit · this month</HelpTerm>}
+              label={<HelpTerm description={t('term.salesProfitHelp')}>{t('dashboard.salesProfitMonth')}</HelpTerm>}
               value={formatBDT(dashboard.monthGrossProfit)}
-              note={dashboard.monthGrossProfit < 0 ? 'Loss this month' : dashboard.monthGrossProfit === 0 ? 'Break-even this month' : undefined}
+              note={dashboard.monthGrossProfit < 0 ? t('dashboard.lossMonth') : dashboard.monthGrossProfit === 0 ? t('dashboard.breakEven') : undefined}
             />
           </>
         ) : (
-          <Kpi tone="units" label="Access" value="Operational" note="Financial KPIs are restricted by role" />
+          <Kpi tone="units" label={t('dashboard.access')} value={t('dashboard.operational')} note={t('dashboard.financialRestricted')} />
         )}
       </div>
 
@@ -115,19 +118,19 @@ export default async function DashboardPage() {
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card>
           <div className="border-b border-rule px-4 py-3">
-            <h2 className="text-[13px] font-medium">Low-stock alerts</h2>
-            <p className="mt-0.5 text-[11px] text-graphite">Reorder at or below the configured threshold</p>
+            <h2 className="text-[13px] font-medium">{t('dashboard.lowStockAlerts')}</h2>
+            <p className="mt-0.5 text-[11px] text-graphite">{t('dashboard.reorderHelp')}</p>
           </div>
           {dashboard.lowStock.length === 0 ? (
-            <EmptyState title="No products need reordering." />
+            <EmptyState title={t('dashboard.noReorder')} />
           ) : (
             <TableViewport className="max-h-72">
               <table className="w-full">
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b border-rule">
-                    <th className="eyebrow px-4 py-2 text-left">Product</th>
-                    <th className="eyebrow px-4 py-2 text-right">Stock</th>
-                    <th className="eyebrow px-4 py-2 text-right">Reorder</th>
+                    <th className="eyebrow px-4 py-2 text-left">{t('common.product')}</th>
+                    <th className="eyebrow px-4 py-2 text-right">{t('shell.stock')}</th>
+                    <th className="eyebrow px-4 py-2 text-right">{t('dashboard.reorder')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,19 +152,19 @@ export default async function DashboardPage() {
 
         <Card>
           <div className="border-b border-rule px-4 py-3">
-            <h2 className="text-[13px] font-medium">Dead stock</h2>
-            <p className="mt-0.5 text-[11px] text-graphite">Stock with no outbound movement for at least 60 days</p>
+            <h2 className="text-[13px] font-medium">{t('dashboard.deadStock')}</h2>
+            <p className="mt-0.5 text-[11px] text-graphite">{t('dashboard.deadStockHelp')}</p>
           </div>
           {dashboard.deadStock.length === 0 ? (
-            <EmptyState title="No dead stock detected." />
+            <EmptyState title={t('dashboard.noDeadStock')} />
           ) : (
             <TableViewport className="max-h-72">
               <table className="w-full">
                 <thead className="sticky top-0 z-10 bg-card">
                   <tr className="border-b border-rule">
-                    <th className="eyebrow px-4 py-2 text-left">Product</th>
-                    <th className="eyebrow px-4 py-2 text-right">On hand</th>
-                    <th className="eyebrow px-4 py-2 text-right">Inactive</th>
+                    <th className="eyebrow px-4 py-2 text-left">{t('common.product')}</th>
+                    <th className="eyebrow px-4 py-2 text-right">{t('dashboard.onHand')}</th>
+                    <th className="eyebrow px-4 py-2 text-right">{t('dashboard.inactive')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -172,7 +175,7 @@ export default async function DashboardPage() {
                         <span className="tnum block text-[10px] text-graphite">{item.sku}</span>
                       </td>
                       <td className="tnum px-4 py-2.5 text-right text-[12px]">{item.onHand}</td>
-                      <td className="px-4 py-2.5 text-right text-[11px] text-low">{item.inactiveDays === null ? 'Never moved' : `${item.inactiveDays} days`}</td>
+                      <td className="px-4 py-2.5 text-right text-[11px] text-low">{item.inactiveDays === null ? t('dashboard.neverMoved') : t('dashboard.days', { count: item.inactiveDays })}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -184,26 +187,26 @@ export default async function DashboardPage() {
 
       <div className="mb-4 grid gap-4 lg:grid-cols-2">
         <Card>
-          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">Top movers · 30 days</h2></div>
-          {dashboard.topMovers.length === 0 ? <EmptyState title="No outbound movement in the last 30 days." /> : (
+          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">{t('dashboard.topMovers')}</h2></div>
+          {dashboard.topMovers.length === 0 ? <EmptyState title={t('dashboard.noOutbound')} /> : (
             <div className="divide-y divide-rule-soft">
               {dashboard.topMovers.map((item) => (
                 <Link key={item.productId} href={`/products/${item.productId}`} className="flex items-center justify-between px-4 py-2.5 hover:bg-plate/50">
                   <span><span className="text-[12px] font-medium">{item.name}</span><span className="tnum block text-[10px] text-graphite">{item.sku}</span></span>
-                  <Badge tone="ok">{item.movedLast30Days} out</Badge>
+                  <Badge tone="ok">{t('dashboard.out', { count: item.movedLast30Days })}</Badge>
                 </Link>
               ))}
             </div>
           )}
         </Card>
         <Card>
-          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">Slow movers · 30 days</h2></div>
-          {dashboard.slowMovers.length === 0 ? <EmptyState title="No stocked products to compare." /> : (
+          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">{t('dashboard.slowMovers')}</h2></div>
+          {dashboard.slowMovers.length === 0 ? <EmptyState title={t('dashboard.noStockedCompare')} /> : (
             <div className="divide-y divide-rule-soft">
               {dashboard.slowMovers.map((item) => (
                 <Link key={item.productId} href={`/products/${item.productId}`} className="flex items-center justify-between px-4 py-2.5 hover:bg-plate/50">
-                  <span><span className="text-[12px] font-medium">{item.name}</span><span className="tnum block text-[10px] text-graphite">{item.onHand} on hand</span></span>
-                  <Badge tone={item.movedLast30Days === 0 ? 'low' : 'neutral'}>{item.movedLast30Days} out</Badge>
+                  <span><span className="text-[12px] font-medium">{item.name}</span><span className="tnum block text-[10px] text-graphite">{t('dashboard.onHandCount', { count: item.onHand })}</span></span>
+                  <Badge tone={item.movedLast30Days === 0 ? 'low' : 'neutral'}>{t('dashboard.out', { count: item.movedLast30Days })}</Badge>
                 </Link>
               ))}
             </div>
@@ -213,13 +216,13 @@ export default async function DashboardPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">Recent activity</h2></div>
-          {recentActivity.length === 0 ? <EmptyState title="No stock movement yet." /> : (
+          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">{t('dashboard.recentActivity')}</h2></div>
+          {recentActivity.length === 0 ? <EmptyState title={t('dashboard.noMovement')} /> : (
             <TableViewport className="max-h-96">
               <div className="divide-y divide-rule-soft">
                 {recentActivity.map((activity) => (
                   <Link key={activity.id} href={`/products/${activity.productId}`} className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-plate/50">
-                    <span><span className="text-[12px] font-medium">{activity.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{activity.reason.replaceAll('_', ' ')} · {activity.actorName} · {dhaka(activity.createdAt)}</span></span>
+                    <span><span className="text-[12px] font-medium">{activity.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{activity.reason.replaceAll('_', ' ')} · {activity.actorName} · {dhaka(activity.createdAt, locale)}</span></span>
                     <span className={`tnum text-[12px] font-medium ${activity.quantity > 0 ? 'text-ok' : 'text-out'}`}>{activity.quantity > 0 ? '+' : ''}{activity.quantity}</span>
                   </Link>
                 ))}
@@ -229,14 +232,14 @@ export default async function DashboardPage() {
         </Card>
 
         <Card>
-          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">Warranties expiring · 30 days</h2></div>
-          {dashboard.expiringWarranties.length === 0 ? <EmptyState title="No warranties expire in the next 30 days." /> : (
+          <div className="border-b border-rule px-4 py-3"><h2 className="text-[13px] font-medium">{t('dashboard.warrantiesExpiring')}</h2></div>
+          {dashboard.expiringWarranties.length === 0 ? <EmptyState title={t('dashboard.noWarrantyExpiry')} /> : (
             <TableViewport className="max-h-96">
               <div className="divide-y divide-rule-soft">
                 {dashboard.expiringWarranties.map((item) => (
                   <Link key={item.unitId} href={`/products/${item.productId}`} className="flex items-center justify-between gap-3 px-4 py-2.5 hover:bg-plate/50">
                     <span><span className="text-[12px] font-medium">{item.productName}</span><span className="mt-1 block"><SerialChip serial={item.serialNo} dim={item.status !== 'IN_STOCK'} /></span></span>
-                    <span className="text-right"><Badge tone="low">{item.daysRemaining} days</Badge><span className="tnum mt-1 block text-[10px] text-graphite">{dhaka(item.warrantyExpiresAt)}</span></span>
+                    <span className="text-right"><Badge tone="low">{t('dashboard.days', { count: item.daysRemaining })}</Badge><span className="tnum mt-1 block text-[10px] text-graphite">{dhaka(item.warrantyExpiresAt, locale)}</span></span>
                   </Link>
                 ))}
               </div>

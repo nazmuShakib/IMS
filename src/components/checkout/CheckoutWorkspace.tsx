@@ -22,6 +22,8 @@ import type {
   TrackingType,
 } from '@/domain/types';
 import { formatBDT, toTaka } from '@/lib/money';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { domainLabel } from '@/lib/i18n/domain';
 
 export interface CheckoutProductOption {
   id: string;
@@ -54,12 +56,14 @@ export interface CheckoutLine {
 }
 
 function Message({ state }: { state: CheckoutActionState }) {
-  if (state.error) return <p className="mt-2 text-[12px] text-out">{state.error}</p>;
-  if (state.ok) return <p className="mt-2 text-[12px] text-ok">{state.ok}</p>;
+  const { message } = useI18n();
+  if (state.error) return <p className="mt-2 text-[12px] text-out">{message(state.error)}</p>;
+  if (state.ok) return <p className="mt-2 text-[12px] text-ok">{message(state.ok)}</p>;
   return null;
 }
 
 function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }) {
+  const { t } = useI18n();
   const [updateState, updateAction, updating] = useActionState(updateCartItemAction, {});
   const [removeState, removeAction, removing] = useActionState(removeCartItemAction, {});
 
@@ -72,7 +76,7 @@ function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }
             {line.sku}{line.serialNo ? ` · ${line.serialNo}` : ''}
           </p>
           <p className="mt-1 text-[11px] text-graphite">
-            List price {formatBDT(line.listUnitPrice)}
+            {t('checkout.listPrice', { price: formatBDT(line.listUnitPrice) })}
           </p>
         </div>
         <p className="tnum text-[13px] font-semibold">
@@ -82,7 +86,7 @@ function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }
       <form action={updateAction} className="mt-3 grid gap-2 sm:grid-cols-[7rem_10rem_auto]">
         <input type="hidden" name="cartId" value={cartId} />
         <input type="hidden" name="itemId" value={line.id} />
-        <Field label="Quantity">
+        <Field label={t('common.quantity')}>
           <Input
             name="quantity"
             type="number"
@@ -92,7 +96,7 @@ function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }
             readOnly={line.trackingType === 'SERIAL'}
           />
         </Field>
-        <Field label="Selling price (৳)">
+        <Field label={t('products.sellingPrice')}>
           <MonoInput
             name="actualUnitPrice"
             inputMode="decimal"
@@ -102,7 +106,7 @@ function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }
         </Field>
         <div className="flex items-end gap-2">
           <Button type="submit" variant="ghost" disabled={updating}>
-            {updating ? 'Saving…' : 'Update'}
+            {updating ? t('common.saving') : t('checkout.update')}
           </Button>
           <Button
             type="submit"
@@ -110,7 +114,7 @@ function CartLineEditor({ cartId, line }: { cartId: string; line: CheckoutLine }
             formAction={removeAction}
             disabled={removing}
           >
-            Remove
+            {t('checkout.remove')}
           </Button>
         </div>
       </form>
@@ -132,6 +136,7 @@ export function CheckoutWorkspace({
   units: CheckoutUnitOption[];
   customers: Customer[];
 }) {
+  const { t } = useI18n();
   const [checkoutKey, setCheckoutKey] = useState('');
   const [customerQuery, setCustomerQuery] = useState('');
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
@@ -171,31 +176,31 @@ export function CheckoutWorkspace({
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
       <section>
         <Card className="mb-4 p-5">
-          <p className="eyebrow mb-4">Add items</p>
+          <p className="eyebrow mb-4">{t('checkout.addItems')}</p>
           <form action={addAction}>
             <input type="hidden" name="cartId" value={cart.id} />
             <Field
-              label={<HelpTerm description="Product code (SKU) is your shop's unique code; a device number or IMEI identifies one physical item.">Scan device number, barcode or product code (SKU)</HelpTerm>}
-              hint="Individually tracked products require the exact device number or IMEI"
+              label={<HelpTerm description={t('term.trackingHelp')}>{t('checkout.scanItem')}</HelpTerm>}
+              hint={t('checkout.scanHint')}
             >
               <ScannerInput
                 name="identifier"
                 autoFocus
                 autoComplete="off"
-                placeholder="Scan or type, then press Enter"
+                placeholder={t('checkout.scanPlaceholder')}
               />
             </Field>
             <Button className="mt-3" type="submit" disabled={adding}>
-              {adding ? 'Adding…' : 'Add scanned item'}
+              {adding ? t('checkout.adding') : t('checkout.addScanned')}
             </Button>
           </form>
           <div className="my-4 border-t border-rule" />
           <div className="grid gap-4 sm:grid-cols-2">
             <form action={addAction}>
               <input type="hidden" name="cartId" value={cart.id} />
-              <Field label="Bulk/count-based product" hint="Mouse/manual alternative">
+              <Field label={t('checkout.bulkProduct')} hint={t('checkout.manualAlternative')}>
                 <Select name="productId" defaultValue="">
-                  <option value="" disabled>Choose a product</option>
+                  <option value="" disabled>{t('stock.chooseProduct')}</option>
                   {quantityProducts.map((product) => (
                     <option key={product.id} value={product.id} disabled={product.onHand <= 0}>
                       {product.sku} — {product.name} ({product.onHand})
@@ -203,13 +208,13 @@ export function CheckoutWorkspace({
                   ))}
                 </Select>
               </Field>
-              <Button className="mt-3" type="submit" variant="ghost">Add product</Button>
+              <Button className="mt-3" type="submit" variant="ghost">{t('products.add')}</Button>
             </form>
             <form action={addAction}>
               <input type="hidden" name="cartId" value={cart.id} />
-              <Field label="Individually tracked item" hint="Choose the exact physical item">
+              <Field label={t('checkout.serialItem')} hint={t('checkout.chooseExact')}>
                 <Select name="unitId" defaultValue="">
-                  <option value="" disabled>Choose a device number / IMEI</option>
+                  <option value="" disabled>{t('checkout.chooseDevice')}</option>
                   {units.map((unit) => (
                     <option key={unit.id} value={unit.id}>
                       {unit.serialNo} — {unit.sku} — {unit.productName}
@@ -217,7 +222,7 @@ export function CheckoutWorkspace({
                   ))}
                 </Select>
               </Field>
-              <Button className="mt-3" type="submit" variant="ghost">Add unit</Button>
+              <Button className="mt-3" type="submit" variant="ghost">{t('checkout.addUnit')}</Button>
             </form>
           </div>
           <Message state={addState} />
@@ -225,12 +230,15 @@ export function CheckoutWorkspace({
 
         <Card>
           <div className="flex items-center justify-between gap-3 border-b border-rule px-4 py-3">
-            <p className="eyebrow">Cart · {lines.length} {lines.length === 1 ? 'line' : 'lines'}</p>
+            <p className="eyebrow">{t('checkout.cart', {
+              count: lines.length,
+              kind: t(lines.length === 1 ? 'checkout.line' : 'checkout.lines'),
+            })}</p>
             <DiscardDraftControl cartId={cart.id} itemCount={lines.length} />
           </div>
           {lines.length === 0 ? (
             <p className="px-5 py-12 text-center text-[13px] text-graphite">
-              Scan or select an item to begin.
+              {t('checkout.empty')}
             </p>
           ) : lines.map((line) => (
             <CartLineEditor key={line.id} cartId={cart.id} line={line} />
@@ -243,19 +251,19 @@ export function CheckoutWorkspace({
           <input type="hidden" name="cartId" value={cart.id} />
           <input type="hidden" name="idempotencyKey" value={checkoutKey} />
           <Card className="p-5">
-            <p className="eyebrow mb-4">Customer and payment</p>
+            <p className="eyebrow mb-4">{t('checkout.customerPayment')}</p>
             <div className="space-y-4">
-              <Field label="Customer" hint="Choose once for the entire cart; leave blank for walk-in">
+              <Field label={t('common.customer')} hint={t('checkout.customerHint')}>
                 <Input
                   className="mb-2"
                   type="search"
                   value={customerQuery}
                   onChange={(event) => setCustomerQuery(event.target.value)}
-                  placeholder="Filter by name or phone"
-                  aria-label="Filter customers"
+                  placeholder={t('checkout.filterCustomer')}
+                  aria-label={t('checkout.filterCustomer')}
                 />
                 <Select name="customerId" defaultValue={cart.customerId ?? ''}>
-                  <option value="">Walk-in customer</option>
+                  <option value="">{t('checkout.walkIn')}</option>
                   {visibleCustomers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.name}{customer.phone ? ` — ${customer.phone}` : ''}
@@ -264,49 +272,49 @@ export function CheckoutWorkspace({
                 </Select>
               </Field>
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <Field label="Payment method">
+                <Field label={t('checkout.paymentMethod')}>
                   <Select name="paymentMethod" defaultValue={cart.paymentMethod}>
                     {(['CASH', 'CARD', 'MOBILE_BANKING', 'BANK_TRANSFER', 'MIXED', 'OTHER'] as PaymentMethod[])
-                      .map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}
+                      .map((value) => <option key={value} value={value}>{domainLabel(t, value)}</option>)}
                   </Select>
                 </Field>
-                <Field label="Payment status">
+                <Field label={t('checkout.paymentStatus')}>
                   <Select name="paymentStatus" defaultValue={cart.paymentStatus}>
                     {(['PAID', 'UNPAID'] as PaymentStatus[])
-                      .map((value) => <option key={value} value={value}>{value}</option>)}
+                      .map((value) => <option key={value} value={value}>{domainLabel(t, value)}</option>)}
                   </Select>
                 </Field>
               </div>
-              <Field label="Reference">
+              <Field label={t('common.reference')}>
                 <Input name="reference" defaultValue={cart.reference ?? ''} maxLength={100} />
               </Field>
-              <Field label="Invoice note">
+              <Field label={t('checkout.invoiceNote')}>
                 <Textarea name="note" defaultValue={cart.note ?? ''} rows={3} />
               </Field>
             </div>
 
             <div className="my-5 border-t border-rule" />
             <dl className="space-y-2 text-[13px]">
-              <div className="flex justify-between"><dt>List subtotal</dt><dd className="tnum">{formatBDT(subtotal)}</dd></div>
-              <div className="flex justify-between"><dt>Price adjustment</dt><dd className="tnum">{formatBDT(subtotal - total)}</dd></div>
-              <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold"><dt>Total</dt><dd className="tnum">{formatBDT(total)}</dd></div>
+              <div className="flex justify-between"><dt>{t('checkout.listSubtotal')}</dt><dd className="tnum">{formatBDT(subtotal)}</dd></div>
+              <div className="flex justify-between"><dt>{t('checkout.priceAdjustment')}</dt><dd className="tnum">{formatBDT(subtotal - total)}</dd></div>
+              <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold"><dt>{t('common.total')}</dt><dd className="tnum">{formatBDT(total)}</dd></div>
             </dl>
 
             <div className="mt-5 grid gap-2">
               <Button type="submit" variant="ghost" disabled={saving || checkingOut}>
-                {saving ? 'Saving…' : 'Save draft details'}
+                {saving ? t('common.saving') : t('checkout.saveDraft')}
               </Button>
               <Button
                 type="button"
                 onClick={() => setConfirmingCheckout(true)}
                 disabled={checkingOut || lines.length === 0 || !checkoutKey}
               >
-                {checkingOut ? 'Completing sale…' : 'Complete sale and create invoice'}
+                {checkingOut ? t('checkout.completing') : t('checkout.complete')}
               </Button>
             </div>
             <Message state={checkoutState.error ? checkoutState : detailState} />
             <p className="mt-3 text-[11px] text-graphite">
-              Checkout revalidates every unit and quantity in one database transaction.
+              {t('checkout.transactionHelp')}
             </p>
 
             {confirmingCheckout && (
@@ -326,15 +334,17 @@ export function CheckoutWorkspace({
                   className="w-full max-w-md rounded-[3px] border border-rule bg-card p-5 shadow-xl"
                 >
                   <h2 id="complete-sale-title" className="text-[16px] font-semibold">
-                    Complete this sale?
+                    {t('checkout.confirmTitle')}
                   </h2>
                   <p id="complete-sale-description" className="mt-2 text-[13px] text-graphite">
-                    This will sell {lines.length} cart {lines.length === 1 ? 'line' : 'lines'},
-                    {' '}reduce available stock, and create an immutable invoice for{' '}
-                    <span className="tnum font-semibold text-ink">{formatBDT(total)}</span>.
+                    {t('checkout.confirmDescription', {
+                      count: lines.length,
+                      kind: t(lines.length === 1 ? 'checkout.line' : 'checkout.lines'),
+                      total: formatBDT(total),
+                    })}
                   </p>
                   <p className="mt-2 text-[12px] text-out">
-                    This cannot be undone by editing or deleting the invoice.
+                    {t('checkout.cannotUndo')}
                   </p>
                   <div className="mt-5 flex justify-end gap-2">
                     <Button
@@ -344,14 +354,14 @@ export function CheckoutWorkspace({
                       disabled={checkingOut}
                       autoFocus
                     >
-                      Keep editing
+                      {t('checkout.keepEditing')}
                     </Button>
                     <Button
                       type="submit"
                       formAction={completeAction}
                       disabled={checkingOut}
                     >
-                      {checkingOut ? 'Completing sale…' : 'Yes, complete sale'}
+                      {checkingOut ? t('checkout.completing') : t('checkout.yesComplete')}
                     </Button>
                   </div>
                 </div>
@@ -362,13 +372,13 @@ export function CheckoutWorkspace({
 
         <details className="mt-4 rounded-[3px] border border-rule bg-card">
           <summary className="cursor-pointer px-4 py-3 text-[13px] font-medium">
-            Create a new customer
+            {t('checkout.newCustomer')}
           </summary>
           <form action={customerAction} className="border-t border-rule p-4">
             <input type="hidden" name="cartId" value={cart.id} />
             <div className="space-y-3">
-              <Field label="Name"><Input name="name" required maxLength={150} /></Field>
-              <Field label="Bangladeshi mobile">
+              <Field label={t('common.name')}><Input name="name" required maxLength={150} /></Field>
+              <Field label={t('customers.mobile')}>
                 <MonoInput
                   name="phone"
                   type="tel"
@@ -379,7 +389,7 @@ export function CheckoutWorkspace({
                 />
               </Field>
               <Button type="submit" disabled={creatingCustomer}>
-                {creatingCustomer ? 'Creating…' : 'Create and select'}
+                {creatingCustomer ? t('customers.creating') : t('checkout.createSelect')}
               </Button>
               <Message state={customerState} />
             </div>

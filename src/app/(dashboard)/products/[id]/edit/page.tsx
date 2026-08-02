@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/repositories';
-import { requireRole } from '@/lib/session';
+import { getSession, requireRole } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { updateProduct } from '@/actions/catalog';
 import { ProductForm } from '@/components/catalog/ProductForm';
 import { PageHeader } from '@/components/ui';
@@ -13,6 +14,8 @@ export default async function EditProductPage({
   params: Promise<{ id: string }>;
 }) {
   await requireRole('ADMIN', 'MANAGER');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const { id } = await params;
 
   const [product, categories, brands] = await Promise.all([
@@ -25,7 +28,7 @@ export default async function EditProductPage({
 
   return (
     <>
-      <PageHeader title="Edit product" count={product.sku} />
+      <PageHeader title={t('products.edit')} count={product.sku} />
       <ProductForm
         action={updateProduct}
         categories={categories}

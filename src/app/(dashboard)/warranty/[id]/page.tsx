@@ -6,13 +6,16 @@ import {
   PrintButton, SupplierWarrantyForm, WarrantyHandoverForm, WarrantyNoteForm,
   WarrantyResolutionForm, WarrantyTransitionForm,
 } from '@/components/warranty/WarrantyForms';
+import { createTranslator } from '@/lib/i18n/messages';
+import type { Locale } from '@/lib/i18n/config';
+import { domainLabel } from '@/lib/i18n/domain';
 
 export const dynamic = 'force-dynamic';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase();
-const stamp = (iso: string) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
+const stamp = (iso: string, _locale: Locale) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
 
 export default async function WarrantyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCapability('VIEW_RMA'); const { role } = await getSession(); const { id } = await params;
+  await requireCapability('VIEW_RMA'); const { role, locale } = await getSession(); const t = createTranslator(locale); const { id } = await params;
   const claim = await db.warranties.findById(id); if (!claim) notFound();
   const [unit, sale, events, supplierCase, suppliers, users] = await Promise.all([
     db.units.findById(claim.unitId), db.movements.findById(claim.saleMovementId),
@@ -26,23 +29,23 @@ export default async function WarrantyDetailPage({ params }: { params: Promise<{
   const canResolve = claim.status === 'APPROVED' || claim.status === 'READY_FOR_COLLECTION';
   const terminal = ['REPLACED', 'COMPLETED', 'CANCELLED'].includes(claim.status);
 
-  return <div className="print:max-w-none"><PageHeader title={claim.claimNumber} count="Warranty claim acknowledgement" action={<PrintButton />} />
+  return <div className="print:max-w-none"><PageHeader title={claim.claimNumber} count={t('warranty.acknowledgement')} action={<PrintButton />} />
     <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr]">
       <div className="space-y-4">
-        <Card className="p-5"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-[17px] font-medium">{product?.name ?? 'Missing product'}</p>{unit && <p className="mt-1"><SerialChip serial={unit.serialNo} /></p>}</div><div className="text-right"><Badge tone={terminal ? 'ok' : 'signal'}>{claim.status}</Badge><p className="mt-1 text-[11px] text-graphite">Customer: {label(claim.coverage)}</p></div></div>
-          <dl className="mt-5 grid gap-4 text-[12px] sm:grid-cols-2"><div><dt className="eyebrow">Claimant</dt><dd>{claim.claimantName ?? 'Not recorded'}{claim.claimantPhone && <span className="block tnum">{claim.claimantPhone}</span>}</dd></div><div><dt className="eyebrow">Custody</dt><dd className="capitalize">{label(claim.custody)}</dd></div><div><dt className="eyebrow">Original sale</dt><dd>{sale ? stamp(sale.createdAt) : 'Missing movement'}{sale && <span className="ml-2"><Money value={sale.unitPrice} /></span>}</dd></div><div><dt className="eyebrow">Warranty expiry</dt><dd>{unit?.warrantyExpiresAt ? stamp(unit.warrantyExpiresAt) : 'Not recorded'}</dd></div><div className="sm:col-span-2"><dt className="eyebrow">Reported issue</dt><dd className="whitespace-pre-wrap">{claim.reportedIssue}</dd></div>{claim.physicalCondition && <div className="sm:col-span-2"><dt className="eyebrow">Condition received</dt><dd className="whitespace-pre-wrap">{claim.physicalCondition}</dd></div>}{claim.resolution && <div className="sm:col-span-2"><dt className="eyebrow">Resolution</dt><dd>{claim.resolution}</dd></div>}</dl>
+        <Card className="p-5"><div className="flex flex-wrap justify-between gap-3"><div><p className="text-[17px] font-medium">{product?.name ?? t('warranty.productMissing')}</p>{unit && <p className="mt-1"><SerialChip serial={unit.serialNo} /></p>}</div><div className="text-right"><Badge tone={terminal ? 'ok' : 'signal'}>{domainLabel(t, claim.status)}</Badge><p className="mt-1 text-[11px] text-graphite">{t('common.customer')}: {domainLabel(t, claim.coverage)}</p></div></div>
+          <dl className="mt-5 grid gap-4 text-[12px] sm:grid-cols-2"><div><dt className="eyebrow">{t('warranty.claimant')}</dt><dd>{claim.claimantName ?? t('common.notRecorded')}{claim.claimantPhone && <span className="block tnum">{claim.claimantPhone}</span>}</dd></div><div><dt className="eyebrow">{t('warranty.custody')}</dt><dd>{domainLabel(t, claim.custody)}</dd></div><div><dt className="eyebrow">{t('warranty.originalSale')}</dt><dd>{sale ? stamp(sale.createdAt, locale) : t('warranty.missingMovement')}{sale && <span className="ml-2"><Money value={sale.unitPrice} /></span>}</dd></div><div><dt className="eyebrow">{t('warranty.expiry')}</dt><dd>{unit?.warrantyExpiresAt ? stamp(unit.warrantyExpiresAt, locale) : t('common.notRecorded')}</dd></div><div className="sm:col-span-2"><dt className="eyebrow">{t('warranty.reportedIssue')}</dt><dd className="whitespace-pre-wrap">{claim.reportedIssue}</dd></div>{claim.physicalCondition && <div className="sm:col-span-2"><dt className="eyebrow">{t('warranty.conditionReceived')}</dt><dd className="whitespace-pre-wrap">{claim.physicalCondition}</dd></div>}{claim.resolution && <div className="sm:col-span-2"><dt className="eyebrow">{t('warranty.resolution')}</dt><dd>{claim.resolution}</dd></div>}</dl>
         </Card>
 
-        <Card><div className="border-b border-rule px-5 py-3"><p className="eyebrow">Append-only timeline</p></div><TableViewport className="max-h-96"><ol className="divide-y divide-rule-soft">{events.sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map((event) => <li key={event.id} className="px-5 py-3"><div className="flex justify-between gap-3"><p className="text-[12px] font-medium">{label(event.eventType)}</p><time className="tnum text-[10px] text-graphite">{stamp(event.createdAt)}</time></div><p className="mt-1 text-[12px] text-graphite">{event.note ?? 'No note'} · {names.get(event.actorId) ?? 'Unknown user'}</p>{event.fromStatus !== event.toStatus && <p className="mt-1 text-[10px] text-graphite">{event.fromStatus ? label(event.fromStatus) : 'new'} → {event.toStatus ? label(event.toStatus) : '—'}</p>}</li>)}</ol></TableViewport></Card>
+        <Card><div className="border-b border-rule px-5 py-3"><p className="eyebrow">{t('warranty.timeline')}</p></div><TableViewport className="max-h-96"><ol className="divide-y divide-rule-soft">{events.sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map((event) => <li key={event.id} className="px-5 py-3"><div className="flex justify-between gap-3"><p className="text-[12px] font-medium">{label(event.eventType)}</p><time className="tnum text-[10px] text-graphite">{stamp(event.createdAt, locale)}</time></div><p className="mt-1 text-[12px] text-graphite">{event.note ?? t('warranty.noNote')} · {names.get(event.actorId) ?? t('ledger.unknownUser')}</p>{event.fromStatus !== event.toStatus && <p className="mt-1 text-[10px] text-graphite">{event.fromStatus ? domainLabel(t, event.fromStatus) : t('warranty.new')} → {event.toStatus ? domainLabel(t, event.toStatus) : '—'}</p>}</li>)}</ol></TableViewport></Card>
         <Card className="p-5 print:hidden"><WarrantyNoteForm claimId={claim.id} /></Card>
         {!terminal && <Card className="p-5 print:hidden"><WarrantyHandoverForm claimId={claim.id} status={claim.status} custody={claim.custody} /></Card>}
       </div>
 
       <div className="space-y-4 print:hidden">
-        <Card className="p-5"><p className="eyebrow mb-3">Ownership</p><dl className="grid gap-3 text-[12px]"><div><dt className="text-graphite">Opened by</dt><dd>{names.get(claim.openedById) ?? 'Unknown user'}</dd></div><div><dt className="text-graphite">Assigned to</dt><dd>{claim.assignedToId ? names.get(claim.assignedToId) ?? 'Unknown user' : 'Unassigned'}</dd></div><div><dt className="text-graphite">Opened</dt><dd>{stamp(claim.openedAt)}</dd></div></dl></Card>
-        {manage && !terminal && <Card className="p-5"><p className="eyebrow mb-3">Claim workflow</p><WarrantyTransitionForm claimId={claim.id} status={claim.status} coverage={claim.coverage} users={users} /></Card>}
-        {manage && canResolve && <Card className="p-5"><p className="eyebrow mb-2">Inventory resolution</p><p className="mb-3 text-[11px] text-graphite">Claim intake itself did not alter stock. Only this decision writes movements.</p><WarrantyResolutionForm claimId={claim.id} status={claim.status} /></Card>}
-        {manage && <Card className="p-5"><p className="eyebrow mb-2">Supplier warranty</p><p className="mb-3 text-[11px] text-graphite">Tracked separately from the customer coverage above.</p><SupplierWarrantyForm claimId={claim.id} suppliers={suppliers} value={supplierCase} /></Card>}
+        <Card className="p-5"><p className="eyebrow mb-3">{t('warranty.ownership')}</p><dl className="grid gap-3 text-[12px]"><div><dt className="text-graphite">{t('warranty.openedBy')}</dt><dd>{names.get(claim.openedById) ?? t('ledger.unknownUser')}</dd></div><div><dt className="text-graphite">{t('warranty.assignedTo')}</dt><dd>{claim.assignedToId ? names.get(claim.assignedToId) ?? t('ledger.unknownUser') : t('warranty.unassigned')}</dd></div><div><dt className="text-graphite">{t('warranty.opened')}</dt><dd>{stamp(claim.openedAt, locale)}</dd></div></dl></Card>
+        {manage && !terminal && <Card className="p-5"><p className="eyebrow mb-3">{t('warranty.workflow')}</p><WarrantyTransitionForm claimId={claim.id} status={claim.status} coverage={claim.coverage} users={users} /></Card>}
+        {manage && canResolve && <Card className="p-5"><p className="eyebrow mb-2">{t('warranty.inventoryResolution')}</p><p className="mb-3 text-[11px] text-graphite">{t('warranty.inventoryResolutionHelp')}</p><WarrantyResolutionForm claimId={claim.id} status={claim.status} /></Card>}
+        {manage && <Card className="p-5"><p className="eyebrow mb-2">{t('warranty.supplierWarranty')}</p><p className="mb-3 text-[11px] text-graphite">{t('warranty.supplierWarrantyHelp')}</p><SupplierWarrantyForm claimId={claim.id} suppliers={suppliers} value={supplierCase} /></Card>}
       </div>
     </div>
   </div>;

@@ -12,24 +12,26 @@ import {
   TableViewport,
 } from '@/components/ui';
 import type { MovementReason } from '@/domain/types';
+import { createTranslator, type MessageKey } from '@/lib/i18n/messages';
+import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
 
-const REASON_LABEL: Record<MovementReason, string> = {
-  INITIAL_STOCK: 'Opening balance',
-  PURCHASE: 'Purchase',
-  CUSTOMER_RETURN: 'Customer return',
-  SALE: 'Sale',
-  RETURN_TO_SUPPLIER: 'Returned to supplier',
-  DAMAGE: 'Damage',
-  LOSS: 'Loss',
-  INTERNAL_USE: 'Internal use',
-  WARRANTY_REPLACEMENT: 'Warranty replacement',
-  CORRECTION: 'Correction',
-  STOCK_COUNT: 'Stock count',
+const REASON_LABEL: Record<MovementReason, MessageKey> = {
+  INITIAL_STOCK: 'reason.initialStock',
+  PURCHASE: 'reason.purchase',
+  CUSTOMER_RETURN: 'reason.customerReturn',
+  SALE: 'reason.sale',
+  RETURN_TO_SUPPLIER: 'reason.returnSupplier',
+  DAMAGE: 'reason.damage',
+  LOSS: 'reason.loss',
+  INTERNAL_USE: 'reason.internalUse',
+  WARRANTY_REPLACEMENT: 'reason.warrantyReplacement',
+  CORRECTION: 'reason.correction',
+  STOCK_COUNT: 'reason.stockCount',
 };
 
-const stamp = (iso: string) =>
+const stamp = (iso: string, _locale: Locale) =>
   new Date(iso).toLocaleString('en-GB', {
     timeZone: 'Asia/Dhaka',
     day: '2-digit',
@@ -45,7 +47,8 @@ export default async function MovementsPage({
   searchParams: Promise<{ reason?: string; product?: string }>;
 }) {
   const { reason, product: productFilter } = await searchParams;
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const showCosts = canSeeCosts(role);
   const canReverse = role === 'ADMIN' || role === 'MANAGER';
 
@@ -81,18 +84,18 @@ export default async function MovementsPage({
   return (
     <>
       <PageHeader
-        title="Movement ledger"
-        count={`${all.length} entries · append-only, nothing is ever deleted`}
+        title={t('nav.movementLedger')}
+        count={t('ledger.entries', { count: all.length })}
       />
 
       <nav className="mb-4 flex flex-wrap gap-1.5">
         {[
-          ['', 'All'],
-          ['PURCHASE', 'Purchases'],
-          ['SALE', 'Sales'],
-          ['DAMAGE', 'Damage'],
-          ['LOSS', 'Loss'],
-          ['CORRECTION', 'Corrections'],
+          ['', t('ledger.all')],
+          ['PURCHASE', t('ledger.purchases')],
+          ['SALE', t('ledger.sales')],
+          ['DAMAGE', t('ledger.damage')],
+          ['LOSS', t('ledger.loss')],
+          ['CORRECTION', t('ledger.corrections')],
         ].map(([value, label]) => {
           const active = (reason ?? '') === value;
           return (
@@ -113,19 +116,19 @@ export default async function MovementsPage({
 
       <Card>
         {rows.length === 0 ? (
-          <EmptyState title="No movements match. Stock has to be received before it can move." />
+          <EmptyState title={t('ledger.empty')} />
         ) : (
           <TableViewport>
             <table className="w-full">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
-                <th className="eyebrow px-4 py-2.5 text-left">When</th>
-                <th className="eyebrow px-4 py-2.5 text-left">Product</th>
-                <th className="eyebrow px-4 py-2.5 text-left">Reason</th>
-                <th className="eyebrow px-4 py-2.5 text-right">Qty</th>
-                {showCosts && <th className="eyebrow px-4 py-2.5 text-right">Cost</th>}
-                <th className="eyebrow px-4 py-2.5 text-right">Price</th>
-                <th className="eyebrow px-4 py-2.5 text-left">By</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.when')}</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('common.product')}</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('stock.reason')}</th>
+                <th className="eyebrow px-4 py-2.5 text-right">{t('ledger.qty')}</th>
+                {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
+                <th className="eyebrow px-4 py-2.5 text-right">{t('common.price')}</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.by')}</th>
                 {canReverse && <th className="px-4 py-2.5" />}
               </tr>
             </thead>
@@ -144,7 +147,7 @@ export default async function MovementsPage({
                     }`}
                   >
                     <td className="tnum px-4 py-2.5 text-[12px] whitespace-nowrap text-graphite">
-                      {stamp(m.createdAt)}
+                      {stamp(m.createdAt, locale)}
                     </td>
 
                     <td className="px-4 py-2.5">
@@ -179,7 +182,7 @@ export default async function MovementsPage({
                                 : 'out'
                         }
                       >
-                        {REASON_LABEL[m.reason]}
+                        {t(REASON_LABEL[m.reason])}
                       </Badge>
                       {m.note && (
                         <span className="mt-1 block max-w-56 text-[11px] text-graphite">
@@ -187,7 +190,7 @@ export default async function MovementsPage({
                         </span>
                       )}
                       {wasReversed && (
-                        <span className="mt-1 block text-[11px] text-low">reversed</span>
+                        <span className="mt-1 block text-[11px] text-low">{t('ledger.reversed')}</span>
                       )}
                     </td>
 
@@ -213,7 +216,7 @@ export default async function MovementsPage({
                     </td>
 
                     <td className="px-4 py-2.5 text-[12px] text-graphite">
-                      {m.actorId ? (actorNameById.get(m.actorId) ?? 'Unknown user') : 'System'}
+                      {m.actorId ? (actorNameById.get(m.actorId) ?? t('ledger.unknownUser')) : t('ledger.system')}
                     </td>
 
                     {canReverse && (
@@ -221,7 +224,10 @@ export default async function MovementsPage({
                         {!isCorrection && !wasReversed && (
                           <ReverseButton
                             movementId={m.id}
-                            label={`${REASON_LABEL[m.reason]} of ${p?.name ?? 'item'}`}
+                            label={t('ledger.movementLabel', {
+                              reason: t(REASON_LABEL[m.reason]),
+                              item: p?.name ?? t('ledger.item'),
+                            })}
                           />
                         )}
                       </td>
@@ -236,9 +242,7 @@ export default async function MovementsPage({
       </Card>
 
       <p className="mt-3 text-[12px] text-graphite">
-        There is no edit and no delete here, on purpose. Reversing writes a new opposing entry
-        and leaves the original in place — so the ledger always adds up, and you can always see
-        what actually happened.
+        {t('ledger.appendOnlyHelp')}
       </p>
     </>
   );

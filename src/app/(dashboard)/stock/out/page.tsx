@@ -1,6 +1,7 @@
 import { db } from '@/repositories';
 import { toProductDTO } from '@/lib/dto';
-import { requireRole } from '@/lib/session';
+import { getSession, requireRole } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { StockOutForm } from '@/components/stock/StockOutForm';
 import { PageHeader } from '@/components/ui';
 
@@ -12,6 +13,8 @@ export default async function StockOutPage({
   searchParams: Promise<{ serial?: string }>;
 }) {
   const { role } = await requireRole('ADMIN', 'MANAGER', 'STAFF');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const { serial } = await searchParams;
 
   const products = await db.products.findAll({ activeOnly: true });
@@ -20,8 +23,8 @@ export default async function StockOutPage({
   return (
     <>
       <PageHeader
-        title="Remove stock"
-        count="Damage, loss, internal use, or return to supplier · all sales go through Checkout"
+        title={t('stock.removeTitle')}
+        count={t('stock.removeHelp')}
       />
       <StockOutForm
         bulkProducts={bulk.map((product) => toProductDTO(product, role))}

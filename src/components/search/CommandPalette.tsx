@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from 'react';
 import { formatBDT } from '@/lib/money';
 import type { SearchResponse } from '@/lib/search';
 import { ScannerInput } from '@/components/search/ScannerInput';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 const EMPTY: SearchResponse = { query: '', units: [], products: [] };
 
@@ -30,6 +31,7 @@ export function CommandPalette() {
   const [error, setError] = useState('');
   const [scanRequest, setScanRequest] = useState(0);
   const immediateScan = useRef(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -106,9 +108,9 @@ export function CommandPalette() {
         type="button"
         onClick={() => setOpen(true)}
         className="flex h-9 w-full max-w-xl items-center justify-between rounded-[3px] border border-rule bg-plate/60 px-3 text-left text-[13px] text-graphite transition-colors hover:border-graphite/50 hover:bg-card"
-        aria-label="Open inventory search"
+        aria-label={t('search.open')}
       >
-        <span className="truncate">Search products, product code (SKU), barcode or IMEI…</span>
+        <span className="truncate">{t('search.trigger')}</span>
         <kbd className="tnum ml-3 hidden shrink-0 rounded-[2px] border border-rule bg-card px-1.5 py-0.5 text-[10px] sm:inline">Ctrl/⌘ K</kbd>
       </button>
 
@@ -134,19 +136,19 @@ export function CommandPalette() {
                 value={query}
                 onValueChange={setQuery}
                 onScan={() => { immediateScan.current = true; setScanRequest((value) => value + 1); }}
-                placeholder="Type a product, product code (SKU), barcode, model or exact IMEI…"
+                placeholder={t('search.placeholder')}
                 className="h-12 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
               />
-              {loading && <span className="text-[11px] text-graphite">Searching…</span>}
+              {loading && <span className="text-[11px] text-graphite">{t('search.searchingShort')}</span>}
             </div>
 
             <Command.List className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
               {query.trim().length < 2 && (
-                <div className="px-3 py-10 text-center text-[12px] text-graphite">Type at least 2 characters. Exact device number or IMEI matches are checked first.</div>
+                <div className="px-3 py-10 text-center text-[12px] text-graphite">{t('search.minimum')}</div>
               )}
               {error && <div className="px-3 py-8 text-center text-[12px] text-out">{error}</div>}
               {!loading && !error && query.trim().length >= 2 && results.units.length === 0 && results.products.length === 0 && (
-                <Command.Empty className="px-3 py-10 text-center text-[12px] text-graphite">No matching unit or product.</Command.Empty>
+                <Command.Empty className="px-3 py-10 text-center text-[12px] text-graphite">{t('search.noMatching')}</Command.Empty>
               )}
 
               {results.units.length > 0 && (
@@ -181,7 +183,7 @@ export function CommandPalette() {
                       onSelect={() => go(`/products/${product.id}`)}
                       className="flex cursor-pointer items-center justify-between gap-4 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal"
                     >
-                      <span><span className="font-medium">{product.name}</span>{!product.isActive && <span className="ml-2 text-[10px] font-semibold text-out">INACTIVE</span>}<span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
+                      <span><span className="font-medium">{product.name}</span>{!product.isActive && <span className="ml-2 text-[10px] font-semibold text-out">{t('search.inactive')}</span>}<span className="tnum mt-0.5 block text-[11px] text-graphite">{product.sku}{product.model ? ` · ${product.model}` : ''}{product.barcode ? ` · ${product.barcode}` : ''}</span></span>
                       <span className={`tnum shrink-0 text-[11px] ${product.onHand > 0 ? 'text-graphite' : 'text-out'}`}>{product.onHand > 0 ? `${product.onHand} on hand` : 'Unavailable'}</span>
                     </Command.Item>
                   ))}
@@ -190,7 +192,7 @@ export function CommandPalette() {
             </Command.List>
 
             <div className="flex items-center justify-between border-t border-rule px-4 py-2 text-[10px] text-graphite">
-              <span>Click a result or use ↑ ↓ Enter</span><span>Esc to close</span>
+              <span>{t('search.resultHint')}</span><span>{t('search.closeHint')}</span>
             </div>
           </Command>
         </div>

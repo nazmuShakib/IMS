@@ -6,6 +6,7 @@ import type { Brand, Category, Product } from '@/domain/types';
 import { toTaka } from '@/lib/money';
 import type { ActionState } from '@/actions/catalog';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -21,6 +22,7 @@ export function ProductForm({
   product?: Product;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
+  const { t, message } = useI18n();
   const err = (k: string) => state.fieldErrors?.[k];
   const editing = Boolean(product);
 
@@ -30,17 +32,17 @@ export function ProductForm({
 
       {state.error && (
         <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {state.error}
+          {message(state.error)}
         </div>
       )}
 
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-4">Identity</p>
+        <p className="eyebrow mb-4">{t('products.identity')}</p>
         <div className="grid gap-4 sm:grid-cols-2">
           <Field
-            label={<HelpTerm description="Your shop's unique code for identifying this product.">Product code (SKU)</HelpTerm>}
+            label={<HelpTerm description={t('term.productCodeHelp')}>{t('term.productCode')}</HelpTerm>}
             error={err('sku')}
-            hint="Must be unique."
+            hint={t('products.codeUnique')}
           >
             <MonoInput
               name="sku"
@@ -50,12 +52,12 @@ export function ProductForm({
             />
           </Field>
 
-          <Field label="Barcode" error={err('barcode')} hint="Optional. Scanning is Phase 7.">
+          <Field label={t('common.barcode')} error={err('barcode')}>
             <MonoInput name="barcode" defaultValue={product?.barcode ?? ''} />
           </Field>
 
           <div className="sm:col-span-2">
-            <Field label="Name" error={err('name')}>
+            <Field label={t('common.name')} error={err('name')}>
               <Input
                 name="name"
                 required
@@ -65,14 +67,14 @@ export function ProductForm({
             </Field>
           </div>
 
-          <Field label="Model number" error={err('model')}>
+          <Field label={t('products.modelNumber')} error={err('model')}>
             <MonoInput name="model" defaultValue={product?.model ?? ''} placeholder="SM-A556E" />
           </Field>
 
-          <Field label="Category" error={err('categoryId')}>
+          <Field label={t('common.category')} error={err('categoryId')}>
             <Select name="categoryId" required defaultValue={product?.categoryId ?? ''}>
               <option value="" disabled>
-                Choose a category
+                {t('products.chooseCategory')}
               </option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -82,9 +84,9 @@ export function ProductForm({
             </Select>
           </Field>
 
-          <Field label="Brand" error={err('brandId')}>
+          <Field label={t('common.brand')} error={err('brandId')}>
             <Select name="brandId" defaultValue={product?.brandId ?? ''}>
-              <option value="">No brand</option>
+              <option value="">{t('products.noBrand')}</option>
               {brands.map((b) => (
                 <option key={b.id} value={b.id}>
                   {b.name}
@@ -94,7 +96,7 @@ export function ProductForm({
           </Field>
 
           <div className="sm:col-span-2">
-            <Field label="Description" error={err('description')}>
+            <Field label={t('common.description')} error={err('description')}>
               <Textarea name="description" defaultValue={product?.description ?? ''} />
             </Field>
           </div>
@@ -102,7 +104,7 @@ export function ProductForm({
       </Card>
 
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-4">How this product is counted</p>
+        <p className="eyebrow mb-4">{t('products.counting')}</p>
 
         {editing ? (
           /* Changing tracking type on a product with history would orphan its units
@@ -110,12 +112,11 @@ export function ProductForm({
           <div className="rounded-[3px] border border-rule bg-plate/60 px-3 py-2.5">
             <p className="text-[13px] font-medium">
               {product!.trackingType === 'SERIAL'
-                ? 'Individually tracked — one record per physical item'
-                : 'Bulk/count-based — one shared quantity'}
+                ? t('products.serialRecord')
+                : t('products.bulkRecord')}
             </p>
             <p className="mt-1 text-[12px] text-graphite">
-              This can&apos;t be changed after the product exists. Its units and its ledger
-              history depend on it. Create a new product if you need the other kind.
+              {t('products.trackingLocked')}
             </p>
           </div>
         ) : (
@@ -129,10 +130,9 @@ export function ProductForm({
                 className="mt-0.5"
               />
               <span>
-                <span className="block text-[13px] font-medium">Individually tracked</span>
+                <span className="block text-[13px] font-medium">{t('products.serialTracking')}</span>
                 <span className="mt-0.5 block text-[12px] text-graphite">
-                  Enter each phone, laptop or TV by its device number or IMEI. This gives
-                  exact profit per item and supports warranty lookup.
+                  {t('products.serialTrackingHelp')}
                 </span>
               </span>
             </label>
@@ -140,10 +140,9 @@ export function ProductForm({
             <label className="flex cursor-pointer gap-3 rounded-[3px] border border-rule p-3 hover:bg-plate/50 has-checked:border-signal has-checked:bg-signal-wash">
               <input type="radio" name="trackingType" value="QUANTITY" className="mt-0.5" />
               <span>
-                <span className="block text-[13px] font-medium">Bulk/count-based</span>
+                <span className="block text-[13px] font-medium">{t('products.bulkTracking')}</span>
                 <span className="mt-0.5 block text-[12px] text-graphite">
-                  Track cables, adapters and similar items as a total count instead of
-                  identifying every item separately.
+                  {t('products.bulkTrackingHelp')}
                 </span>
               </span>
             </label>
@@ -152,14 +151,13 @@ export function ProductForm({
       </Card>
 
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-1">Default prices</p>
+        <p className="eyebrow mb-1">{t('products.defaultPrices')}</p>
         <p className="mb-4 text-[12px] text-graphite">
-          These only pre-fill the stock-in form. The real cost is recorded per unit when
-          stock arrives, so a price change here never rewrites history.
+          {t('products.defaultPricesHelp')}
         </p>
 
         <div className="grid gap-4 sm:grid-cols-3">
-          <Field label="Cost price (৳)" error={err('defaultCostPrice')}>
+          <Field label={t('products.costPrice')} error={err('defaultCostPrice')}>
             <MonoInput
               name="defaultCostPrice"
               inputMode="decimal"
@@ -168,7 +166,7 @@ export function ProductForm({
             />
           </Field>
 
-          <Field label="Selling price (৳)" error={err('defaultSalePrice')}>
+          <Field label={t('products.sellingPrice')} error={err('defaultSalePrice')}>
             <MonoInput
               name="defaultSalePrice"
               inputMode="decimal"
@@ -178,9 +176,9 @@ export function ProductForm({
           </Field>
 
           <Field
-            label="Reorder point"
+            label={t('products.reorderPoint')}
             error={err('reorderPoint')}
-            hint="Flag as low at or below this"
+            hint={t('products.reorderHint')}
           >
             <MonoInput
               name="reorderPoint"
@@ -193,11 +191,11 @@ export function ProductForm({
 
       <div className="flex items-center gap-2">
         <Button type="submit" disabled={pending}>
-          {pending ? 'Saving…' : editing ? 'Save changes' : 'Create product'}
+          {pending ? t('common.saving') : editing ? t('common.saveChanges') : t('products.create')}
         </Button>
         <Link href={product ? `/products/${product.id}` : '/products'}>
           <Button type="button" variant="ghost">
-            Cancel
+            {t('common.cancel')}
           </Button>
         </Link>
       </div>

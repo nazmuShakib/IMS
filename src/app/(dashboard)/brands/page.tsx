@@ -3,11 +3,13 @@ import { createBrand } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
 import { Card, EmptyState, PageHeader } from '@/components/ui';
 import { getSession } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 
 export const dynamic = 'force-dynamic';
 
 export default async function BrandsPage() {
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const [brands, products] = await Promise.all([
     db.brands.findAll(),
     db.products.findAll({ activeOnly: true }),
@@ -17,19 +19,19 @@ export default async function BrandsPage() {
 
   return (
     <>
-      <PageHeader title="Brands" count={`${brands.length} brands`} />
+      <PageHeader title={t('nav.brands')} count={t('catalog.brandCount', { count: brands.length })} />
 
       {role !== 'STAFF' && <div className="mb-4">
         <QuickCreateForm
           action={createBrand}
-          submitLabel="Add brand"
-          fields={[{ name: 'name', label: 'Name', placeholder: 'Samsung', required: true }]}
+          submitLabel={t('catalog.addBrand')}
+          fields={[{ name: 'name', label: t('common.name'), placeholder: 'Samsung', required: true }]}
         />
       </div>}
 
       <Card>
         {brands.length === 0 ? (
-          <EmptyState title="No brands yet. Brands are optional on a product, but they make reports far more useful." />
+          <EmptyState title={t('catalog.noBrands')} />
         ) : (
           <ul>
             {brands.map((b) => (
@@ -39,7 +41,10 @@ export default async function BrandsPage() {
               >
                 <span className="text-[13px] font-medium">{b.name}</span>
                 <span className="tnum text-[12px] text-graphite">
-                  {count(b.id)} {count(b.id) === 1 ? 'product' : 'products'}
+                  {t('catalog.productCount', {
+                    count: count(b.id),
+                    kind: t(count(b.id) === 1 ? 'catalog.productSingle' : 'catalog.productPlural'),
+                  })}
                 </span>
               </li>
             ))}

@@ -2,6 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 
 import type { Role, User } from '@/domain/types';
+import { normalizeLocale, type Locale } from '@/lib/i18n/config';
 import { auth } from '@/lib/auth';
 import {
   CAPABILITY_ROLES,
@@ -28,7 +29,7 @@ function toDomainUser(user: Awaited<ReturnType<typeof prisma.user.findUniqueOrTh
 }
 
 /** Resolve both the signed session and the current database role on every request. */
-export async function getSession(): Promise<{ user: User; role: Role }> {
+export async function getSession(): Promise<{ user: User; role: Role; locale: Locale }> {
   const requestHeaders = await headers();
   const session = await retryRead(() => auth.api.getSession({ headers: requestHeaders }));
   if (!session) redirect('/login');
@@ -41,11 +42,11 @@ export async function getSession(): Promise<{ user: User; role: Role }> {
   }
 
   const user = toDomainUser(current);
-  return { user, role: user.role };
+  return { user, role: user.role, locale: normalizeLocale(current.locale) };
 }
 
 /** Route Handlers need a 401 response rather than a navigation redirect. */
-export async function getOptionalSession(): Promise<{ user: User; role: Role } | null> {
+export async function getOptionalSession(): Promise<{ user: User; role: Role; locale: Locale } | null> {
   const requestHeaders = await headers();
   const session = await retryRead(() => auth.api.getSession({ headers: requestHeaders }));
   if (!session) return null;
@@ -56,7 +57,7 @@ export async function getOptionalSession(): Promise<{ user: User; role: Role } |
   if (!current || !canUseAccount(current)) return null;
 
   const user = toDomainUser(current);
-  return { user, role: user.role };
+  return { user, role: user.role, locale: normalizeLocale(current.locale) };
 }
 
 /** Resolve movement actor labels from Better Auth without exposing auth storage elsewhere. */

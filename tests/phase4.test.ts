@@ -117,7 +117,7 @@ describe('Phase 4 dashboard', () => {
     }
     expect(page).toContain("dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'");
     expect(page).toContain("dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'");
-    expect(page).toContain('Break-even this month');
+    expect(page).toContain("t('dashboard.breakEven')");
     expect(css).toContain('--color-metric-margin-loss: #9f1239');
     expect(css).toContain('--color-metric-profit-loss: #b3261e');
     expect(page).toContain('relative overflow-visible border-t-[3px]');
@@ -142,8 +142,8 @@ describe('Phase 4 dashboard', () => {
   it('places alerts below charts and limits charts to two columns', () => {
     const page = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/page.tsx'), 'utf8');
     const charts = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardCharts.tsx'), 'utf8');
-    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf('Low-stock alerts'));
-    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf('Dead stock'));
+    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf("t('dashboard.lowStockAlerts')"));
+    expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf("t('dashboard.deadStock')"));
     expect(charts).toContain('className="grid gap-4 lg:grid-cols-2"');
     expect(charts).not.toContain('2xl:grid-cols-3');
   });

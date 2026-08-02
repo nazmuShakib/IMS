@@ -2,21 +2,26 @@
 
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 
 import { SignOutControl } from '@/components/auth/SignOutControl';
 import { NavigationLinks } from '@/components/shell/NavigationLinks';
 import { Badge } from '@/components/ui';
 import type { Role } from '@/domain/types';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function MobileNavigation({
   role,
   userName,
+  languageSwitcher,
 }: {
   role: Role;
   userName: string;
+  languageSwitcher: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  const { t } = useI18n();
 
   useEffect(() => {
     if (!open) return;
@@ -46,7 +51,7 @@ export function MobileNavigation({
     <>
       <button
         type="button"
-        aria-label="Open navigation menu"
+        aria-label={t('nav.openMenu')}
         aria-expanded={open}
         aria-controls="mobile-navigation"
         onClick={() => setOpen(true)}
@@ -59,7 +64,7 @@ export function MobileNavigation({
         <div className="fixed inset-0 z-[90] md:hidden">
           <button
             type="button"
-            aria-label="Close navigation menu"
+            aria-label={t('nav.closeMenu')}
             className="absolute inset-0 bg-ink/40"
             onClick={() => setOpen(false)}
           />
@@ -67,17 +72,17 @@ export function MobileNavigation({
             id="mobile-navigation"
             role="dialog"
             aria-modal="true"
-            aria-label="Navigation menu"
+            aria-label={t('nav.menu')}
             className="absolute inset-y-0 left-0 flex w-[min(85vw,20rem)] flex-col bg-card shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-rule px-4 py-4">
               <Link href="/" onClick={() => setOpen(false)} className="block">
-                <span className="text-[13px] font-semibold tracking-[-0.01em]">Inventory</span>
-                <span className="eyebrow mt-0.5 block">Electronics Shop</span>
+                <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
+                <span className="eyebrow mt-0.5 block">{t('shell.shop')}</span>
               </Link>
               <button
                 type="button"
-                aria-label="Close navigation menu"
+                aria-label={t('nav.closeMenu')}
                 onClick={() => setOpen(false)}
                 autoFocus
                 className="inline-flex h-8 w-8 items-center justify-center rounded-[3px] border border-rule text-[18px]"
@@ -94,8 +99,9 @@ export function MobileNavigation({
               <p className="truncate text-[12px] font-medium">{userName}</p>
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge tone="signal">{role}</Badge>
-                <span className="text-[10px] text-graphite">authenticated</span>
+                <span className="text-[10px] text-graphite">{t('shell.authenticated')}</span>
               </div>
+              <div className="mt-3">{languageSwitcher}</div>
               <SignOutControl />
             </div>
           </aside>

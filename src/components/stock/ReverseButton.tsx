@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState } from 'react';
 import { reverseMovementAction, type StockActionState } from '@/actions/stock';
 import { Button, Input } from '@/components/ui';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 /**
  * The ledger is append-only, so there is no "delete" and no "edit". Reversing
@@ -11,6 +12,7 @@ import { Button, Input } from '@/components/ui';
  * understand why there isn't one.
  */
 export function ReverseButton({ movementId, label }: { movementId: string; label: string }) {
+  const { t, message } = useI18n();
   const [open, setOpen] = useState(false);
   const [state, action, pending] = useActionState<StockActionState, FormData>(
     reverseMovementAction,
@@ -30,7 +32,7 @@ export function ReverseButton({ movementId, label }: { movementId: string; label
         onClick={() => setOpen(true)}
         className="text-[12px] text-graphite underline underline-offset-2 hover:text-out"
       >
-        Reverse
+        {t('ledger.reverse')}
       </button>
     );
   }
@@ -41,29 +43,28 @@ export function ReverseButton({ movementId, label }: { movementId: string; label
       <input type="hidden" name="idempotencyKey" value={key} />
 
       <p className="mb-2 text-[12px] text-graphite">
-        Reversing <span className="font-medium text-ink">{label}</span>. The original entry
-        stays in the ledger; a correction is written beneath it.
+        {t('ledger.reverseHelp', { label })}
       </p>
 
       <Input
         name="note"
         required
         autoFocus
-        placeholder="Why? e.g. wrong IMEI typed"
+        placeholder={t('ledger.reverseReason')}
         className="mb-2"
       />
 
-      {state.error && <p className="mb-2 text-[12px] text-out">{state.error}</p>}
+      {state.error && <p className="mb-2 text-[12px] text-out">{message(state.error)}</p>}
       {state.fieldErrors?.note && (
         <p className="mb-2 text-[12px] text-out">{state.fieldErrors.note}</p>
       )}
 
       <div className="flex gap-2">
         <Button type="submit" variant="danger" disabled={pending}>
-          {pending ? 'Reversing…' : 'Reverse it'}
+          {pending ? t('ledger.reversing') : t('ledger.reverseIt')}
         </Button>
         <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
-          Cancel
+          {t('common.cancel')}
         </Button>
       </div>
     </form>

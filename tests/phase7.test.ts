@@ -25,7 +25,7 @@ describe('Phase 7 scanner workflow', () => {
     expect(stockIn).toContain("`${existing}\\n${scanned}`");
     expect(stockIn).toContain('is already in this receipt');
     expect(stockIn).toContain('uniqueSerialCount');
-    expect(stockIn).toContain('normally IMEI 1 for a dual-SIM phone');
+    expect(stockIn).toContain("t('stock.imeiHint')");
     expect(stockIn).not.toContain('fetch(');
   });
 });

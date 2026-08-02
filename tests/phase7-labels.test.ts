@@ -65,14 +65,14 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(studio).toContain("if (next === '')");
     expect(studio).toContain("if (copies === '') setCopies(1)");
     expect(studio).toContain('requested <= 500');
-    expect(studio).toContain('You can print 1–500 labels per job.');
+    expect(studio).toContain("t('labels.rangeHelp')");
   });
 
   it('shows immediate feedback while label and filtered route data load', () => {
     const studio = source('src/components/labels/StockLabelStudio.tsx');
     expect(studio).toContain('useTransition');
-    expect(studio).toContain('Loading product labels…');
-    expect(studio).toContain('Searching inventory…');
+    expect(studio).toContain("t('loading.productLabels')");
+    expect(studio).toContain("t('search.searching')");
     expect(studio).toContain('<LoadingScreen');
     expect(studio).toContain('setSelectedProductId(productId)');
     expect(studio).toContain('value={selectedProductId}');
@@ -84,7 +84,7 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(source('src/app/(dashboard)/stock/in/loading.tsx')).toContain('Loading stock receipt…');
     expect(source('src/app/(dashboard)/stock/out/loading.tsx')).toContain('Loading stock removal…');
     expect(source('src/app/(dashboard)/stock/reconcile/loading.tsx')).toContain('Loading reconciliation…');
-    expect(source('src/components/invoices/InvoiceRegister.tsx')).toContain('Filtering invoices…');
+    expect(source('src/components/invoices/InvoiceRegister.tsx')).toContain("t('loading.filterInvoices')");
     expect(source('src/app/(dashboard)/loading.tsx')).toContain('Loading dashboard…');
   });
 });

@@ -8,6 +8,7 @@ import { toTaka } from '@/lib/money';
 import { receiveStockAction, type StockActionState } from '@/actions/stock';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { ScannerInput } from '@/components/search/ScannerInput';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function StockInForm({
   products,
@@ -22,6 +23,7 @@ export function StockInForm({
     receiveStockAction,
     {},
   );
+  const { t, message } = useI18n();
 
   const [productId, setProductId] = useState(initialProductId ?? '');
   const [serialText, setSerialText] = useState('');
@@ -104,32 +106,32 @@ export function StockInForm({
 
       {state.error && (
         <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {state.error}
+          {message(state.error)}
         </div>
       )}
       {state.ok && (
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
-          <span>{state.ok}</span>
+          <span>{message(state.ok)}</span>
           {state.labelReceiptId && (
             <Link
               href={`/stock/labels?receipt=${encodeURIComponent(state.labelReceiptId)}`}
               className="rounded-[3px] border border-ok/30 bg-card px-3 py-1.5 text-[12px] font-medium text-ok hover:bg-ok-wash"
             >
-              Print labels
+              {t('stock.printLabels')}
             </Link>
           )}
         </div>
       )}
 
       <Card className="mb-4 p-5">
-        <p className="eyebrow mb-4">What arrived</p>
+        <p className="eyebrow mb-4">{t('stock.whatArrived')}</p>
         <div className="mb-4 max-w-md">
           <Field
-            label={<HelpTerm description="The product code (SKU) is your shop's unique code for a product.">Scan product barcode or product code (SKU)</HelpTerm>}
-            hint="Optional — manual selection remains available"
+            label={<HelpTerm description={t('term.productCodeHelp')}>{t('stock.scanProduct')}</HelpTerm>}
+            hint={t('stock.scanOptional')}
           >
             <ScannerInput
-              placeholder="Scan, then press Enter"
+              placeholder={t('stock.scanEnter')}
               onScan={(value) => {
                 const normalized = value.toLowerCase();
                 const match = products.find((item) => item.barcode?.toLowerCase() === normalized)
@@ -142,7 +144,7 @@ export function StockInForm({
           {scanError && <p className="mt-1 text-[12px] text-out">{scanError}</p>}
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Product" error={err('productId')}>
+          <Field label={t('common.product')} error={err('productId')}>
             <Select
               name="productId"
               required
@@ -150,7 +152,7 @@ export function StockInForm({
               onChange={(e) => setProductId(e.target.value)}
             >
               <option value="" disabled>
-                Choose a product
+                {t('stock.chooseProduct')}
               </option>
               {products.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -160,9 +162,9 @@ export function StockInForm({
             </Select>
           </Field>
 
-          <Field label="Supplier">
+          <Field label={t('common.supplier')}>
             <Select name="supplierId" defaultValue="">
-              <option value="">Not recorded</option>
+              <option value="">{t('common.notRecorded')}</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
                   {s.name}
@@ -172,9 +174,9 @@ export function StockInForm({
           </Field>
 
           <Field
-            label="Cost per unit (৳)"
+            label={t('stock.costPerUnit')}
             error={err('unitCost')}
-            hint="What you paid this time. Written onto every unit received."
+            hint={t('stock.costHelp')}
           >
             <MonoInput
               name="unitCost"
@@ -186,19 +188,19 @@ export function StockInForm({
             />
           </Field>
 
-          <Field label="Reason">
+          <Field label={t('stock.reason')}>
             <Select name="reason" defaultValue="PURCHASE">
-              <option value="PURCHASE">Purchase from supplier</option>
-              <option value="INITIAL_STOCK">Opening balance</option>
-              <option value="CUSTOMER_RETURN">Customer return</option>
+              <option value="PURCHASE">{t('stock.purchaseSupplier')}</option>
+              <option value="INITIAL_STOCK">{t('stock.openingBalance')}</option>
+              <option value="CUSTOMER_RETURN">{t('stock.customerReturn')}</option>
             </Select>
           </Field>
 
-          <Field label="Reference" hint="Challan or invoice number">
+          <Field label={t('common.reference')} hint={t('stock.referenceHint')}>
             <MonoInput name="reference" placeholder="CHL-1001" />
           </Field>
 
-          <Field label="Note">
+          <Field label={t('common.note')}>
             <Input name="note" />
           </Field>
         </div>
@@ -208,23 +210,22 @@ export function StockInForm({
         <Card className="mb-4 p-5">
           {isSerial ? (
             <>
-              <p className="eyebrow mb-1">Device numbers / IMEIs</p>
+              <p className="eyebrow mb-1">{t('stock.deviceNumbers')}</p>
               <p className="mb-3 text-[12px] text-graphite">
-                One per line, or comma separated — paste straight from the delivery note.
-                Each one becomes a unit you can look up, sell and warranty individually.
+                {t('stock.deviceListHelp')}
               </p>
 
               <div className="mb-4 max-w-md">
                 <Field
-                  label={<HelpTerm description="The unique serial number or IMEI printed on an individual device.">Scan device number / IMEI</HelpTerm>}
-                  hint="Each scan is appended below. Configure the scanner to send Enter after the code."
+                  label={<HelpTerm description={t('term.trackingHelp')}>{t('stock.scanDevice')}</HelpTerm>}
+                  hint={t('stock.scanDeviceHint')}
                 >
                   <ScannerInput
                     ref={serialScanRef}
                     value={serialScan}
                     onValueChange={setSerialScan}
                     onScan={appendScannedSerial}
-                    placeholder="Scan device number or IMEI, then press Enter"
+                    placeholder={t('stock.scanDevice')}
                     autoComplete="off"
                   />
                 </Field>
@@ -234,7 +235,7 @@ export function StockInForm({
                   </p>
                 )}
                 <p className="mt-1 text-[11px] text-graphite">
-                  Use one identifier per physical unit—normally IMEI 1 for a dual-SIM phone.
+                  {t('stock.imeiHint')}
                 </p>
               </div>
 
@@ -253,7 +254,10 @@ export function StockInForm({
 
               <div className="mt-2 flex items-center gap-3 text-[12px]">
                 <span className="tnum text-graphite">
-                  {uniqueSerialCount} unique {uniqueSerialCount === 1 ? 'unit' : 'units'} to receive
+                  {t('stock.uniqueUnits', {
+                    count: uniqueSerialCount,
+                    kind: t(uniqueSerialCount === 1 ? 'stock.unit' : 'stock.units'),
+                  })}
                 </span>
                 {dupes.length > 0 && (
                   <span className="text-out">
@@ -264,22 +268,22 @@ export function StockInForm({
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Field label="Warranty (months)" hint="Counts from the day it sells, not today">
+                <Field label={t('stock.warrantyMonths')} hint={t('stock.warrantyHint')}>
                   <MonoInput name="warrantyMonths" inputMode="numeric" defaultValue={12} />
                 </Field>
-                <Field label="Location">
+                <Field label={t('stock.location')}>
                   <Input name="location" placeholder="Shelf A1" />
                 </Field>
               </div>
             </>
           ) : (
             <>
-              <p className="eyebrow mb-1">Quantity</p>
+              <p className="eyebrow mb-1">{t('common.quantity')}</p>
               <p className="mb-3 text-[12px] text-graphite">
-                {product.name} is bulk-counted. Receiving updates its weighted-average cost.
+                {t('stock.bulkHelp', { product: product.name })}
               </p>
               <div className="max-w-40">
-                <Field label="Units received" error={err('quantity')}>
+                <Field label={t('stock.unitsReceived')} error={err('quantity')}>
                   <MonoInput
                     name="quantity"
                     inputMode="numeric"
@@ -300,10 +304,13 @@ export function StockInForm({
         disabled={pending || !product || (isSerial && (uniqueSerialCount === 0 || dupes.length > 0))}
       >
         {pending
-          ? 'Receiving…'
+          ? t('stock.receiving')
           : isSerial && uniqueSerialCount > 0
-            ? `Receive ${uniqueSerialCount} ${uniqueSerialCount === 1 ? 'unit' : 'units'}`
-            : 'Receive stock'}
+            ? t('stock.receiveCount', {
+                count: uniqueSerialCount,
+                kind: t(uniqueSerialCount === 1 ? 'stock.unit' : 'stock.units'),
+              })
+            : t('stock.receiveTitle')}
       </Button>
     </form>
   );

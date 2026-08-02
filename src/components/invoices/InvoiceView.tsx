@@ -6,6 +6,7 @@ import { recordInvoicePrintAction } from '@/actions/checkout';
 import { Button } from '@/components/ui';
 import type { InvoiceItem, Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export interface InvoiceShop {
   name: string;
@@ -33,6 +34,7 @@ export function InvoiceView({
 }) {
   const [layout, setLayout] = useState<'a4' | 'thermal'>('a4');
   const [state, action, pending] = useActionState(recordInvoicePrintAction, {});
+  const { message } = useI18n();
 
   useEffect(() => {
     if (state.printNonce) window.print();
@@ -68,7 +70,7 @@ export function InvoiceView({
             </a>
           </form>
         </div>
-        {state.error && <p className="mb-3 text-[12px] text-out">{state.error}</p>}
+        {state.error && <p className="mb-3 text-[12px] text-out">{message(state.error)}</p>}
       </div>
 
       <div className="invoice-preview-viewport" tabIndex={0} aria-label="Scrollable invoice preview">

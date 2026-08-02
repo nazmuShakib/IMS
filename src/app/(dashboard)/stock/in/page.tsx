@@ -3,6 +3,7 @@ import { getSession, requireRole } from '@/lib/session';
 import { toProductDTO } from '@/lib/dto';
 import { StockInForm } from '@/components/stock/StockInForm';
 import { PageHeader } from '@/components/ui';
+import { createTranslator } from '@/lib/i18n/messages';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +13,8 @@ export default async function StockInPage({
   searchParams: Promise<{ product?: string }>;
 }) {
   await requireRole('ADMIN', 'MANAGER', 'STAFF');
-  const { role } = await getSession();
+  const { role, locale } = await getSession();
+  const t = createTranslator(locale);
   const { product } = await searchParams;
 
   const [products, suppliers] = await Promise.all([
@@ -23,8 +25,8 @@ export default async function StockInPage({
   return (
     <>
       <PageHeader
-        title="Receive stock"
-        count="Every unit received is written to the ledger — nothing changes stock silently"
+        title={t('stock.receiveTitle')}
+        count={t('stock.receiveHelp')}
       />
       <StockInForm
         products={products.map((item) => toProductDTO(item, role))}

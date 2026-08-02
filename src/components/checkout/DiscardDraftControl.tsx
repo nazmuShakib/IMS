@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from 'react';
 
 import { discardCartAction } from '@/actions/checkout';
 import { Button } from '@/components/ui';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function DiscardDraftControl({
   cartId,
@@ -13,6 +14,7 @@ export function DiscardDraftControl({
   itemCount: number;
 }) {
   const [open, setOpen] = useState(false);
+  const { t, message } = useI18n();
   const [state, action, pending] = useActionState(discardCartAction, {});
 
   useEffect(() => {
@@ -35,9 +37,9 @@ export function DiscardDraftControl({
         onClick={() => setOpen(true)}
         className="text-[11px] text-graphite underline underline-offset-2 hover:text-out"
       >
-        Discard draft
+        {t('checkout.discard')}
       </button>
-      {state.error && <p className="mt-1 text-[11px] text-out">{state.error}</p>}
+      {state.error && <p className="mt-1 text-[11px] text-out">{message(state.error)}</p>}
 
       {open && (
         <div
@@ -54,22 +56,25 @@ export function DiscardDraftControl({
             className="w-full max-w-sm rounded-[3px] border border-rule bg-card p-5 shadow-xl"
           >
             <h2 id="discard-draft-title" className="text-[16px] font-semibold">
-              Discard this draft?
+              {t('checkout.discardTitle')}
             </h2>
             <p id="discard-draft-description" className="mt-2 text-[13px] text-graphite">
               {itemCount > 0
-                ? `${itemCount} cart ${itemCount === 1 ? 'line' : 'lines'} and the saved customer/payment details will be removed.`
-                : 'The saved customer and payment details will be removed.'}
-              {' '}Inventory will not change.
+                ? t('checkout.discardWithItems', {
+                    count: itemCount,
+                    kind: t(itemCount === 1 ? 'checkout.line' : 'checkout.lines'),
+                  })
+                : t('checkout.discardEmpty')}
+              {' '}{t('checkout.inventoryUnchanged')}
             </p>
             <div className="mt-5 flex justify-end gap-2">
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} autoFocus>
-                Keep draft
+                {t('checkout.keepDraft')}
               </Button>
               <form action={action}>
                 <input type="hidden" name="cartId" value={cartId} />
                 <Button type="submit" variant="danger" disabled={pending}>
-                  {pending ? 'Discarding…' : 'Discard draft'}
+                  {pending ? t('checkout.discarding') : t('checkout.discard')}
                 </Button>
               </form>
             </div>

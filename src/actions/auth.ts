@@ -1,6 +1,6 @@
 'use server';
 
-import { headers } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
@@ -8,6 +8,8 @@ import { z } from 'zod';
 import { auth } from '@/lib/auth';
 import { writeAudit } from '@/lib/audit';
 import { getSession } from '@/lib/session';
+import { LOCALE_COOKIE, normalizeLocale } from '@/lib/i18n/config';
+import { prisma } from '@/lib/prisma';
 
 export interface LoginState {
   error?: string;
@@ -45,6 +47,18 @@ export async function loginAction(_previous: LoginState, formData: FormData): Pr
       entity: 'User',
       entityId: result.user.id,
       after: { email: result.user.email },
+    });
+
+    const current = await prisma.user.findUnique({
+      where: { id: result.user.id },
+      select: { locale: true },
+    });
+    (await cookies()).set(LOCALE_COOKIE, normalizeLocale(current?.locale), {
+      httpOnly: true,
+      sameSite: 'lax',
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365,
     });
   } catch {
     return { error: 'Invalid email or password' };

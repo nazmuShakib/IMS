@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { requireRole } from '@/lib/session';
+import { getSession, requireRole } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { reconcile } from '@/services/stock';
 import { Card, PageHeader, TableViewport } from '@/components/ui';
 
@@ -14,14 +15,16 @@ export const dynamic = 'force-dynamic';
  */
 export default async function ReconcilePage() {
   await requireRole('ADMIN', 'MANAGER');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const drifts = await reconcile();
   const healthy = drifts.length === 0;
 
   return (
     <>
       <PageHeader
-        title="Reconciliation"
-        count="On-hand vs SUM(ledger), for every product"
+        title={t('nav.reconciliation')}
+        count={t('reconcile.help')}
       />
 
       <Card
@@ -30,13 +33,16 @@ export default async function ReconcilePage() {
         <div className="p-5">
           <p className={`text-[13px] font-medium ${healthy ? 'text-ok' : 'text-out'}`}>
             {healthy
-              ? 'The books add up.'
-              : `${drifts.length} product${drifts.length > 1 ? 's have' : ' has'} drifted.`}
+              ? t('reconcile.healthy')
+              : t('reconcile.driftCount', {
+                  count: drifts.length,
+                  kind: t(drifts.length > 1 ? 'reconcile.products' : 'reconcile.product'),
+                })}
           </p>
           <p className="mt-1 text-[12px] text-graphite">
             {healthy
-              ? "Every product's on-hand count equals the sum of its ledger entries. That is the invariant the whole system rests on."
-              : 'A stock change was made without a matching ledger entry. The ledger is the source of truth — investigate before trusting any report.'}
+              ? t('reconcile.healthyHelp')
+              : t('reconcile.driftHelp')}
           </p>
         </div>
 
@@ -45,10 +51,10 @@ export default async function ReconcilePage() {
             <table className="w-full border-t border-out/20 bg-card">
             <thead className="sticky top-0 z-10 bg-card">
               <tr className="border-b border-rule">
-                <th className="eyebrow px-4 py-2.5 text-left">Product</th>
-                <th className="eyebrow px-4 py-2.5 text-right">On hand</th>
-                <th className="eyebrow px-4 py-2.5 text-right">Ledger says</th>
-                <th className="eyebrow px-4 py-2.5 text-right">Drift</th>
+                <th className="eyebrow px-4 py-2.5 text-left">{t('common.product')}</th>
+                <th className="eyebrow px-4 py-2.5 text-right">{t('products.onHand')}</th>
+                <th className="eyebrow px-4 py-2.5 text-right">{t('reconcile.ledgerSays')}</th>
+                <th className="eyebrow px-4 py-2.5 text-right">{t('reconcile.drift')}</th>
               </tr>
             </thead>
             <tbody>

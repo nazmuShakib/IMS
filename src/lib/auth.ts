@@ -29,6 +29,12 @@ export const auth = betterAuth({
         defaultValue: true,
         input: false,
       },
+      locale: {
+        type: 'string',
+        required: false,
+        defaultValue: 'en',
+        input: false,
+      },
     },
   },
   plugins: [

@@ -8,6 +8,8 @@ import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
 import { PAYMENT_METHODS, PAYMENT_STATUSES, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
+import { useI18n } from '@/components/i18n/I18nProvider';
+import { domainLabel } from '@/lib/i18n/domain';
 
 export interface InvoiceFilterValues {
   q: string;
@@ -56,6 +58,7 @@ export function InvoiceRegister({
   resultVersion: string;
 }) {
   const router = useRouter();
+  const { locale, t } = useI18n();
   const [values, setValues] = useState(confirmedFilters);
   const [filtering, setFiltering] = useState(false);
   const [refreshPending, startRefreshing] = useTransition();
@@ -89,18 +92,18 @@ export function InvoiceRegister({
       <Card className="mb-4 p-4">
         <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={applyFilters}>
           <label className="sm:col-span-2">
-            <span className="eyebrow mb-1.5 block">Search</span>
+            <span className="eyebrow mb-1.5 block">{t('common.search')}</span>
             <Input
               type="search"
               name="q"
               value={values.q}
               onChange={(event) => update('q', event.target.value)}
               disabled={pending}
-              placeholder="Invoice, customer, phone, reference or salesperson"
+              placeholder={t('invoices.searchPlaceholder')}
             />
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">From date</span>
+            <span className="eyebrow mb-1.5 block">{t('invoices.fromDate')}</span>
             <Input
               type="date"
               name="from"
@@ -110,7 +113,7 @@ export function InvoiceRegister({
             />
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">To date</span>
+            <span className="eyebrow mb-1.5 block">{t('invoices.toDate')}</span>
             <Input
               type="date"
               name="to"
@@ -120,46 +123,46 @@ export function InvoiceRegister({
             />
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">Customer type</span>
+            <span className="eyebrow mb-1.5 block">{t('invoices.customerType')}</span>
             <Select
               name="customerType"
               value={values.customerType}
               onChange={(event) => update('customerType', event.target.value)}
               disabled={pending}
             >
-              <option value="">Walk-in and saved</option>
-              <option value="WALK_IN">Walk-in only</option>
-              <option value="REGISTERED">Saved customers only</option>
+              <option value="">{t('invoices.allCustomers')}</option>
+              <option value="WALK_IN">{t('invoices.walkInOnly')}</option>
+              <option value="REGISTERED">{t('invoices.savedOnly')}</option>
             </Select>
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">Payment status</span>
+            <span className="eyebrow mb-1.5 block">{t('checkout.paymentStatus')}</span>
             <Select
               name="paymentStatus"
               value={values.paymentStatus}
               onChange={(event) => update('paymentStatus', event.target.value)}
               disabled={pending}
             >
-              <option value="">Paid and unpaid</option>
-              {PAYMENT_STATUSES.map((value) => <option key={value} value={value}>{value}</option>)}
+              <option value="">{t('invoices.allStatuses')}</option>
+              {PAYMENT_STATUSES.map((value) => <option key={value} value={value}>{domainLabel(t, value)}</option>)}
             </Select>
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">Payment method</span>
+            <span className="eyebrow mb-1.5 block">{t('checkout.paymentMethod')}</span>
             <Select
               name="paymentMethod"
               value={values.paymentMethod}
               onChange={(event) => update('paymentMethod', event.target.value)}
               disabled={pending}
             >
-              <option value="">All methods</option>
+              <option value="">{t('invoices.allMethods')}</option>
               {PAYMENT_METHODS.map((value) => (
-                <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>
+                <option key={value} value={value}>{domainLabel(t, value)}</option>
               ))}
             </Select>
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">Minimum total (৳)</span>
+            <span className="eyebrow mb-1.5 block">{t('invoices.minTotal')}</span>
             <Input
               type="number"
               name="minTotal"
@@ -172,7 +175,7 @@ export function InvoiceRegister({
             />
           </label>
           <label>
-            <span className="eyebrow mb-1.5 block">Maximum total (৳)</span>
+            <span className="eyebrow mb-1.5 block">{t('invoices.maxTotal')}</span>
             <Input
               type="number"
               name="maxTotal"
@@ -181,7 +184,7 @@ export function InvoiceRegister({
               value={values.maxTotal}
               onChange={(event) => update('maxTotal', event.target.value)}
               disabled={pending}
-              placeholder="No maximum"
+              placeholder={t('invoices.noMaximum')}
             />
           </label>
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
@@ -190,7 +193,7 @@ export function InvoiceRegister({
               type="submit"
               disabled={pending}
             >
-              {pending ? 'Filtering…' : 'Apply filters'}
+              {pending ? t('invoices.filtering') : t('common.applyFilters')}
             </button>
             <button
               className="h-9 rounded-[3px] border border-rule bg-card px-3 text-[12px] disabled:opacity-60"
@@ -198,39 +201,39 @@ export function InvoiceRegister({
               disabled={pending}
               onClick={() => navigate(EMPTY_FILTERS)}
             >
-              Reset
+              {t('common.reset')}
             </button>
           </div>
         </form>
         {!pending && invalidDateRange && (
-          <p className="mt-3 text-[12px] text-out">From date must be on or before the to date.</p>
+          <p className="mt-3 text-[12px] text-out">{t('invoices.invalidDates')}</p>
         )}
         {!pending && invalidPriceRange && (
-          <p className="mt-3 text-[12px] text-out">Minimum total cannot exceed maximum total.</p>
+          <p className="mt-3 text-[12px] text-out">{t('invoices.invalidPrices')}</p>
         )}
         <p className="mt-3 text-[11px] text-graphite">
-          Dates use Asia/Dhaka time. Results are newest first and limited to 500 invoices.
+          {t('invoices.limitHelp')}
         </p>
       </Card>
 
       {pending ? (
         <Card>
-          <LoadingScreen compact label="Filtering invoices…" />
+          <LoadingScreen compact label={t('loading.filterInvoices')} />
         </Card>
       ) : (
         <Card>
           {sales.length === 0 ? (
-            <EmptyState title={hasFilters ? 'No invoices match these filters.' : 'No completed invoices yet.'} />
+            <EmptyState title={hasFilters ? t('invoices.noMatch') : t('invoices.empty')} />
           ) : (
             <TableViewport>
               <table className="w-full border-collapse text-[12px]">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-rule text-left">
-                    <th className="eyebrow px-4 py-2.5">Invoice</th>
-                    <th className="eyebrow px-4 py-2.5">Date</th>
-                    <th className="eyebrow px-4 py-2.5">Customer</th>
-                    <th className="eyebrow px-4 py-2.5">Payment</th>
-                    <th className="eyebrow px-4 py-2.5 text-right">Total</th>
+                    <th className="eyebrow px-4 py-2.5">{t('invoices.invoice')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('common.date')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('common.customer')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('invoices.payment')}</th>
+                    <th className="eyebrow px-4 py-2.5 text-right">{t('common.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -238,8 +241,8 @@ export function InvoiceRegister({
                     <tr key={sale.id} className="border-b border-rule-soft last:border-0">
                       <td className="px-4 py-3"><Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link></td>
                       <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(sale.completedAt))}</td>
-                      <td className="px-4 py-3">{sale.customerName ?? 'Walk-in'}</td>
-                      <td className="px-4 py-3">{sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</td>
+                      <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
+                      <td className="px-4 py-3">{domainLabel(t, sale.paymentMethod)} · {domainLabel(t, sale.paymentStatus)}</td>
                       <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>
                     </tr>
                   ))}

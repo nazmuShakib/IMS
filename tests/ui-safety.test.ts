@@ -75,7 +75,7 @@ describe('responsive navigation', () => {
     const links = source('src/components/shell/NavigationLinks.tsx');
     expect(layout).toContain('<MobileNavigation');
     expect(layout).toContain('<NavigationLinks role={role} />');
-    expect(mobile).toContain('aria-label="Open navigation menu"');
+    expect(mobile).toContain("aria-label={t('nav.openMenu')}");
     expect(mobile).toContain('role="dialog"');
     expect(mobile).toContain('md:hidden');
     expect(mobile).toContain('createPortal');
@@ -91,12 +91,12 @@ describe('plain-language terminology', () => {
     const navigation = source('src/components/shell/NavigationLinks.tsx');
     const products = source('src/app/(dashboard)/products/page.tsx');
     expect(ui).toContain('role="tooltip"');
-    expect(products).toContain('Product code (SKU)');
+    expect(products).toContain("t('term.productCode')");
     expect(products).toContain('placement="bottom"');
-    expect(products).toContain("p.trackingType === 'SERIAL' ? 'Serial' : 'Bulk/count'");
-    expect(navigation).toContain('Remove stock');
-    expect(navigation).toContain('Warranty claims');
-    expect(navigation).toContain('Movement ledger');
-    expect(navigation).toContain('Reconciliation');
+    expect(products).toContain("p.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')");
+    expect(navigation).toContain("t('nav.removeStock')");
+    expect(navigation).toContain("t('nav.warrantyClaims')");
+    expect(navigation).toContain("t('nav.movementLedger')");
+    expect(navigation).toContain("t('nav.reconciliation')");
   });
 });

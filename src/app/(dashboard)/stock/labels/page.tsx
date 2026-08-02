@@ -1,7 +1,8 @@
 import { StockLabelStudio, type LabelProductOption } from '@/components/labels/StockLabelStudio';
 import { PageHeader } from '@/components/ui';
 import { hasPermission } from '@/lib/permissions';
-import { requireCapability } from '@/lib/session';
+import { getSession, requireCapability } from '@/lib/session';
+import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 
 export const dynamic = 'force-dynamic';
@@ -12,6 +13,8 @@ export default async function StockLabelsPage({
   searchParams: Promise<{ product?: string; receipt?: string; unit?: string }>;
 }) {
   const actor = await requireCapability('PRINT_LABELS');
+  const { locale } = await getSession();
+  const t = createTranslator(locale);
   const params = await searchParams;
 
   const [products, brands] = await Promise.all([
@@ -87,8 +90,8 @@ export default async function StockLabelsPage({
     <>
       <div className="label-screen-only">
         <PageHeader
-          title="Print stock labels"
-          count="50 × 25 mm labels · printing never changes inventory"
+          title={t('labels.title')}
+          count={t('labels.help')}
         />
       </div>
       <StockLabelStudio
