@@ -121,8 +121,11 @@ export function StockLabelStudio({
 
   useEffect(() => {
     setSelectedProductId(product?.id ?? '');
+    setSelected(new Set(initialUnitIds));
+    setCopies(Math.max(1, initialCopies));
+    setStatusFilter(initialUnitIds.length > 0 ? 'ALL' : 'IN_STOCK');
     setNavigating(false);
-  }, [product?.id, resultVersion]);
+  }, [product?.id, initialCopies, initialUnitIds, resultVersion]);
 
   const visibleUnits = useMemo(
     () => units.filter((unit) => statusFilter === 'ALL' || unit.status === statusFilter),

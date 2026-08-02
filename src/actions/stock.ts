@@ -26,6 +26,19 @@ export interface StockActionState {
   ok?: string;
   fieldErrors?: Record<string, string>;
   labelReceiptId?: string;
+  receipt?: {
+    productId: string;
+    productName: string;
+    sku: string;
+    trackingType: 'SERIAL' | 'QUANTITY';
+    count: number;
+    unitCost: number;
+    totalCost: number;
+    supplierId: string | null;
+    reason: 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
+    reference: string | null;
+    location: string | null;
+  };
 }
 
 function str(fd: FormData, key: string): string | null {
@@ -115,23 +128,42 @@ export async function receiveStockAction(
 
   let count: number;
   let labelReceiptId: string | undefined;
+  let receipt: StockActionState['receipt'];
   try {
+    const supplierId = str(fd, 'supplierId');
+    const unitCost = parseBDT(str(fd, 'unitCost') ?? '0');
+    const reason = (str(fd, 'reason') ?? 'PURCHASE') as 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
+    const location = str(fd, 'location');
+    const reference = str(fd, 'reference');
     const movements = await receiveStock({
       productId,
-      supplierId: str(fd, 'supplierId'),
-      unitCost: parseBDT(str(fd, 'unitCost') ?? '0'),
-      reason: (str(fd, 'reason') ?? 'PURCHASE') as 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN',
+      supplierId,
+      unitCost,
+      reason,
       serialNumbers: product.trackingType === 'SERIAL' ? serialNumbers : undefined,
       quantity: product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
       warrantyMonths: str(fd, 'warrantyMonths') ? Number(str(fd, 'warrantyMonths')) : null,
-      location: str(fd, 'location'),
-      reference: str(fd, 'reference'),
+      location,
+      reference,
       note: str(fd, 'note'),
       actorId: actor.id,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
     });
     count = movements.reduce((n, m) => n + m.quantity, 0);
     labelReceiptId = movements[0]?.id;
+    receipt = {
+      productId,
+      productName: product.name,
+      sku: product.sku,
+      trackingType: product.trackingType,
+      count,
+      unitCost,
+      totalCost: unitCost * count,
+      supplierId,
+      reason,
+      reference,
+      location,
+    };
     await writeAudit({
       actorId: actor.id,
       action: 'stock.in',
@@ -151,6 +183,7 @@ export async function receiveStockAction(
   return {
     ok: `Received ${count} × ${product.name} into stock.`,
     labelReceiptId,
+    receipt,
   };
 }
 

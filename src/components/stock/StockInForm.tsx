@@ -1,10 +1,11 @@
 'use client';
 
 import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import type { Supplier } from '@/domain/types';
 import type { ProductDTO } from '@/lib/dto';
-import { toTaka } from '@/lib/money';
+import { formatBDT, toTaka } from '@/lib/money';
 import { receiveStockAction, type StockActionState } from '@/actions/stock';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { ScannerInput } from '@/components/search/ScannerInput';
@@ -32,6 +33,7 @@ export function StockInForm({
   const [key, setKey] = useState('');
   const [scanError, setScanError] = useState('');
   const [serialScanError, setSerialScanError] = useState('');
+  const [receiptOpen, setReceiptOpen] = useState(false);
   const serialScanRef = useRef<HTMLInputElement>(null);
   const formId = useId();
 
@@ -53,6 +55,33 @@ export function StockInForm({
       setSerialScanError('');
     }
   }, [state.ok]);
+
+  useEffect(() => {
+    if (state.receipt) setReceiptOpen(true);
+  }, [state.receipt]);
+
+  useEffect(() => {
+    if (!receiptOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const previousPaddingRight = document.body.style.paddingRight;
+    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+    const bodyPaddingRight = Number.parseFloat(
+      window.getComputedStyle(document.body).paddingRight,
+    ) || 0;
+    if (scrollbarWidth > 0) {
+      document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
+    }
+    document.body.style.overflow = 'hidden';
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setReceiptOpen(false);
+    };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.body.style.paddingRight = previousPaddingRight;
+      window.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [receiptOpen]);
 
   useEffect(() => {
     if (isSerial) serialScanRef.current?.focus();
@@ -99,6 +128,21 @@ export function StockInForm({
   }
 
   const err = (k: string) => state.fieldErrors?.[k];
+  const receiptSupplier = state.receipt?.supplierId
+    ? suppliers.find((supplier) => supplier.id === state.receipt?.supplierId)?.name
+    : null;
+  const receiptReason = state.receipt
+    ? t(state.receipt.reason === 'PURCHASE'
+        ? 'stock.purchaseSupplier'
+        : state.receipt.reason === 'INITIAL_STOCK'
+          ? 'stock.openingBalance'
+          : 'stock.customerReturn')
+    : '';
+  const receiptLabelHref = state.receipt
+    ? state.labelReceiptId
+      ? `/stock/labels?receipt=${encodeURIComponent(state.labelReceiptId)}`
+      : `/stock/labels?product=${encodeURIComponent(state.receipt.productId)}`
+    : '/stock/labels';
 
   return (
     <form action={formAction} id={formId}>
@@ -109,18 +153,96 @@ export function StockInForm({
           {message(state.error)}
         </div>
       )}
-      {state.ok && (
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
-          <span>{message(state.ok)}</span>
-          {state.labelReceiptId && (
-            <Link
-              href={`/stock/labels?receipt=${encodeURIComponent(state.labelReceiptId)}`}
-              className="rounded-[3px] border border-ok/30 bg-card px-3 py-1.5 text-[12px] font-medium text-ok hover:bg-ok-wash"
-            >
-              {t('stock.printLabels')}
-            </Link>
-          )}
-        </div>
+      {receiptOpen && state.receipt && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setReceiptOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stock-receipt-title"
+            aria-describedby="stock-receipt-description"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[3px] border border-rule bg-card shadow-xl"
+          >
+            <div className="border-b border-rule p-5">
+              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-full bg-ok-wash text-[20px] font-semibold text-ok" aria-hidden="true">
+                ✓
+              </div>
+              <h2 id="stock-receipt-title" className="text-[18px] font-semibold">
+                {t('stock.receiptTitle')}
+              </h2>
+              <p id="stock-receipt-description" className="mt-1 text-[13px] text-graphite">
+                {t('stock.receiptHelp')}
+              </p>
+            </div>
+
+            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <dt className="eyebrow">{t('common.product')}</dt>
+                <dd className="mt-1 text-[15px] font-semibold">{state.receipt.productName}</dd>
+                <dd className="tnum mt-0.5 text-[12px] text-graphite">
+                  {t('stock.productCode')}: {state.receipt.sku}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.receivedQuantity')}</dt>
+                <dd className="tnum mt-1 text-[15px] font-semibold">{state.receipt.count}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.trackingMethod')}</dt>
+                <dd className="mt-1 text-[14px]">
+                  {t(state.receipt.trackingType === 'SERIAL'
+                    ? 'products.serialTracking'
+                    : 'products.bulkTracking')}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('common.supplier')}</dt>
+                <dd className="mt-1 text-[14px]">{receiptSupplier ?? t('common.notRecorded')}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.reason')}</dt>
+                <dd className="mt-1 text-[14px]">{receiptReason}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.costPerUnitSummary')}</dt>
+                <dd className="tnum mt-1 text-[14px]">{formatBDT(state.receipt.unitCost)}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.totalReceivedCost')}</dt>
+                <dd className="tnum mt-1 text-[15px] font-semibold">{formatBDT(state.receipt.totalCost)}</dd>
+              </div>
+              {state.receipt.reference && (
+                <div>
+                  <dt className="eyebrow">{t('common.reference')}</dt>
+                  <dd className="tnum mt-1 break-words text-[14px]">{state.receipt.reference}</dd>
+                </div>
+              )}
+              {state.receipt.location && (
+                <div>
+                  <dt className="eyebrow">{t('stock.location')}</dt>
+                  <dd className="mt-1 break-words text-[14px]">{state.receipt.location}</dd>
+                </div>
+              )}
+            </dl>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-rule p-4 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={() => setReceiptOpen(false)}>
+                {t('stock.receiveAnother')}
+              </Button>
+              <Link
+                href={receiptLabelHref}
+                className="inline-flex min-h-10 items-center justify-center rounded-[3px] border border-signal bg-signal px-4 text-[13px] font-medium text-white transition-colors hover:bg-signal/90"
+              >
+                {t('stock.printLabels')}
+              </Link>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       <Card className="mb-4 p-5">

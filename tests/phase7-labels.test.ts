@@ -54,7 +54,14 @@ describe('Phase 7.5 stock-label invariants', () => {
   });
 
   it('connects stock receipt and scanner workflows to label printing', () => {
-    expect(source('src/components/stock/StockInForm.tsx')).toContain('state.labelReceiptId');
+    const stockIn = source('src/components/stock/StockInForm.tsx');
+    expect(stockIn).toContain('state.labelReceiptId');
+    expect(stockIn).toContain('createPortal');
+    expect(stockIn).toContain('stock.receiptTitle');
+    expect(stockIn).toContain('href={receiptLabelHref}');
+    expect(stockIn).toContain('`/stock/labels?product=');
+    expect(stockIn).toContain('bg-signal');
+    expect(source('src/actions/stock.ts')).toContain('totalCost: unitCost * count');
     expect(source('src/components/labels/StockLabelStudio.tsx')).toContain('ScannerInput');
     expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");
   });
@@ -64,6 +71,14 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(studio).toContain('event.preventDefault()');
     expect(studio).toContain('<form onSubmit={submitPrint}>');
     expect(studio).not.toContain('<form action={formAction}>');
+  });
+
+  it('synchronizes the label quantity and units when a stock receipt is opened', () => {
+    const studio = source('src/components/labels/StockLabelStudio.tsx');
+    const page = source('src/app/(dashboard)/stock/labels/page.tsx');
+    expect(page).toContain('initialCopies = Math.max(1, receipt.quantity)');
+    expect(studio).toContain('setCopies(Math.max(1, initialCopies))');
+    expect(studio).toContain('setSelected(new Set(initialUnitIds))');
   });
 
   it('allows the label quantity to be cleared while entering a replacement value', () => {
