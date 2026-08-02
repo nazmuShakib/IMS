@@ -23,7 +23,8 @@
 		"db:deploy": "dotenv -e .env.local -- prisma migrate deploy",
 		"db:status": "dotenv -e .env.local -- prisma migrate status",
 		"db:verify": "dotenv -e .env.local -- tsx scripts/verify-postgres.ts",
-		"db:studio": "dotenv -e .env.local -- prisma studio"
+		"db:studio": "dotenv -e .env.local -- prisma studio",
+		"db:clear-business-data:production": "tsx scripts/clear-production-business-data.ts --production-business-reset"
 	},
 	"dependencies": {
 		"@better-auth/prisma-adapter": "^1.6.23",

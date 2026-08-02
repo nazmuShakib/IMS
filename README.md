@@ -76,6 +76,38 @@ Better Auth's password hasher, revokes every existing session, and adds an audit
 entry without storing the password or hash. The same command refuses to run with
 `NODE_ENV=production`.
 
+## One-time production business-data reset
+
+This guarded command removes inventory, catalog, customers, carts, sales,
+warranty records, sessions, verification records, document sequences, and old
+audit entries. It preserves only `users`, password `accounts`, and
+`_prisma_migrations`; user name, mobile, role, status, and locale therefore stay
+unchanged. The successful reset creates one new audit entry.
+
+Create a Neon production snapshot before proceeding and ensure nobody is using
+the app. Enter the pooled production URL without saving it to a file:
+
+```bash
+read -rsp "Production pooled URL: " PRODUCTION_RESET_DATABASE_URL; echo
+export PRODUCTION_RESET_DATABASE_URL
+npm run db:clear-business-data:production
+```
+
+That first invocation is read-only. Review the database fingerprint, preserved
+users, and per-table deletion counts. If they are correct, copy the exact
+fingerprint printed by the command and run:
+
+```bash
+export CONFIRM_PRODUCTION_DATA_RESET="DELETE_ALL_PRODUCTION_BUSINESS_DATA"
+export CONFIRM_PRODUCTION_DATABASE="the-exact-host/database-fingerprint-shown-above"
+npm run db:clear-business-data:production
+unset PRODUCTION_RESET_DATABASE_URL CONFIRM_PRODUCTION_DATA_RESET CONFIRM_PRODUCTION_DATABASE
+```
+
+The reset is one transaction and uses `TRUNCATE ... RESTRICT`: an unclassified
+future table makes it fail safely instead of being deleted through `CASCADE`.
+All sessions are removed, so every preserved user must sign in again.
+
 ## What's here
 
 ```
