@@ -14,6 +14,7 @@ const dhaka = (date: Date, _locale: Locale) =>
     year: 'numeric',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
 
 export default async function AuditPage() {

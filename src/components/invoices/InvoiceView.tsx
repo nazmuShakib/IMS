@@ -20,6 +20,7 @@ function dateTime(value: string): string {
     timeZone: 'Asia/Dhaka',
     dateStyle: 'medium',
     timeStyle: 'short',
+    hour12: true,
   }).format(new Date(value));
 }
 

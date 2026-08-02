@@ -104,7 +104,7 @@ function columnLabel(t: Translator, report: ReportKind, column: ReportColumn): s
 
 const dateTime = (value: string, _locale: Locale = 'en') => new Date(value).toLocaleString('en-GB', {
   timeZone: 'Asia/Dhaka', day: '2-digit', month: 'short', year: 'numeric',
-  hour: '2-digit', minute: '2-digit', hour12: false,
+  hour: '2-digit', minute: '2-digit', hour12: true,
 });
 
 function displayCell(value: ReportCell, column: ReportColumn, locale: Locale) {

@@ -240,7 +240,7 @@ export function InvoiceRegister({
                   {sales.map((sale) => (
                     <tr key={sale.id} className="border-b border-rule-soft last:border-0">
                       <td className="px-4 py-3"><Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link></td>
-                      <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' }).format(new Date(sale.completedAt))}</td>
+                      <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
                       <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
                       <td className="px-4 py-3">{domainLabel(t, sale.paymentMethod)} · {domainLabel(t, sale.paymentStatus)}</td>
                       <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>

@@ -9,7 +9,7 @@ export function formatReportCell(value: ReportCell, column: ReportColumn): strin
   if (column.type === 'date') {
     return new Date(String(value)).toLocaleString('en-GB', {
       timeZone: 'Asia/Dhaka', year: 'numeric', month: 'short', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: false,
+      hour: '2-digit', minute: '2-digit', hour12: true,
     });
   }
   return String(value);

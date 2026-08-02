@@ -12,7 +12,7 @@ import { domainLabel } from '@/lib/i18n/domain';
 
 export const dynamic = 'force-dynamic';
 const label = (value: string) => value.replaceAll('_', ' ').toLowerCase();
-const stamp = (iso: string, _locale: Locale) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short' });
+const stamp = (iso: string, _locale: Locale) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true });
 
 export default async function WarrantyDetailPage({ params }: { params: Promise<{ id: string }> }) {
   await requireCapability('VIEW_RMA'); const { role, locale } = await getSession(); const t = createTranslator(locale); const { id } = await params;

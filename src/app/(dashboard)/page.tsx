@@ -17,6 +17,7 @@ const dhaka = (iso: string, _locale: Locale) =>
     month: 'short',
     hour: '2-digit',
     minute: '2-digit',
+    hour12: true,
   });
 
 type KpiTone =
