@@ -59,6 +59,13 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");
   });
 
+  it('keeps controlled print settings synchronized after printing', () => {
+    const studio = source('src/components/labels/StockLabelStudio.tsx');
+    expect(studio).toContain('event.preventDefault()');
+    expect(studio).toContain('<form onSubmit={submitPrint}>');
+    expect(studio).not.toContain('<form action={formAction}>');
+  });
+
   it('allows the label quantity to be cleared while entering a replacement value', () => {
     const studio = source('src/components/labels/StockLabelStudio.tsx');
     expect(studio).toContain("useState<number | ''>");

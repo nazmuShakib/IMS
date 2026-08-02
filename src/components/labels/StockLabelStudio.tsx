@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useMemo, useState, useTransition } from 'react';
+import { useActionState, useEffect, useMemo, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import {
@@ -108,6 +108,7 @@ export function StockLabelStudio({
   const [searching, setSearching] = useState(false);
   const [navigating, setNavigating] = useState(false);
   const [refreshPending, startNavigation] = useTransition();
+  const [printTransitionPending, startPrintTransition] = useTransition();
   const loading = navigating || refreshPending || searching;
   const [state, formAction, pending] = useActionState<LabelPrintState, FormData>(
     recordLabelPrintAction,
@@ -215,6 +216,15 @@ export function StockLabelStudio({
     });
   }
 
+  function submitPrint(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget);
+    // Calling the action through a transition keeps useActionState's pending
+    // semantics without React's successful-form reset. That reset can otherwise
+    // make the visible layout selector disagree with the controlled layout state.
+    startPrintTransition(() => formAction(formData));
+  }
+
   return (
     <div
       className="stock-label-print-root"
@@ -265,7 +275,7 @@ export function StockLabelStudio({
             <EmptyState title={t('labels.chooseHelp')} />
           </Card>
         ) : (
-          <form action={formAction}>
+          <form onSubmit={submitPrint}>
             <input type="hidden" name="productId" value={product.id} />
             <input type="hidden" name="unitIds" value={JSON.stringify(selectedUnits.map((unit) => unit.id))} />
             <input type="hidden" name="layout" value={layout} />
@@ -415,7 +425,7 @@ export function StockLabelStudio({
                   <Button
                     className="w-full"
                     type="submit"
-                    disabled={pending || labelCount === 0 || labelCount > 500}
+                    disabled={pending || printTransitionPending || labelCount === 0 || labelCount > 500}
                   >
                     {pending ? t('labels.preparing') : t('labels.printCount', {
                       count: labelCount || '',
