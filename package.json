@@ -17,6 +17,7 @@
 		"seed:json": "DATA_SOURCE=json tsx scripts/seed.ts",
 		"auth:bootstrap": "dotenv -e .env.local -- tsx scripts/bootstrap-admin.ts",
 		"auth:migrate-mobile": "dotenv -e .env.local -- tsx scripts/migrate-mobile-auth.ts",
+		"auth:recover-admin:dev": "dotenv -e .env.local -- tsx scripts/recover-admin.ts --development",
 		"reconcile": "dotenv -e .env.local -- tsx scripts/reconcile.ts",
 		"db:migrate": "dotenv -e .env.local -- prisma migrate dev",
 		"db:deploy": "dotenv -e .env.local -- prisma migrate deploy",

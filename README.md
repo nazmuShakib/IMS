@@ -44,6 +44,38 @@ Run committed Prisma migrations separately with `npm run db:deploy`; do not run
 migrations inside the Vercel build. `INITIAL_ADMIN_*` variables are only for the
 one-time local bootstrap command and are not required by the deployed app.
 
+## Development ADMIN password recovery
+
+The emergency recovery command is local-development tooling, not a public
+"Forgot password" endpoint. Add `ADMIN_RECOVERY_DATABASE_URL` to `.env.local`
+and point it explicitly at the **development** Neon database. It deliberately
+does not fall back to the app's normal `DATABASE_URL`.
+
+First inspect the masked account and database target. This invocation is
+read-only:
+
+```bash
+export ADMIN_RECOVERY_PHONE="01712345678"
+npm run auth:recover-admin:dev
+```
+
+If the displayed target is correct, enter the new password and run the confirmed
+reset:
+
+```bash
+read -rsp "New ADMIN password: " ADMIN_RECOVERY_PASSWORD; echo
+export ADMIN_RECOVERY_PASSWORD
+export CONFIRM_ADMIN_RECOVERY="RESET_DEV_ADMIN"
+npm run auth:recover-admin:dev
+unset ADMIN_RECOVERY_PHONE ADMIN_RECOVERY_PASSWORD CONFIRM_ADMIN_RECOVERY
+```
+
+The password must be 12–128 characters. The command only targets an active,
+non-banned ADMIN with exactly one password credential. A successful reset uses
+Better Auth's password hasher, revokes every existing session, and adds an audit
+entry without storing the password or hash. The same command refuses to run with
+`NODE_ENV=production`.
+
 ## What's here
 
 ```

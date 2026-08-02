@@ -180,6 +180,21 @@ describe('authentication and audit architecture', () => {
     expect(users).toContain('prisma.session.deleteMany');
   });
 
+  it('provides a guarded development-only emergency ADMIN recovery command', () => {
+    const recovery = source('scripts/recover-admin.ts');
+    const packageJson = source('package.json');
+    expect(packageJson).toContain('auth:recover-admin:dev');
+    expect(recovery).toContain("required('ADMIN_RECOVERY_DATABASE_URL')");
+    expect(recovery).not.toContain("process.env.DATABASE_URL");
+    expect(recovery).toContain("CONFIRMATION = 'RESET_DEV_ADMIN'");
+    expect(recovery).toContain("process.argv.includes('--development')");
+    expect(recovery).toContain('hashPassword(password)');
+    expect(recovery).toContain('transaction.account.update');
+    expect(recovery).toContain('transaction.session.deleteMany');
+    expect(recovery).toContain('transaction.auditLog.create');
+    expect(recovery).toContain("actorId: null");
+  });
+
   it('provides accessible password visibility controls without changing form semantics', () => {
     const input = source('src/components/auth/PasswordInput.tsx');
     const login = source('src/components/auth/LoginForm.tsx');
