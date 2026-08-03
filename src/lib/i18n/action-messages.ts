@@ -33,6 +33,8 @@ const bnMessages: Record<string, string> = {
   'The selected customer is unavailable.': 'নির্বাচিত ক্রেতাকে পাওয়া যাচ্ছে না।',
   'The selected category is unavailable.': 'নির্বাচিত ক্যাটাগরিটি ব্যবহার করা যাচ্ছে না।',
   'The selected brand is unavailable.': 'নির্বাচিত ব্র্যান্ডটি ব্যবহার করা যাচ্ছে না।',
+  'Invalid device-number check request.': 'ডিভাইস নম্বর যাচাইয়ের অনুরোধটি সঠিক নয়।',
+  'The selected serialized product is unavailable.': 'নির্বাচিত সিরিয়ালভিত্তিক পণ্যটি ব্যবহার করা যাচ্ছে না।',
   'Add at least one item before checkout.': 'চেকআউটের আগে কমপক্ষে একটি পণ্য যোগ করুন।',
   'No product or device number matches that identifier.': 'এই পরিচয় নম্বরের সঙ্গে মেলে এমন কোনো পণ্য বা ডিভাইস নম্বর পাওয়া যায়নি।',
   'A customer with this phone number already exists.': 'এই ফোন নম্বরে একজন ক্রেতা ইতিমধ্যে আছেন।',
@@ -91,6 +93,8 @@ export function translateActionMessage(locale: Locale, value: string): string {
   if (match) return `${match[2]} পণ্যের ${match[1]}টি স্টকে গ্রহণ করা হয়েছে।`;
   match = value.match(/^That phone number already belongs to (.+)\.$/);
   if (match) return `এই ফোন নম্বরটি ইতিমধ্যে ${match[1]}-এর।`;
+  match = value.match(/^Device number (.+) belongs to a different product and cannot be revived here\.$/);
+  if (match) return `ডিভাইস নম্বর ${match[1]} অন্য একটি পণ্যের এবং এখানে পুনরায় সক্রিয় করা যাবে না।`;
 
   return value;
 }

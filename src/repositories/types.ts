@@ -101,6 +101,7 @@ export interface ProductRepository {
 export interface ProductUnitRepository {
   findById(id: string): Promise<ProductUnit | null>;
   findBySerial(serialNo: string): Promise<ProductUnit | null>;
+  findBySerials(serialNos: readonly string[]): Promise<ProductUnit[]>;
   findByProduct(productId: string, status?: UnitStatus): Promise<ProductUnit[]>;
   countInStock(productId: string): Promise<number>;
   findAllInStock(): Promise<ProductUnit[]>;

@@ -1,15 +1,36 @@
 'use client';
 
-import { useActionState, useEffect, useId, useMemo, useRef, useState } from 'react';
+import { startTransition, useActionState, useEffect, useId, useMemo, useRef, useState, type FormEvent } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import type { Supplier } from '@/domain/types';
 import type { ProductDTO } from '@/lib/dto';
-import { formatBDT, toTaka } from '@/lib/money';
-import { receiveStockAction, type StockActionState } from '@/actions/stock';
+import { formatBDT, parseBDT, toTaka } from '@/lib/money';
+import {
+  preflightStockSerials,
+  receiveStockAction,
+  type StockActionState,
+  type StockSerialConflict,
+} from '@/actions/stock';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { ScannerInput } from '@/components/search/ScannerInput';
 import { useI18n } from '@/components/i18n/I18nProvider';
+
+interface StockConfirmation {
+  productName: string;
+  sku: string;
+  trackingType: ProductDTO['trackingType'];
+  count: number;
+  serials: string[];
+  supplierName: string | null;
+  reason: 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
+  unitCost: number;
+  totalCost: number;
+  reference: string | null;
+  note: string | null;
+  location: string | null;
+  warrantyMonths: string | null;
+}
 
 export function StockInForm({
   products,
@@ -33,8 +54,13 @@ export function StockInForm({
   const [key, setKey] = useState('');
   const [scanError, setScanError] = useState('');
   const [serialScanError, setSerialScanError] = useState('');
+  const [confirmation, setConfirmation] = useState<StockConfirmation | null>(null);
+  const [confirmationError, setConfirmationError] = useState('');
+  const [serialConflicts, setSerialConflicts] = useState<StockSerialConflict[]>([]);
+  const [preflightPending, setPreflightPending] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const serialScanRef = useRef<HTMLInputElement>(null);
+  const confirmationDataRef = useRef<FormData | null>(null);
   const formId = useId();
 
   const product = useMemo(
@@ -61,7 +87,7 @@ export function StockInForm({
   }, [state.receipt]);
 
   useEffect(() => {
-    if (!receiptOpen) return;
+    if (!receiptOpen && !confirmation && serialConflicts.length === 0) return;
     const previousOverflow = document.body.style.overflow;
     const previousPaddingRight = document.body.style.paddingRight;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
@@ -73,7 +99,10 @@ export function StockInForm({
     }
     document.body.style.overflow = 'hidden';
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setReceiptOpen(false);
+      if (event.key !== 'Escape') return;
+      if (serialConflicts.length > 0) setSerialConflicts([]);
+      else if (confirmation) closeConfirmation();
+      else setReceiptOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
@@ -81,7 +110,7 @@ export function StockInForm({
       document.body.style.paddingRight = previousPaddingRight;
       window.removeEventListener('keydown', closeOnEscape);
     };
-  }, [receiptOpen]);
+  }, [receiptOpen, confirmation, serialConflicts]);
 
   useEffect(() => {
     if (isSerial) serialScanRef.current?.focus();
@@ -125,6 +154,91 @@ export function StockInForm({
     });
     setSerialScan('');
     setSerialScanError('');
+    setSerialConflicts([]);
+  }
+
+  async function reviewReceipt(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!product) return;
+
+    const data = new FormData(event.currentTarget);
+    let unitCost: number;
+    try {
+      unitCost = parseBDT(String(data.get('unitCost') ?? ''));
+    } catch {
+      setConfirmationError(t('stock.invalidCost'));
+      return;
+    }
+
+    const count = product.trackingType === 'SERIAL'
+      ? uniqueSerialCount
+      : Number(data.get('quantity') ?? 0);
+    const supplierId = String(data.get('supplierId') ?? '');
+    const supplierName = suppliers.find((supplier) => supplier.id === supplierId)?.name ?? null;
+    const reasonValue = String(data.get('reason') ?? 'PURCHASE');
+    const reason = reasonValue === 'INITIAL_STOCK' || reasonValue === 'CUSTOMER_RETURN'
+      ? reasonValue
+      : 'PURCHASE';
+    const nullable = (name: string) => {
+      const value = String(data.get(name) ?? '').trim();
+      return value || null;
+    };
+
+    setConfirmationError('');
+    setSerialConflicts([]);
+
+    if (product.trackingType === 'SERIAL') {
+      setPreflightPending(true);
+      try {
+        const result = await preflightStockSerials({
+          productId: product.id,
+          serialNumbers: serials,
+        });
+        if (result.error) {
+          setConfirmationError(message(result.error));
+          return;
+        }
+        if (result.conflicts?.length) {
+          setSerialConflicts(result.conflicts);
+          return;
+        }
+      } catch {
+        setConfirmationError(t('stock.serialCheckFailed'));
+        return;
+      } finally {
+        setPreflightPending(false);
+      }
+    }
+
+    confirmationDataRef.current = data;
+    setConfirmation({
+      productName: product.name,
+      sku: product.sku,
+      trackingType: product.trackingType,
+      count,
+      serials: product.trackingType === 'SERIAL' ? serials : [],
+      supplierName,
+      reason,
+      unitCost,
+      totalCost: unitCost * count,
+      reference: nullable('reference'),
+      note: nullable('note'),
+      location: nullable('location'),
+      warrantyMonths: nullable('warrantyMonths'),
+    });
+  }
+
+  function confirmReceipt() {
+    const data = confirmationDataRef.current;
+    if (!data) return;
+    setConfirmation(null);
+    confirmationDataRef.current = null;
+    startTransition(() => formAction(data));
+  }
+
+  function closeConfirmation() {
+    setConfirmation(null);
+    confirmationDataRef.current = null;
   }
 
   const err = (k: string) => state.fieldErrors?.[k];
@@ -143,15 +257,189 @@ export function StockInForm({
       ? `/stock/labels?receipt=${encodeURIComponent(state.labelReceiptId)}`
       : `/stock/labels?product=${encodeURIComponent(state.receipt.productId)}`
     : '/stock/labels';
+  const unitStatusLabel = (status: StockSerialConflict['status']) => {
+    const keys = {
+      IN_STOCK: 'stock.unitStatusInStock',
+      RESERVED: 'stock.unitStatusReserved',
+      SOLD: 'stock.unitStatusSold',
+      RETURNED: 'stock.unitStatusReturned',
+      DAMAGED: 'stock.unitStatusDamaged',
+      LOST: 'stock.unitStatusLost',
+      VOID: 'stock.unitStatusVoid',
+    } as const;
+    return t(keys[status]);
+  };
 
   return (
-    <form action={formAction} id={formId}>
+    <form action={formAction} id={formId} onSubmit={reviewReceipt}>
       <input type="hidden" name="idempotencyKey" value={key} />
 
       {state.error && (
         <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
           {message(state.error)}
         </div>
+      )}
+      {confirmationError && (
+        <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
+          {confirmationError}
+        </div>
+      )}
+      {serialConflicts.length > 0 && (
+        createPortal(
+          <div
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5"
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) setSerialConflicts([]);
+            }}
+          >
+            <div
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="stock-conflict-title"
+              aria-describedby="stock-conflict-description"
+              className="max-h-[calc(100dvh-1.5rem)] w-full max-w-lg overflow-y-auto rounded-[3px] border border-rule bg-card shadow-xl"
+            >
+              <div className="border-b border-rule p-5">
+                <div className="mb-3 flex size-9 items-center justify-center rounded-full bg-out-wash text-[20px] font-semibold text-out" aria-hidden="true">
+                  !
+                </div>
+                <h2 id="stock-conflict-title" className="text-[18px] font-semibold">
+                  {t(serialConflicts.length === 1
+                    ? 'stock.serialConflictTitle'
+                    : 'stock.serialConflictsTitle', { count: serialConflicts.length })}
+                </h2>
+                <p id="stock-conflict-description" className="mt-1 text-[13px] text-graphite">
+                  {t('stock.serialConflictsHelp')}
+                </p>
+              </div>
+              <ul className="tnum max-h-64 space-y-1.5 overflow-y-auto overscroll-contain p-5 text-[13px]">
+                {serialConflicts.map((conflict) => (
+                  <li key={conflict.serialNo} className="flex items-center justify-between gap-4 rounded-[3px] bg-out-wash px-3 py-2">
+                    <span className="break-all font-medium">{conflict.serialNo}</span>
+                    <span className="shrink-0 text-out">{unitStatusLabel(conflict.status)}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex justify-end border-t border-rule p-4">
+                <Button type="button" onClick={() => setSerialConflicts([])} autoFocus>
+                  {t('stock.reviewDeviceNumbers')}
+                </Button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )
+      )}
+      {confirmation && createPortal(
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) closeConfirmation();
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="stock-confirm-title"
+            aria-describedby="stock-confirm-description"
+            className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[3px] border border-rule bg-card shadow-xl"
+          >
+            <div className="border-b border-rule p-5">
+              <h2 id="stock-confirm-title" className="text-[18px] font-semibold">
+                {t('stock.confirmReceiveTitle')}
+              </h2>
+              <p id="stock-confirm-description" className="mt-1 text-[13px] text-graphite">
+                {t('stock.confirmReceiveHelp')}
+              </p>
+            </div>
+
+            <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <dt className="eyebrow">{t('common.product')}</dt>
+                <dd className="mt-1 text-[15px] font-semibold">{confirmation.productName}</dd>
+                <dd className="tnum mt-0.5 text-[12px] text-graphite">
+                  {t('stock.productCode')}: {confirmation.sku}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.receivedQuantity')}</dt>
+                <dd className="tnum mt-1 text-[15px] font-semibold">{confirmation.count}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.trackingMethod')}</dt>
+                <dd className="mt-1 text-[14px]">
+                  {t(confirmation.trackingType === 'SERIAL'
+                    ? 'products.serialTracking'
+                    : 'products.bulkTracking')}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('common.supplier')}</dt>
+                <dd className="mt-1 text-[14px]">{confirmation.supplierName ?? t('common.notRecorded')}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.reason')}</dt>
+                <dd className="mt-1 text-[14px]">
+                  {t(confirmation.reason === 'PURCHASE'
+                    ? 'stock.purchaseSupplier'
+                    : confirmation.reason === 'INITIAL_STOCK'
+                      ? 'stock.openingBalance'
+                      : 'stock.customerReturn')}
+                </dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.costPerUnitSummary')}</dt>
+                <dd className="tnum mt-1 text-[14px]">{formatBDT(confirmation.unitCost)}</dd>
+              </div>
+              <div>
+                <dt className="eyebrow">{t('stock.totalReceivedCost')}</dt>
+                <dd className="tnum mt-1 text-[15px] font-semibold">{formatBDT(confirmation.totalCost)}</dd>
+              </div>
+              {confirmation.warrantyMonths && (
+                <div>
+                  <dt className="eyebrow">{t('stock.warrantyMonths')}</dt>
+                  <dd className="tnum mt-1 text-[14px]">{confirmation.warrantyMonths}</dd>
+                </div>
+              )}
+              {confirmation.reference && (
+                <div>
+                  <dt className="eyebrow">{t('common.reference')}</dt>
+                  <dd className="tnum mt-1 break-words text-[14px]">{confirmation.reference}</dd>
+                </div>
+              )}
+              {confirmation.location && (
+                <div>
+                  <dt className="eyebrow">{t('stock.location')}</dt>
+                  <dd className="mt-1 break-words text-[14px]">{confirmation.location}</dd>
+                </div>
+              )}
+              {confirmation.note && (
+                <div>
+                  <dt className="eyebrow">{t('common.note')}</dt>
+                  <dd className="mt-1 break-words text-[14px]">{confirmation.note}</dd>
+                </div>
+              )}
+              {confirmation.serials.length > 0 && (
+                <div className="sm:col-span-2">
+                  <dt className="eyebrow">{t('stock.deviceNumbers')}</dt>
+                  <dd className="tnum mt-1 max-h-32 overflow-y-auto overscroll-contain rounded-[3px] border border-rule bg-plate/40 p-2 text-[12px]">
+                    {confirmation.serials.map((serial) => <div key={serial}>{serial}</div>)}
+                  </dd>
+                </div>
+              )}
+            </dl>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-rule p-4 sm:flex-row sm:justify-end">
+              <Button type="button" variant="ghost" onClick={closeConfirmation}>
+                {t('stock.backToReceipt')}
+              </Button>
+              <Button type="button" onClick={confirmReceipt}>
+                {t('stock.yesReceive')}
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
       {receiptOpen && state.receipt && createPortal(
         <div
@@ -259,7 +547,7 @@ export function StockInForm({
                 const match = products.find((item) => item.barcode?.toLowerCase() === normalized)
                   ?? products.find((item) => item.sku.toLowerCase() === normalized);
                 if (!match) { setScanError('No active product matches that barcode or product code (SKU).'); return; }
-                setProductId(match.id); setScanError('');
+                setProductId(match.id); setScanError(''); setSerialConflicts([]);
               }}
             />
           </Field>
@@ -271,7 +559,10 @@ export function StockInForm({
               name="productId"
               required
               value={productId}
-              onChange={(e) => setProductId(e.target.value)}
+              onChange={(e) => {
+                setProductId(e.target.value);
+                setSerialConflicts([]);
+              }}
             >
               <option value="" disabled>
                 {t('stock.chooseProduct')}
@@ -367,6 +658,7 @@ export function StockInForm({
                 onChange={(e) => {
                   setSerialText(e.target.value);
                   setSerialScanError('');
+                  setSerialConflicts([]);
                 }}
                 rows={6}
                 className="tnum min-h-32"
@@ -423,9 +715,11 @@ export function StockInForm({
 
       <Button
         type="submit"
-        disabled={pending || !product || (isSerial && (uniqueSerialCount === 0 || dupes.length > 0))}
+        disabled={pending || preflightPending || !product || (isSerial && (uniqueSerialCount === 0 || dupes.length > 0))}
       >
-        {pending
+        {preflightPending
+          ? t('stock.checkingDeviceNumbers')
+          : pending
           ? t('stock.receiving')
           : isSerial && uniqueSerialCount > 0
             ? t('stock.receiveCount', {

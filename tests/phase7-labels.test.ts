@@ -61,6 +61,16 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(stockIn).toContain('href={receiptLabelHref}');
     expect(stockIn).toContain('`/stock/labels?product=');
     expect(stockIn).toContain('bg-signal');
+    expect(stockIn).toContain('onSubmit={reviewReceipt}');
+    expect(stockIn).toContain('event.preventDefault()');
+    expect(stockIn).toContain('preflightStockSerials');
+    expect(stockIn).toContain('startTransition(() => formAction(data))');
+    expect(stockIn).toContain("t('stock.confirmReceiveTitle')");
+    expect(stockIn).toContain("t('stock.yesReceive')");
+    expect(stockIn).toContain('role="alertdialog"');
+    expect(stockIn).toContain("t('stock.reviewDeviceNumbers')");
+    expect(source('src/repositories/prisma/index.ts')).toContain('async findBySerials(serialNos)');
+    expect(source('src/services/stock.ts')).toContain('existing.productId !== product.id');
     expect(source('src/actions/stock.ts')).toContain('totalCost: unitCost * count');
     expect(source('src/components/labels/StockLabelStudio.tsx')).toContain('ScannerInput');
     expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");

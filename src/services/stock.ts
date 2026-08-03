@@ -80,6 +80,12 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
           );
         }
 
+        if (existing && existing.productId !== product.id) {
+          throw new Error(
+            `Device number ${serialNo} belongs to a different product and cannot be revived here.`,
+          );
+        }
+
         if (existing) {
           revived.push(
             await tx.units.transitionStatus(existing.id, 'VOID', 'IN_STOCK', {

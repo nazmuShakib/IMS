@@ -255,6 +255,12 @@ const units: ProductUnitRepository = {
       ) ?? null
     );
   },
+  async findBySerials(serialNos) {
+    const wanted = new Set(serialNos.map((value) => value.toLowerCase().trim()).filter(Boolean));
+    return (await readAll<ProductUnit>('product-units')).filter(
+      (unit) => wanted.has(unit.serialNo.toLowerCase()),
+    );
+  },
   async findByProduct(productId, status) {
     const rows = await readAll<ProductUnit>('product-units');
     return rows.filter((u) => u.productId === productId && (!status || u.status === status));

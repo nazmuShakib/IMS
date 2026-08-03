@@ -344,6 +344,17 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         });
         return row ? unit(row) : null;
       },
+      async findBySerials(serialNos) {
+        const values = [...new Set(serialNos.map((value) => value.trim()).filter(Boolean))];
+        if (values.length === 0) return [];
+        return (await client.productUnit.findMany({
+          where: {
+            OR: values.map((serialNo) => ({
+              serialNo: { equals: serialNo, mode: 'insensitive' as const },
+            })),
+          },
+        })).map(unit);
+      },
       async findByProduct(productId, status) {
         return (await client.productUnit.findMany({
           where: { productId, status }, orderBy: { receivedAt: 'desc' },

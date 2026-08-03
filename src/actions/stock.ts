@@ -10,7 +10,7 @@ import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
 import { writeAudit } from '@/lib/audit';
 import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
-import type { MovementReason } from '@/domain/types';
+import type { MovementReason, UnitStatus } from '@/domain/types';
 
 /**
  * Phase 2 (PLAN.md §16). These are thin — every one of them just validates the
@@ -104,6 +104,36 @@ export async function lookupSerial(
 }
 
 /* --- Stock in -------------------------------------------------------------- */
+
+export interface StockSerialConflict {
+  serialNo: string;
+  status: UnitStatus;
+}
+
+export async function preflightStockSerials(input: {
+  productId: string;
+  serialNumbers: string[];
+}): Promise<{ conflicts?: StockSerialConflict[]; error?: string }> {
+  await requireCapability('MOVE_STOCK');
+
+  const parsed = z.object({
+    productId: z.string().uuid(),
+    serialNumbers: z.array(z.string().trim().min(1).max(120)).min(1).max(500),
+  }).safeParse(input);
+  if (!parsed.success) return { error: 'Invalid device-number check request.' };
+
+  const product = await db.products.findById(parsed.data.productId);
+  if (!product || product.trackingType !== 'SERIAL') {
+    return { error: 'The selected serialized product is unavailable.' };
+  }
+
+  const existing = await db.units.findBySerials(parsed.data.serialNumbers);
+  return {
+    conflicts: existing
+      .filter((unit) => unit.status !== 'VOID' || unit.productId !== product.id)
+      .map((unit) => ({ serialNo: unit.serialNo, status: unit.status })),
+  };
+}
 
 export async function receiveStockAction(
   _prev: StockActionState,
