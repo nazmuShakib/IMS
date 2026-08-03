@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
+import { Archive, CircleCheck, Package, Pencil, RotateCcw, Trash2 } from 'lucide-react';
 
 import {
   setBrandActive,
@@ -123,7 +124,13 @@ export function TaxonomyManager({
           ) : (
             <ul>
               {filtered.map((item) => (
-                <TaxonomyRow key={item.id} kind={kind} item={item} canManage={canManage} />
+                <TaxonomyRow
+                  key={item.id}
+                  kind={kind}
+                  item={item}
+                  canManage={canManage}
+                  showStatus={status === 'all'}
+                />
               ))}
             </ul>
           )}
@@ -137,43 +144,60 @@ function TaxonomyRow({
   kind,
   item,
   canManage,
+  showStatus,
 }: {
   kind: TaxonomyKind;
   item: TaxonomyListItem;
   canManage: boolean;
+  showStatus: boolean;
 }) {
   const { t } = useI18n();
 
   return (
     <li
-      className={`flex flex-col gap-3 border-b border-rule-soft px-4 py-3 last:border-0 sm:flex-row sm:items-center sm:justify-between ${
+      className={`flex items-center justify-between gap-2 border-b border-rule-soft px-2 py-1 transition-colors last:border-0 hover:bg-signal-wash ${
         item.isActive ? '' : 'bg-plate/40'
       }`}
     >
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[13px] font-medium">{item.name}</span>
-          <span
-            className={`rounded-[2px] border px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-              item.isActive
-                ? 'border-ok/25 bg-ok-wash text-ok'
-                : 'border-graphite/25 bg-plate text-graphite'
-            }`}
-          >
-            {item.isActive ? t('common.active') : t('catalog.removed')}
-          </span>
+          {showStatus && (
+            <span
+              className={item.isActive ? 'text-ok' : 'text-graphite'}
+              role="img"
+              aria-label={item.isActive ? t('common.active') : t('catalog.removed')}
+              title={item.isActive ? t('common.active') : t('catalog.removed')}
+            >
+              {item.isActive ? (
+                <CircleCheck aria-hidden="true" className="size-3.5" strokeWidth={2} />
+              ) : (
+                <Archive aria-hidden="true" className="size-3.5" strokeWidth={2} />
+              )}
+            </span>
+          )}
         </div>
         {kind === 'category' && (
-          <p className="tnum mt-0.5 break-all text-[11px] text-graphite">{item.slug}</p>
+          <p className="tnum mt-0.5 hidden break-all text-[11px] text-graphite sm:block">{item.slug}</p>
         )}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-        <span className="tnum mr-1 text-[12px] text-graphite">
+      <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+        <span className="tnum mr-1 hidden text-[12px] text-graphite sm:inline">
           {t('catalog.productCount', {
             count: item.productCount,
             kind: t(item.productCount === 1 ? 'catalog.productSingle' : 'catalog.productPlural'),
           })}
+        </span>
+        <span
+          className="tnum inline-flex items-center gap-1 text-[11px] text-graphite sm:hidden"
+          title={t('catalog.productCount', {
+            count: item.productCount,
+            kind: t(item.productCount === 1 ? 'catalog.productSingle' : 'catalog.productPlural'),
+          })}
+        >
+          <Package aria-hidden="true" className="size-3.5" strokeWidth={1.8} />
+          {item.productCount}
         </span>
         {canManage && <TaxonomyActions kind={kind} item={item} />}
       </div>
@@ -209,17 +233,30 @@ function TaxonomyActions({ kind, item }: { kind: TaxonomyKind; item: TaxonomyLis
 
   return (
     <>
-      <Button type="button" variant="ghost" onClick={() => setEditing(true)}>
-        {t('common.edit')}
-      </Button>
-      <Button
+      <button
         type="button"
-        variant={item.isActive ? 'danger' : 'ghost'}
-        onClick={() => setConfirmingStatus(true)}
+        onClick={() => setEditing(true)}
+        aria-label={t('common.edit')}
+        title={t('common.edit')}
+        className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border border-rule bg-card text-ink transition-colors hover:bg-plate"
       >
-        {item.isActive ? t('catalog.remove') : t('catalog.restore')}
-      </Button>
-
+        <Pencil aria-hidden="true" className="block size-4 shrink-0" color="#14181d" strokeWidth={2.2} />
+      </button>
+      <button
+        type="button"
+        onClick={() => setConfirmingStatus(true)}
+        aria-label={t(item.isActive ? 'catalog.remove' : 'catalog.restore')}
+        title={t(item.isActive ? 'catalog.remove' : 'catalog.restore')}
+        className={`inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-[3px] border border-rule bg-card transition-colors ${
+          item.isActive ? 'text-out hover:bg-out-wash' : 'text-ink hover:bg-plate'
+        }`}
+      >
+        {item.isActive ? (
+          <Trash2 aria-hidden="true" className="block size-4 shrink-0" color="#b3261e" strokeWidth={2.2} />
+        ) : (
+          <RotateCcw aria-hidden="true" className="block size-4 shrink-0" color="#14181d" strokeWidth={2.2} />
+        )}
+      </button>
       {editing && (
         <ModalShell
           title={t(kind === 'brand' ? 'catalog.editBrand' : 'catalog.editCategory')}
