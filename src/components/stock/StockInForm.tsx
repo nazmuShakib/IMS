@@ -415,7 +415,7 @@ export function StockInForm({
               )}
               {confirmation.note && (
                 <div>
-                  <dt className="eyebrow">{t('common.note')}</dt>
+                  <dt className="eyebrow">{t('stock.receiptNote')}</dt>
                   <dd className="mt-1 break-words text-[14px]">{confirmation.note}</dd>
                 </div>
               )}
@@ -613,7 +613,7 @@ export function StockInForm({
             <MonoInput name="reference" placeholder="CHL-1001" />
           </Field>
 
-          <Field label={t('common.note')}>
+          <Field label={t('stock.receiptNote')} hint={t('stock.receiptNoteHint')}>
             <Input name="note" />
           </Field>
         </div>
