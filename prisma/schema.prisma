@@ -574,12 +574,13 @@ model CartItem {
   quantity        Int
   listUnitPrice   Int
   actualUnitPrice Int
+  position        Int      @default(0)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   @@unique([cartId, unitId])
   @@unique([cartId, productId, unitId])
-  @@index([cartId])
+  @@index([cartId, position])
   @@index([productId])
   @@map("cart_items")
 }
@@ -634,9 +635,10 @@ model SaleItem {
   serialNo       String?
   listUnitPrice  Int
   warrantyMonths Int?
+  position       Int      @default(0)
 
   createdAt DateTime @default(now())
 
-  @@index([saleId])
+  @@index([saleId, position])
   @@map("sale_items")
 }

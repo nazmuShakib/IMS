@@ -109,6 +109,38 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toContain("formAction={completeAction}");
     expect(workspace).toContain("t('checkout.yesComplete')");
   });
+
+  it('shows the device identifier instead of an editable quantity for serialized cart lines', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain("line.trackingType === 'SERIAL'");
+    expect(workspace).toContain("t('checkout.serialImei')");
+    expect(workspace).toContain('<SerialChip serial={line.serialNo} />');
+    expect(workspace).toContain('type="hidden" name="quantity" value="1"');
+  });
+
+  it('persists drag ordering from the draft through the immutable invoice', () => {
+    const schema = source('prisma/schema.prisma');
+    const service = source('src/services/checkout.ts');
+    const action = source('src/actions/checkout.ts');
+    const repository = source('src/repositories/prisma/index.ts');
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(schema).toContain('position        Int      @default(0)');
+    expect(service).toContain('reorderCartItems');
+    expect(service).toContain('position: item.position');
+    expect(action).toContain("action: 'cart.items_reorder'");
+    expect(repository).toContain("orderBy: [{ position: 'asc' }");
+    expect(workspace).toContain('cursor-grab active:cursor-grabbing');
+    expect(workspace).toContain('data-cart-line-id={line.id}');
+    expect(workspace).toContain("closest('input, button, select, textarea, a, label')");
+    expect(workspace).toContain('onPointerMove');
+    expect(workspace).toContain('element.animate(');
+    expect(workspace).toContain('duration: 420');
+    expect(workspace).toContain('element.offsetHeight / 2');
+    expect(workspace).not.toContain('document.elementFromPoint');
+    expect(workspace).toContain("prefers-reduced-motion: reduce");
+    expect(workspace).toContain("event.key === 'ArrowUp'");
+    expect(workspace).toContain("event.key === 'ArrowDown'");
+  });
 });
 
 describe('Phase 8 stock and invoice invariants', () => {

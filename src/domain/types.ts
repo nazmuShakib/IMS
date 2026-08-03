@@ -296,6 +296,7 @@ export interface CartItem {
   quantity: number;
   listUnitPrice: Paisa;
   actualUnitPrice: Paisa;
+  position: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -330,6 +331,7 @@ export interface SaleItem {
   serialNo: string | null;
   listUnitPrice: Paisa;
   warrantyMonths: number | null;
+  position: number;
   createdAt: string;
 }
 

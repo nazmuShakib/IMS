@@ -575,7 +575,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       async findItems(cartId) {
         return (await client.cartItem.findMany({
           where: { cartId },
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
         })).map(cartItem);
       },
       async findItem(id) {
@@ -684,7 +684,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         const rows = await client.saleItem.findMany({
           where: { saleId },
           include: { movement: true },
-          orderBy: { createdAt: 'asc' },
+          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
         });
         return rows.map((row): InvoiceItem => {
           if (row.movement.unitPrice === null) {
@@ -700,6 +700,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             serialNo: row.serialNo,
             listUnitPrice: row.listUnitPrice,
             warrantyMonths: row.warrantyMonths,
+            position: row.position,
             createdAt: iso(row.createdAt),
             quantity,
             actualUnitPrice: row.movement.unitPrice,

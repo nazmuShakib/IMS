@@ -7,9 +7,14 @@ import { getOrCreateCart } from '@/services/checkout';
 
 export const dynamic = 'force-dynamic';
 
-export default async function CheckoutPage() {
+export default async function CheckoutPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ serial?: string }>;
+}) {
   const actor = await requireCapability('CHECKOUT');
   const { locale } = await getSession();
+  const { serial = '' } = await searchParams;
   const t = createTranslator(locale);
   const cart = await getOrCreateCart(actor.id);
   const [items, products, units, customers] = await Promise.all([
@@ -42,7 +47,9 @@ export default async function CheckoutPage() {
         count={t('checkout.help')}
       />
       <CheckoutWorkspace
+        key={serial || 'checkout'}
         cart={cart}
+        initialIdentifier={serial}
         lines={items.flatMap((item) => {
           const product = productsById.get(item.productId);
           if (!product) return [];
@@ -58,6 +65,7 @@ export default async function CheckoutPage() {
             quantity: item.quantity,
             listUnitPrice: item.listUnitPrice,
             actualUnitPrice: item.actualUnitPrice,
+            position: item.position,
             onHand: product.trackingType === 'SERIAL' ? 1 : product.quantityOnHand,
           }];
         })}

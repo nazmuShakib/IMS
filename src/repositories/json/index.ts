@@ -487,7 +487,7 @@ const carts: CartRepository = {
   async findItems(cartId) {
     return (await readAll<CartItem>('cart-items'))
       .filter((item) => item.cartId === cartId)
-      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   },
   async findItem(id) {
     return (await readAll<CartItem>('cart-items')).find((item) => item.id === id) ?? null;
@@ -583,7 +583,10 @@ const sales: SaleRepository = {
       readAll<StockMovement>('stock-movements'),
     ]);
     const movementById = new Map(movementRows.map((movement) => [movement.id, movement]));
-    return items.filter((item) => item.saleId === saleId).map((item): InvoiceItem => {
+    return items
+      .filter((item) => item.saleId === saleId)
+      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+      .map((item): InvoiceItem => {
       const movement = movementById.get(item.movementId);
       if (!movement || movement.unitPrice === null) {
         throw new Error(`Invoice movement ${item.movementId} has no selling price.`);
@@ -596,7 +599,7 @@ const sales: SaleRepository = {
         discount: (item.listUnitPrice - movement.unitPrice) * quantity,
         lineTotal: movement.unitPrice * quantity,
       };
-    });
+      });
   },
 };
 

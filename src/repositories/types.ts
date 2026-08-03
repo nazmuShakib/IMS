@@ -136,7 +136,7 @@ export interface CartRepository {
   findItems(cartId: string): Promise<CartItem[]>;
   findItem(id: string): Promise<CartItem | null>;
   createItem(value: CartItem): Promise<CartItem>;
-  updateItem(id: string, patch: Pick<CartItem, 'quantity' | 'actualUnitPrice'>): Promise<CartItem>;
+  updateItem(id: string, patch: Partial<Pick<CartItem, 'quantity' | 'actualUnitPrice' | 'position'>>): Promise<CartItem>;
   deleteItem(id: string): Promise<void>;
   delete(id: string): Promise<void>;
 }

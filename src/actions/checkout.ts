@@ -14,6 +14,7 @@ import {
   createCustomer,
   discardCart,
   removeCartItem,
+  reorderCartItems,
   updateCartDetails,
   updateCartItem,
 } from '@/services/checkout';
@@ -106,6 +107,33 @@ export async function removeCartItemAction(
     });
     revalidatePath('/checkout');
     return { ok: 'Item removed.' };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function reorderCartItemsAction(fd: FormData): Promise<CheckoutActionState> {
+  const actor = await requireCapability('CHECKOUT');
+  const cartId = str(fd, 'cartId') ?? '';
+  try {
+    const rawIds = JSON.parse(str(fd, 'orderedItemIds') ?? '[]') as unknown;
+    if (!Array.isArray(rawIds) || rawIds.some((id) => typeof id !== 'string')) {
+      throw new Error('Invalid cart order.');
+    }
+    const items = await reorderCartItems({
+      cartId,
+      actorId: actor.id,
+      orderedItemIds: rawIds,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'cart.items_reorder',
+      entity: 'CartDraft',
+      entityId: cartId,
+      after: { orderedItemIds: items.map((item) => item.id) },
+    });
+    revalidatePath('/checkout');
+    return { ok: 'Cart order saved.' };
   } catch (error) {
     return { error: message(error) };
   }

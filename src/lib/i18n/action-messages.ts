@@ -4,6 +4,7 @@ const bnMessages: Record<string, string> = {
   'A record with this name already exists.': 'এই নামে একটি রেকর্ড ইতিমধ্যে আছে।',
   'Item added to the draft cart.': 'পণ্যটি খসড়া কার্টে যোগ হয়েছে।',
   'Cart line updated.': 'কার্টের পণ্য হালনাগাদ হয়েছে।',
+  'Cart order saved.': 'কার্টের পণ্যের ক্রম সংরক্ষণ হয়েছে।',
   'Item removed.': 'পণ্যটি সরানো হয়েছে।',
   'Draft discarded. A fresh empty draft is ready.': 'খসড়াটি বাতিল করা হয়েছে। একটি নতুন খালি খসড়া প্রস্তুত।',
   'Checkout details saved.': 'চেকআউটের তথ্য সংরক্ষণ করা হয়েছে।',

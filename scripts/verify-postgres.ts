@@ -149,6 +149,7 @@ async function main() {
         quantity: 1,
         listUnitPrice: 1_500,
         actualUnitPrice: 1_400,
+        position: 0,
         createdAt: now,
         updatedAt: now,
       });
@@ -193,6 +194,7 @@ async function main() {
         serialNo: null,
         listUnitPrice: 1_500,
         warrantyMonths: null,
+        position: 0,
         createdAt: now,
       });
       assert((await tx.sales.findItems(saleId)).length === 1, 'Invoice item persistence failed.');

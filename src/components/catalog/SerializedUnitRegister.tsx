@@ -213,7 +213,7 @@ export function SerializedUnitRegister({
                           {unit.status === 'IN_STOCK' && (
                             <>
                               {unit.location && <span className="ml-2 text-[11px] text-graphite">{unit.location}</span>}
-                              <Link href={`/stock/out?serial=${encodeURIComponent(unit.serialNo)}`} className="ml-2 text-[11px] text-signal underline underline-offset-2">
+                              <Link href={`/checkout?serial=${encodeURIComponent(unit.serialNo)}`} className="ml-2 text-[11px] text-signal underline underline-offset-2">
                                 {t('products.sell')}
                               </Link>
                             </>

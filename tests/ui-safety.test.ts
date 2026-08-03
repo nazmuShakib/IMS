@@ -31,6 +31,16 @@ describe('bounded data tables', () => {
     expect(register).toContain('<TableViewport>');
     expect(register).toContain('sticky top-0');
   });
+
+  it('routes serialized-unit sales through checkout with the device prefilled', () => {
+    const register = source('src/components/catalog/SerializedUnitRegister.tsx');
+    const checkoutPage = source('src/app/(dashboard)/checkout/page.tsx');
+    const checkoutWorkspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(register).toContain('/checkout?serial=');
+    expect(register).not.toContain('/stock/out?serial=');
+    expect(checkoutPage).toContain('initialIdentifier={serial}');
+    expect(checkoutWorkspace).toContain('defaultValue={initialIdentifier}');
+  });
 });
 
 describe('sign-out confirmation', () => {

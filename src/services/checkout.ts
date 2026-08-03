@@ -83,6 +83,7 @@ export async function addCartItem(input: {
 }): Promise<CartItem> {
   return db.transaction(async (tx) => {
     await ownedCart(tx, input.cartId, input.actorId);
+    const cartItems = await tx.carts.findItems(input.cartId);
 
     const identifier = input.identifier?.trim();
     let unit = input.unitId ? await tx.units.findById(input.unitId) : null;
@@ -104,12 +105,10 @@ export async function addCartItem(input: {
       if (unit.status !== 'IN_STOCK') {
         throw new Error(`Serial ${unit.serialNo} is ${unit.status.replaceAll('_', ' ').toLowerCase()}.`);
       }
-      const existing = (await tx.carts.findItems(input.cartId))
-        .find((item) => item.unitId === unit!.id);
+      const existing = cartItems.find((item) => item.unitId === unit!.id);
       if (existing) throw new Error(`Device number ${unit.serialNo} is already in this cart.`);
     } else {
-      const existing = (await tx.carts.findItems(input.cartId))
-        .find((item) => item.productId === product!.id && item.unitId === null);
+      const existing = cartItems.find((item) => item.productId === product!.id && item.unitId === null);
       if (existing) {
         if (existing.quantity + 1 > product.quantityOnHand) {
           throw new Error(`Only ${product.quantityOnHand} × ${product.name} are in stock.`);
@@ -131,9 +130,37 @@ export async function addCartItem(input: {
       quantity: 1,
       listUnitPrice: product.defaultSalePrice,
       actualUnitPrice: product.defaultSalePrice,
+      position: cartItems.reduce((highest, item) => Math.max(highest, item.position ?? 0), -1) + 1,
       createdAt: now,
       updatedAt: now,
     });
+  });
+}
+
+export async function reorderCartItems(input: {
+  cartId: string;
+  actorId: string;
+  orderedItemIds: string[];
+}): Promise<CartItem[]> {
+  return db.transaction(async (tx) => {
+    await ownedCart(tx, input.cartId, input.actorId);
+    const items = await tx.carts.findItems(input.cartId);
+    const currentIds = new Set(items.map((item) => item.id));
+    const orderedIds = input.orderedItemIds;
+
+    if (
+      orderedIds.length !== items.length
+      || new Set(orderedIds).size !== orderedIds.length
+      || orderedIds.some((id) => !currentIds.has(id))
+    ) {
+      throw new Error('The cart changed while it was being reordered. Refresh and try again.');
+    }
+
+    const reordered: CartItem[] = [];
+    for (const [position, id] of orderedIds.entries()) {
+      reordered.push(await tx.carts.updateItem(id, { position }));
+    }
+    return reordered;
   });
 }
 
@@ -319,6 +346,7 @@ export async function checkoutCart(raw: {
         serialNo: unit?.serialNo ?? null,
         listUnitPrice: item.listUnitPrice,
         warrantyMonths: unit?.warrantyMonths ?? null,
+        position: item.position,
         createdAt: now,
       };
       await tx.sales.createItem(saleItem);
