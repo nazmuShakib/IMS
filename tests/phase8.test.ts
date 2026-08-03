@@ -104,18 +104,47 @@ describe('Phase 8 customer and checkout decisions', () => {
   it('requires confirmation before completing a sale', () => {
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     expect(workspace).toContain('role="alertdialog"');
-    expect(workspace).toContain("t('checkout.confirmTitle')");
-    expect(workspace).toContain("t('checkout.confirmDescription'");
+    expect(workspace).toMatch(/t\(["']checkout\.confirmTitle["']\)/);
+    expect(workspace).toMatch(/t\(["']checkout\.confirmDescription["']/);
     expect(workspace).toContain("formAction={completeAction}");
-    expect(workspace).toContain("t('checkout.yesComplete')");
+    expect(workspace).toMatch(/t\(["']checkout\.yesComplete["']\)/);
   });
 
   it('shows the device identifier instead of an editable quantity for serialized cart lines', () => {
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
-    expect(workspace).toContain("line.trackingType === 'SERIAL'");
-    expect(workspace).toContain("t('checkout.serialImei')");
+    expect(workspace).toMatch(/line\.trackingType === ["']SERIAL["']/);
+    expect(workspace).toMatch(/t\(["']checkout\.serialImei["']\)/);
     expect(workspace).toContain('<SerialChip serial={line.serialNo} />');
     expect(workspace).toContain('type="hidden" name="quantity" value="1"');
+  });
+
+  it('uses a bounded local quantity stepper for bulk cart lines', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain('stepQuantity(-1)');
+    expect(workspace).toContain('stepQuantity(1)');
+    expect(workspace).toMatch(/t\(["']checkout\.decreaseQuantity["']\)/);
+    expect(workspace).toMatch(/t\(["']checkout\.increaseQuantity["']\)/);
+    expect(workspace).toContain('quantity >= maximumQuantity');
+    expect(workspace).toContain('type="hidden" name="quantity" value={quantity}');
+  });
+
+  it('auto-saves quantity and selling-price edits before checkout can complete', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain('formRef.current?.requestSubmit()');
+    expect(workspace).toContain('const queueSave = (delay = 650)');
+    expect(workspace).toContain('onPendingChange(line.id, linePending)');
+    expect(workspace).toContain('checkingOut || lineUpdatesPending');
+    expect(workspace).toMatch(/t\(["']checkout\.waitForLineSave["']\)/);
+    expect(workspace).not.toMatch(/t\(["']checkout\.update["']\)/);
+  });
+
+  it('places responsive removal controls at the desktop bottom-right and beside the mobile price', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain('className="hidden sm:block"');
+    expect(workspace).toContain('className="inline-flex h-9 w-9 shrink-0');
+    expect(workspace).toContain('className="size-5 shrink-0" strokeWidth={2.25}');
+    expect(workspace).toContain('<Trash2 aria-hidden="true" size={15} />');
+    expect(workspace).toMatch(/aria-label=\{t\(["']checkout\.remove["']\)\}/);
   });
 
   it('persists drag ordering from the draft through the immutable invoice', () => {
@@ -131,15 +160,15 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(repository).toContain("orderBy: [{ position: 'asc' }");
     expect(workspace).toContain('cursor-grab active:cursor-grabbing');
     expect(workspace).toContain('data-cart-line-id={line.id}');
-    expect(workspace).toContain("closest('input, button, select, textarea, a, label')");
+    expect(workspace).toMatch(/closest\(\s*["']input, button, select, textarea, a, label["']/);
     expect(workspace).toContain('onPointerMove');
     expect(workspace).toContain('element.animate(');
     expect(workspace).toContain('duration: 420');
     expect(workspace).toContain('element.offsetHeight / 2');
     expect(workspace).not.toContain('document.elementFromPoint');
     expect(workspace).toContain("prefers-reduced-motion: reduce");
-    expect(workspace).toContain("event.key === 'ArrowUp'");
-    expect(workspace).toContain("event.key === 'ArrowDown'");
+    expect(workspace).toMatch(/event\.key === ["']ArrowUp["']/);
+    expect(workspace).toMatch(/event\.key === ["']ArrowDown["']/);
   });
 });
 
