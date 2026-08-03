@@ -1,7 +1,8 @@
 import { db } from '@/repositories';
 import { createBrand } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
-import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { TaxonomyManager } from '@/components/catalog/TaxonomyManager';
+import { PageHeader } from '@/components/ui';
 import { getSession } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 
@@ -12,10 +13,13 @@ export default async function BrandsPage() {
   const t = createTranslator(locale);
   const [brands, products] = await Promise.all([
     db.brands.findAll(),
-    db.products.findAll({ activeOnly: true }),
+    db.products.findAll(),
   ]);
 
-  const count = (id: string) => products.filter((p) => p.brandId === id).length;
+  const productCounts = new Map<string, number>();
+  for (const product of products) {
+    if (product.brandId) productCounts.set(product.brandId, (productCounts.get(product.brandId) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -29,28 +33,18 @@ export default async function BrandsPage() {
         />
       </div>}
 
-      <Card>
-        {brands.length === 0 ? (
-          <EmptyState title={t('catalog.noBrands')} />
-        ) : (
-          <ul>
-            {brands.map((b) => (
-              <li
-                key={b.id}
-                className="flex items-center justify-between border-b border-rule-soft px-4 py-2.5 last:border-0"
-              >
-                <span className="text-[13px] font-medium">{b.name}</span>
-                <span className="tnum text-[12px] text-graphite">
-                  {t('catalog.productCount', {
-                    count: count(b.id),
-                    kind: t(count(b.id) === 1 ? 'catalog.productSingle' : 'catalog.productPlural'),
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      <TaxonomyManager
+        kind="brand"
+        canManage={role !== 'STAFF'}
+        items={brands.map((brand) => ({
+          id: brand.id,
+          name: brand.name,
+          slug: brand.slug,
+          isActive: brand.isActive,
+          productCount: productCounts.get(brand.id) ?? 0,
+          createdAt: brand.createdAt,
+        }))}
+      />
     </>
   );
 }

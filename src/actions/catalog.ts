@@ -64,6 +64,27 @@ function fieldErrors(err: z.ZodError): Record<string, string> {
   return out;
 }
 
+async function validateProductTaxonomy(
+  categoryId: string,
+  brandId: string | null | undefined,
+  current?: { categoryId: string; brandId: string | null },
+): Promise<string | null> {
+  const [category, brand] = await Promise.all([
+    db.categories.findById(categoryId),
+    brandId ? db.brands.findById(brandId) : Promise.resolve(null),
+  ]);
+
+  // An existing product may retain a category/brand that was removed later,
+  // but new products and changed selections must use active records.
+  if (!category || (!category.isActive && current?.categoryId !== categoryId)) {
+    return 'The selected category is unavailable.';
+  }
+  if (brandId && (!brand || (!brand.isActive && current?.brandId !== brandId))) {
+    return 'The selected brand is unavailable.';
+  }
+  return null;
+}
+
 /* --- Products ------------------------------------------------------------- */
 
 export async function createProduct(
@@ -93,6 +114,9 @@ export async function createProduct(
     if (err instanceof z.ZodError) return { fieldErrors: fieldErrors(err) };
     return { error: err instanceof Error ? err.message : 'Could not read the form' };
   }
+
+  const taxonomyError = await validateProductTaxonomy(input.categoryId, input.brandId);
+  if (taxonomyError) return { error: taxonomyError };
 
   let created;
   try {
@@ -168,6 +192,12 @@ export async function updateProduct(
     if (err instanceof z.ZodError) return { fieldErrors: fieldErrors(err) };
     return { error: err instanceof Error ? err.message : 'Could not read the form' };
   }
+
+  const taxonomyError = await validateProductTaxonomy(input.categoryId, input.brandId, {
+    categoryId: existing.categoryId,
+    brandId: existing.brandId,
+  });
+  if (taxonomyError) return { error: taxonomyError };
 
   try {
     const updated = await db.products.update(id, {
@@ -277,6 +307,93 @@ export async function createCategory(
   return {};
 }
 
+export async function updateCategory(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  if (!id) return { error: 'Missing category id' };
+
+  const before = await db.categories.findById(id);
+  if (!before) return { error: 'Category not found' };
+
+  const parsed = createCategorySchema.safeParse({
+    name: str(fd, 'name') ?? '',
+    parentId: before.parentId,
+  });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+
+  try {
+    const updated = await db.categories.update(id, {
+      name: parsed.data.name,
+      slug: slugify(parsed.data.name) || before.slug,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'category.update',
+      entity: 'Category',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not update the category' };
+  }
+
+  revalidatePath('/categories');
+  revalidatePath('/products');
+  revalidatePath('/reports');
+  return { ok: 'Category updated.' };
+}
+
+export async function setCategoryActive(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  const activeValue = str(fd, 'active');
+  if (!id) return { error: 'Missing category id' };
+  if (activeValue !== 'true' && activeValue !== 'false') return { error: 'Invalid category status' };
+  const active = activeValue === 'true';
+
+  const before = await db.categories.findById(id);
+  if (!before) return { error: 'Category not found' };
+  if (before.isActive === active) return { ok: active ? 'Category restored.' : 'Category removed.' };
+
+  if (!active) {
+    const [products, categories] = await Promise.all([
+      db.products.findAll({ categoryId: id, activeOnly: true }),
+      db.categories.findAll({ activeOnly: true }),
+    ]);
+    if (products.length > 0) {
+      return { error: 'Move or archive active products before removing this category.' };
+    }
+    if (categories.some((category) => category.parentId === id)) {
+      return { error: 'Move or remove active child categories before removing this category.' };
+    }
+  }
+
+  try {
+    const updated = await db.categories.update(id, { isActive: active });
+    await writeAudit({
+      actorId: actor.id,
+      action: active ? 'category.restore' : 'category.archive',
+      entity: 'Category',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not change the category status' };
+  }
+
+  revalidatePath('/categories');
+  revalidatePath('/products');
+  return { ok: active ? 'Category restored.' : 'Category removed.' };
+}
+
 export async function createBrand(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const actor = await requireCapability('MANAGE_CATALOG');
 
@@ -303,6 +420,81 @@ export async function createBrand(_prev: ActionState, fd: FormData): Promise<Act
 
   revalidatePath('/brands');
   return {};
+}
+
+export async function updateBrand(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  if (!id) return { error: 'Missing brand id' };
+
+  const before = await db.brands.findById(id);
+  if (!before) return { error: 'Brand not found' };
+
+  const parsed = createBrandSchema.safeParse({ name: str(fd, 'name') ?? '' });
+  if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
+
+  try {
+    const updated = await db.brands.update(id, {
+      name: parsed.data.name,
+      slug: slugify(parsed.data.name) || before.slug,
+    });
+    await writeAudit({
+      actorId: actor.id,
+      action: 'brand.update',
+      entity: 'Brand',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not update the brand' };
+  }
+
+  revalidatePath('/brands');
+  revalidatePath('/products');
+  revalidatePath('/reports');
+  return { ok: 'Brand updated.' };
+}
+
+export async function setBrandActive(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  const activeValue = str(fd, 'active');
+  if (!id) return { error: 'Missing brand id' };
+  if (activeValue !== 'true' && activeValue !== 'false') return { error: 'Invalid brand status' };
+  const active = activeValue === 'true';
+
+  const before = await db.brands.findById(id);
+  if (!before) return { error: 'Brand not found' };
+  if (before.isActive === active) return { ok: active ? 'Brand restored.' : 'Brand removed.' };
+
+  if (!active) {
+    const products = await db.products.findAll({ brandId: id, activeOnly: true });
+    if (products.length > 0) {
+      return { error: 'Move or archive active products before removing this brand.' };
+    }
+  }
+
+  try {
+    const updated = await db.brands.update(id, { isActive: active });
+    await writeAudit({
+      actorId: actor.id,
+      action: active ? 'brand.restore' : 'brand.archive',
+      entity: 'Brand',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not change the brand status' };
+  }
+
+  revalidatePath('/brands');
+  revalidatePath('/products');
+  return { ok: active ? 'Brand restored.' : 'Brand removed.' };
 }
 
 export async function createSupplier(

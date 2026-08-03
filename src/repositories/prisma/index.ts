@@ -170,8 +170,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
 
   repositories = {
     categories: {
-      async findAll() {
-        return (await client.category.findMany({ orderBy: { name: 'asc' } })).map(category);
+      async findAll(filters) {
+        return (await client.category.findMany({
+          where: filters?.activeOnly ? { isActive: true } : undefined,
+          orderBy: { name: 'asc' },
+        })).map(category);
       },
       async findById(id) {
         const row = await client.category.findUnique({ where: { id } });
@@ -182,10 +185,18 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           return category(await client.category.create({ data }));
         } catch (error) { return friendlyDatabaseError(error); }
       },
+      async update(id, data) {
+        try {
+          return category(await client.category.update({ where: { id }, data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
     },
     brands: {
-      async findAll() {
-        return (await client.brand.findMany({ orderBy: { name: 'asc' } })).map(brand);
+      async findAll(filters) {
+        return (await client.brand.findMany({
+          where: filters?.activeOnly ? { isActive: true } : undefined,
+          orderBy: { name: 'asc' },
+        })).map(brand);
       },
       async findById(id) {
         const row = await client.brand.findUnique({ where: { id } });
@@ -194,6 +205,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       async create(data) {
         try {
           return brand(await client.brand.create({ data }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async update(id, data) {
+        try {
+          return brand(await client.brand.update({ where: { id }, data }));
         } catch (error) { return friendlyDatabaseError(error); }
       },
     },

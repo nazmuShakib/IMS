@@ -18,13 +18,19 @@ export default async function EditProductPage({
   const t = createTranslator(locale);
   const { id } = await params;
 
-  const [product, categories, brands] = await Promise.all([
+  const [product, allCategories, allBrands] = await Promise.all([
     db.products.findById(id),
     db.categories.findAll(),
     db.brands.findAll(),
   ]);
 
   if (!product) notFound();
+  const categories = allCategories.filter(
+    (category) => category.isActive || category.id === product.categoryId,
+  );
+  const brands = allBrands.filter(
+    (brand) => brand.isActive || brand.id === product.brandId,
+  );
 
   return (
     <>

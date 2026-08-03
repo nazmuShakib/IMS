@@ -14,8 +14,8 @@ export default async function NewProductPage() {
   const t = createTranslator(locale);
 
   const [categories, brands] = await Promise.all([
-    db.categories.findAll(),
-    db.brands.findAll(),
+    db.categories.findAll({ activeOnly: true }),
+    db.brands.findAll({ activeOnly: true }),
   ]);
 
   if (categories.length === 0) {

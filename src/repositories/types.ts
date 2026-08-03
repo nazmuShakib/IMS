@@ -37,15 +37,23 @@ import type { Paisa } from '@/lib/money';
  */
 
 export interface CategoryRepository {
-  findAll(): Promise<Category[]>;
+  findAll(filters?: { activeOnly?: boolean }): Promise<Category[]>;
   findById(id: string): Promise<Category | null>;
   create(data: Omit<Category, 'createdAt' | 'updatedAt'>): Promise<Category>;
+  update(
+    id: string,
+    data: Partial<Omit<Category, 'id' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<Category>;
 }
 
 export interface BrandRepository {
-  findAll(): Promise<Brand[]>;
+  findAll(filters?: { activeOnly?: boolean }): Promise<Brand[]>;
   findById(id: string): Promise<Brand | null>;
   create(data: Omit<Brand, 'createdAt' | 'updatedAt'>): Promise<Brand>;
+  update(
+    id: string,
+    data: Partial<Omit<Brand, 'id' | 'createdAt' | 'updatedAt'>>,
+  ): Promise<Brand>;
 }
 
 export interface SupplierRepository {

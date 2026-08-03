@@ -37,7 +37,10 @@ import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
 
 const categories: CategoryRepository = {
-  findAll: () => readAll<Category>('categories'),
+  async findAll(filters) {
+    const rows = await readAll<Category>('categories');
+    return filters?.activeOnly ? rows.filter((row) => row.isActive) : rows;
+  },
   async findById(id) {
     return (await readAll<Category>('categories')).find((c) => c.id === id) ?? null;
   },
@@ -49,10 +52,26 @@ const categories: CategoryRepository = {
       return row;
     });
   },
+  async update(id, data) {
+    return withLock(async () => {
+      const rows = await readAll<Category>('categories');
+      const index = rows.findIndex((item) => item.id === id);
+      const existing = rows[index];
+      if (!existing) throw new Error('Category not found');
+      const row: Category = { ...existing, ...data, updatedAt: nowIso() };
+      const copy = [...rows];
+      copy[index] = row;
+      await writeAll('categories', copy);
+      return row;
+    });
+  },
 };
 
 const brands: BrandRepository = {
-  findAll: () => readAll<Brand>('brands'),
+  async findAll(filters) {
+    const rows = await readAll<Brand>('brands');
+    return filters?.activeOnly ? rows.filter((row) => row.isActive) : rows;
+  },
   async findById(id) {
     return (await readAll<Brand>('brands')).find((b) => b.id === id) ?? null;
   },
@@ -61,6 +80,19 @@ const brands: BrandRepository = {
       const rows = await readAll<Brand>('brands');
       const row: Brand = { ...data, createdAt: nowIso(), updatedAt: nowIso() };
       await writeAll('brands', [...rows, row]);
+      return row;
+    });
+  },
+  async update(id, data) {
+    return withLock(async () => {
+      const rows = await readAll<Brand>('brands');
+      const index = rows.findIndex((item) => item.id === id);
+      const existing = rows[index];
+      if (!existing) throw new Error('Brand not found');
+      const row: Brand = { ...existing, ...data, updatedAt: nowIso() };
+      const copy = [...rows];
+      copy[index] = row;
+      await writeAll('brands', copy);
       return row;
     });
   },

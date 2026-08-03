@@ -1,7 +1,8 @@
 import { db } from '@/repositories';
 import { createCategory } from '@/actions/catalog';
 import { QuickCreateForm } from '@/components/catalog/QuickCreateForm';
-import { Card, EmptyState, PageHeader } from '@/components/ui';
+import { TaxonomyManager } from '@/components/catalog/TaxonomyManager';
+import { PageHeader } from '@/components/ui';
 import { getSession } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 
@@ -12,10 +13,13 @@ export default async function CategoriesPage() {
   const t = createTranslator(locale);
   const [categories, products] = await Promise.all([
     db.categories.findAll(),
-    db.products.findAll({ activeOnly: true }),
+    db.products.findAll(),
   ]);
 
-  const count = (id: string) => products.filter((p) => p.categoryId === id).length;
+  const productCounts = new Map<string, number>();
+  for (const product of products) {
+    productCounts.set(product.categoryId, (productCounts.get(product.categoryId) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -29,31 +33,18 @@ export default async function CategoriesPage() {
         />
       </div>}
 
-      <Card>
-        {categories.length === 0 ? (
-          <EmptyState title={t('catalog.noCategories')} />
-        ) : (
-          <ul>
-            {categories.map((c) => (
-              <li
-                key={c.id}
-                className="flex items-center justify-between border-b border-rule-soft px-4 py-2.5 last:border-0"
-              >
-                <div>
-                  <span className="text-[13px] font-medium">{c.name}</span>
-                  <span className="tnum ml-2 text-[11px] text-graphite">{c.slug}</span>
-                </div>
-                <span className="tnum text-[12px] text-graphite">
-                  {t('catalog.productCount', {
-                    count: count(c.id),
-                    kind: t(count(c.id) === 1 ? 'catalog.productSingle' : 'catalog.productPlural'),
-                  })}
-                </span>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
+      <TaxonomyManager
+        kind="category"
+        canManage={role !== 'STAFF'}
+        items={categories.map((category) => ({
+          id: category.id,
+          name: category.name,
+          slug: category.slug,
+          isActive: category.isActive,
+          productCount: productCounts.get(category.id) ?? 0,
+          createdAt: category.createdAt,
+        }))}
+      />
     </>
   );
 }
