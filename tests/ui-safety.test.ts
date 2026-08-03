@@ -17,12 +17,19 @@ describe('bounded data tables', () => {
     'src/app/(dashboard)/users/page.tsx',
     'src/app/(dashboard)/products/page.tsx',
     'src/app/(dashboard)/stock/movements/page.tsx',
-    'src/app/(dashboard)/products/[id]/page.tsx',
     'src/app/(dashboard)/stock/reconcile/page.tsx',
   ])('bounds the growing table in %s', (file) => {
     const page = source(file);
     expect(page).toContain('<TableViewport>');
     expect(page).toContain('sticky top-0');
+  });
+
+  it('bounds the extracted serialized-unit register', () => {
+    const page = source('src/app/(dashboard)/products/[id]/page.tsx');
+    const register = source('src/components/catalog/SerializedUnitRegister.tsx');
+    expect(page).toContain('<SerializedUnitRegister');
+    expect(register).toContain('<TableViewport>');
+    expect(register).toContain('sticky top-0');
   });
 });
 

@@ -5,41 +5,18 @@ import { canSeeCosts, getSession } from '@/lib/session';
 import { toProductDTO, toProductUnitDTO } from '@/lib/dto';
 import { getOnHand } from '@/services/stock';
 import { archiveProduct, restoreProduct } from '@/actions/catalog';
-import type { UnitStatus } from '@/domain/types';
+import { SerializedUnitRegister } from '@/components/catalog/SerializedUnitRegister';
 import {
   Badge,
   Button,
   Card,
-  EmptyState,
   Money,
   PageHeader,
-  SerialChip,
   StockCount,
-  TableViewport,
 } from '@/components/ui';
 import { createTranslator } from '@/lib/i18n/messages';
-import type { Locale } from '@/lib/i18n/config';
-import { domainLabel } from '@/lib/i18n/domain';
 
 export const dynamic = 'force-dynamic';
-
-const STATUS_TONE: Record<UnitStatus, 'ok' | 'neutral' | 'out' | 'low'> = {
-  IN_STOCK: 'ok',
-  RESERVED: 'low',
-  SOLD: 'neutral',
-  RETURNED: 'low',
-  DAMAGED: 'out',
-  LOST: 'out',
-  VOID: 'neutral', // entered in error and reversed out — not stock, not a sale
-};
-
-const dhaka = (iso: string, _locale: Locale) =>
-  new Date(iso).toLocaleDateString('en-GB', {
-    timeZone: 'Asia/Dhaka',
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
 
 export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -199,104 +176,12 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
       {/* --- The unit ledger: every physical device, individually ---------- */}
       {raw.trackingType === 'SERIAL' && (
-        <Card>
-          <div className="flex items-center justify-between border-b border-rule px-4 py-3">
-            <div>
-              <p className="text-[13px] font-medium">{t('stock.units')}</p>
-              <p className="tnum mt-0.5 text-[11px] text-graphite">
-                {t('products.unitsSummary', { stock: inStock.length, total: units.length })}
-              </p>
-            </div>
-          </div>
-
-          {units.length === 0 ? (
-            <EmptyState
-              title={t('products.noUnits')}
-              action={
-                <Link href={`/stock/in?product=${product.id}`}>
-                  <Button variant="ghost">{t('stock.receiveTitle')}</Button>
-                </Link>
-              }
-            />
-          ) : (
-            <TableViewport>
-              <table className="w-full">
-              <thead className="sticky top-0 z-10 bg-card">
-                <tr className="border-b border-rule">
-                  <th className="eyebrow px-4 py-2.5 text-left">{t('term.deviceNumber')}</th>
-                  <th className="eyebrow px-4 py-2.5 text-left">{t('common.status')}</th>
-                  <th className="eyebrow px-4 py-2.5 text-left">{t('labels.received')}</th>
-                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
-                  <th className="eyebrow px-4 py-2.5 text-right">{t('products.soldFor')}</th>
-                  {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('products.profit')}</th>}
-                </tr>
-              </thead>
-              <tbody>
-                {units.map((u) => {
-                  // Exact, per unit. No FIFO, no weighted average — this unit's own cost.
-                  const profit =
-                    showCosts && u.salePrice !== null && u.costPrice !== undefined
-                      ? u.salePrice - u.costPrice
-                      : null;
-
-                  return (
-                    <tr id={`unit-${u.id}`} key={u.id} className="scroll-mt-4 border-b border-rule-soft last:border-0 target:bg-signal-wash">
-                      <td className="px-4 py-2.5">
-                        <SerialChip serial={u.serialNo} dim={u.status !== 'IN_STOCK'} />
-                        {u.status === 'IN_STOCK' && (
-                          <>
-                            {u.location && (
-                              <span className="ml-2 text-[11px] text-graphite">{u.location}</span>
-                            )}
-                            <Link
-                              href={`/stock/out?serial=${encodeURIComponent(u.serialNo)}`}
-                              className="ml-2 text-[11px] text-signal underline underline-offset-2"
-                            >
-                              {t('products.sell')}
-                            </Link>
-                          </>
-                        )}
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <Badge tone={STATUS_TONE[u.status]}>
-                          {domainLabel(t, u.status)}
-                        </Badge>
-                      </td>
-                      <td className="tnum px-4 py-2.5 text-[12px] text-graphite">
-                        {dhaka(u.receivedAt, locale)}
-                      </td>
-                      {showCosts && (
-                        <td className="px-4 py-2.5 text-right">
-                          <Money value={u.costPrice ?? null} muted />
-                        </td>
-                      )}
-                      <td className="px-4 py-2.5 text-right">
-                        <Money value={u.salePrice} />
-                      </td>
-                      {showCosts && (
-                        <td className="px-4 py-2.5 text-right">
-                          {profit === null ? (
-                            <span className="text-graphite">—</span>
-                          ) : (
-                            <span
-                              className={`tnum text-[13px] font-medium ${
-                                profit >= 0 ? 'text-ok' : 'text-out'
-                              }`}
-                            >
-                              {profit >= 0 ? '+' : ''}
-                              <Money value={profit} />
-                            </span>
-                          )}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-              </table>
-            </TableViewport>
-          )}
-        </Card>
+        <SerializedUnitRegister
+          units={units}
+          productId={product.id}
+          showCosts={showCosts}
+          locale={locale}
+        />
       )}
     </>
   );
