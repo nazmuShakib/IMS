@@ -1210,7 +1210,28 @@ the stock-ledger or invoice ownership boundaries established in earlier phases.
   shop activity during rollout, revoke sessions after a clean-start reset, and run
   reconciliation plus authenticated smoke checks after deployment.
 
-### 20.5 Phase 9 completion gate
+### 20.5 Catalog maintenance controls
+
+**Implemented 3 August 2026:**
+
+- ADMIN and MANAGER can rename brands and categories. Every change is recorded
+  in the append-only audit log.
+- "Remove" is a reversible archive, never a hard delete, so historical products,
+  movements, invoices, and reports keep their original relationships. Removed
+  records can be restored.
+- A brand/category cannot be removed while an active product depends on it; a
+  category also cannot be removed while it has active child categories.
+- New products may use only active brands/categories. An existing product may
+  retain an archived selection, but cannot be changed to another archived one.
+- Brand and category pages provide immediate in-memory search, active/removed
+  status, product-usage, and ordering filters. Ordering supports newest/oldest,
+  most/fewest products, and name A–Z/Z–A without querying the database for every
+  filter change.
+- Long brand/category result sets scroll inside their own cards, while creation
+  controls and filters remain visible. Edit and archive/restore confirmation
+  dialogs remain outside the scroll layer.
+
+### 20.6 Phase 9 completion gate
 
 Phase 9 is complete only after:
 
