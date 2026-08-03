@@ -898,6 +898,7 @@ Vitest for units/services, Playwright for the critical flows.
 | **6** | **Swap to Neon** (§14). Should be a boring afternoon if §13.2 was respected. |
 | **7** | Barcode scanning + Warranty/RMA (§18) |
 | **8** | Customer records + cart checkout + printable invoices (§19) |
+| **9** | Production readiness, localization, account management, and operational tooling (§20) |
 
 ---
 
@@ -1151,7 +1152,86 @@ movement, but it does not pretend to be a customer-refund workflow.
 
 ---
 
-## 20. Still deferred after Phase 8
+## 20. Phase 9 — Production Readiness, Localization + Account Management
+
+**Implementation status: complete (3 August 2026).** Production migrations and
+the clean-start reset were completed, the current application was deployed, the
+production smoke check passed, and reconciliation reported no discrepancy.
+
+Phase 9 prepares the completed inventory system for client use without changing
+the stock-ledger or invoice ownership boundaries established in earlier phases.
+
+### 20.1 Mobile authentication and account settings
+
+- Replace public email login with Bangladeshi mobile-number login while retaining
+  opaque internal Better Auth email identifiers.
+- Normalize authentication numbers to `+880...` and require unique numbers.
+- Keep password credentials in Better Auth `Account` rows and preserve existing
+  passwords during the one-time mobile-auth migration.
+- Provide authenticated password change under Settings and ADMIN password reset
+  for other users; password changes revoke prior sessions.
+- Provide a guarded development-only emergency ADMIN recovery command with a
+  read-only inspection stage, explicit confirmation, Better Auth hashing, session
+  revocation, and an append-only audit record. No public forgot-password endpoint
+  is added while email/SMS recovery is unavailable.
+
+### 20.2 English/Bangla localization
+
+- Users can switch the application UI between English and বাংলা; the preference
+  is stored on `User.locale` and follows the authenticated account.
+- Navigation, forms, validation/notification messages, tables, dashboard metrics,
+  reports, and operational explanations use the shared translation catalog.
+- Dates retain familiar month names and use 12-hour Asia/Dhaka time. Invoice
+  language remains independent/deferred rather than duplicating invoice data.
+
+### 20.3 Responsive and operational UX
+
+- Provide mobile sidebar navigation, readable desktop scaling, compact mobile
+  spacing, responsive reports/invoices, stable dialogs, and non-overflowing search.
+- Use route-level loading screens for first visits and localized result-section
+  loading states for filtering, tab changes, and stock-label preparation.
+- Preserve immediate form selections during server navigation and avoid replacing
+  whole pages when only a result panel is loading.
+- Improve dashboard visual hierarchy, terminology, tooltips, icons, charts, and
+  success workflows such as receipt-to-label printing.
+
+### 20.4 Environment separation and production operations
+
+- Development uses an isolated Neon child branch; Vercel production uses only the
+  production branch connection strings. Development actions must never share the
+  production runtime URL.
+- Apply committed Prisma migrations with `prisma migrate deploy`, then run the
+  one-time mobile-auth data migration before client rollout.
+- Provide a guarded production business-data reset that preserves only `users`,
+  password `accounts`, and `_prisma_migrations`. It requires read-only inspection,
+  an exact database fingerprint, explicit destructive confirmation, a transaction,
+  `TRUNCATE ... RESTRICT`, preservation checks, and a final audit record.
+- Take a Neon snapshot before destructive production operations, prevent concurrent
+  shop activity during rollout, revoke sessions after a clean-start reset, and run
+  reconciliation plus authenticated smoke checks after deployment.
+
+### 20.5 Phase 9 completion gate
+
+Phase 9 is complete only after:
+
+1. Production schema migrations are current.
+2. The production ADMIN can sign in by mobile number.
+3. Any approved clean-start business-data reset has completed from a verified
+   snapshot and preserved users/accounts/preferences.
+4. The current application is deployed to the canonical Vercel production domain.
+5. Login, role enforcement, catalog CRUD, stock receipt/removal, checkout, invoice
+   printing, reports, localization, and mobile navigation pass production smoke
+   checks.
+6. Reconciliation reports no stock-versus-ledger discrepancy.
+
+**Completion confirmed 3 August 2026:** all six rollout checks passed.
+
+Offline mutation queues and conflict resolution are not part of Phase 9. They
+remain deferred and may become Phase 10 if revisited.
+
+---
+
+## 21. Still deferred after Phase 9
 
 - **Purchase orders & supplier ledger** — payables, partial deliveries, PO → receipt matching.
 - **VAT / tax invoices** — the `taxRate` field (basis points) exists, but legal and numbering requirements must be defined first.
