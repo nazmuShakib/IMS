@@ -1,35 +1,64 @@
 'use client';
 
 import { useActionState, useEffect, useState } from 'react';
+import { Pencil, RotateCcw, Trash2 } from 'lucide-react';
 
-import { updateSupplier } from '@/actions/catalog';
+import { setSupplierActive, updateSupplier } from '@/actions/catalog';
 import { Button, Field, Input } from '@/components/ui';
 import type { Supplier } from '@/domain/types';
 import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function SupplierEditor({ supplier }: { supplier: Supplier }) {
   const [open, setOpen] = useState(false);
+  const [confirmingStatus, setConfirmingStatus] = useState(false);
   const { t, message } = useI18n();
   const [state, action, pending] = useActionState(updateSupplier, {});
+  const [statusState, statusAction, statusPending] = useActionState(setSupplierActive, {});
 
   useEffect(() => {
     if (state.ok) setOpen(false);
   }, [state.ok]);
 
   useEffect(() => {
-    if (!open) return;
+    if (statusState.ok) setConfirmingStatus(false);
+  }, [statusState.ok]);
+
+  useEffect(() => {
+    if (!open && !confirmingStatus) return;
     const close = (event: KeyboardEvent) => {
-      if (event.key === 'Escape' && !pending) setOpen(false);
+      if (event.key === 'Escape' && !pending && !statusPending) {
+        setOpen(false);
+        setConfirmingStatus(false);
+      }
     };
     window.addEventListener('keydown', close);
     return () => window.removeEventListener('keydown', close);
-  }, [open, pending]);
+  }, [confirmingStatus, open, pending, statusPending]);
 
   return (
     <>
-      <Button type="button" variant="ghost" onClick={() => setOpen(true)}>
-        {t('suppliers.editAction')}
-      </Button>
+      <div className="flex shrink-0 items-center gap-1.5">
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          aria-label={t('common.edit')}
+          title={t('common.edit')}
+          className="inline-flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-rule bg-card transition-colors hover:bg-plate"
+        >
+          <Pencil aria-hidden="true" className="size-4 shrink-0" strokeWidth={2.2} />
+        </button>
+        <button
+          type="button"
+          onClick={() => setConfirmingStatus(true)}
+          aria-label={t(supplier.isActive ? 'catalog.remove' : 'catalog.restore')}
+          title={t(supplier.isActive ? 'catalog.remove' : 'catalog.restore')}
+          className={`inline-flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-rule bg-card transition-colors ${supplier.isActive ? 'text-out hover:bg-out-wash' : 'text-ink hover:bg-plate'}`}
+        >
+          {supplier.isActive
+            ? <Trash2 aria-hidden="true" className="size-4 shrink-0" strokeWidth={2.2} />
+            : <RotateCcw aria-hidden="true" className="size-4 shrink-0" strokeWidth={2.2} />}
+        </button>
+      </div>
 
       {open && (
         <div
@@ -92,6 +121,38 @@ export function SupplierEditor({ supplier }: { supplier: Supplier }) {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {confirmingStatus && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/40 p-4"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !statusPending) setConfirmingStatus(false);
+          }}
+        >
+          <div role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-[3px] border border-rule bg-card p-5 shadow-xl">
+            <h2 className="text-[16px] font-semibold">
+              {t(supplier.isActive ? 'suppliers.confirmRemove' : 'suppliers.confirmRestore')}
+            </h2>
+            <p className="mt-2 text-[13px] text-graphite">
+              {t(supplier.isActive ? 'suppliers.removeHelp' : 'suppliers.restoreHelp')}
+            </p>
+            <p className="mt-3 text-[14px] font-medium">{supplier.name}</p>
+            <form action={statusAction} className="mt-5 flex justify-end gap-2">
+              <input type="hidden" name="id" value={supplier.id} />
+              <input type="hidden" name="active" value={supplier.isActive ? 'false' : 'true'} />
+              <Button type="button" variant="ghost" onClick={() => setConfirmingStatus(false)} disabled={statusPending}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" variant={supplier.isActive ? 'danger' : 'primary'} disabled={statusPending}>
+                {statusPending ? t('common.saving') : t(supplier.isActive ? 'catalog.remove' : 'catalog.restore')}
+              </Button>
+            </form>
+            {statusState.error && (
+              <p className="mt-3 text-[12px] text-out">{message(statusState.error)}</p>
+            )}
           </div>
         </div>
       )}

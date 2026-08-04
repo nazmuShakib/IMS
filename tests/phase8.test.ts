@@ -35,7 +35,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     const editor = source('src/components/suppliers/SupplierEditor.tsx');
     const action = source('src/actions/catalog.ts');
     const repositories = source('src/repositories/types.ts');
-    expect(page).toContain("role !== 'STAFF' && <SupplierEditor");
+    expect(page).toContain("<SupplierRegister suppliers={suppliers} canManage={role !== 'STAFF'} />");
     expect(editor).toContain("t('suppliers.edit')");
     expect(editor).toContain("t('common.saveChanges')");
     expect(action).toContain('export async function updateSupplier');

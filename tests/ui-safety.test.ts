@@ -120,7 +120,7 @@ describe('plain-language terminology', () => {
     expect(ui).toContain('role="tooltip"');
     expect(products).toContain("t('term.productCode')");
     expect(products).toContain('placement="bottom"');
-    expect(products).toContain("p.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')");
+    expect(products).toContain("product.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')");
     expect(navigation).toContain("t('nav.removeStock')");
     expect(navigation).toContain("t('nav.warrantyClaims')");
     expect(navigation).toContain("t('nav.movementLedger')");

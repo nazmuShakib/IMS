@@ -580,3 +580,35 @@ export async function updateSupplier(
   revalidatePath('/suppliers');
   return { ok: 'Supplier updated.' };
 }
+
+export async function setSupplierActive(
+  _prev: ActionState,
+  fd: FormData,
+): Promise<ActionState> {
+  const actor = await requireCapability('MANAGE_CATALOG');
+  const id = str(fd, 'id');
+  const active = str(fd, 'active') === 'true';
+  if (!id) return { error: 'Missing supplier id' };
+
+  const before = await db.suppliers.findById(id);
+  if (!before) return { error: 'Supplier not found' };
+
+  try {
+    const updated = await db.suppliers.update(id, { isActive: active });
+    await writeAudit({
+      actorId: actor.id,
+      action: active ? 'supplier.restore' : 'supplier.archive',
+      entity: 'Supplier',
+      entityId: id,
+      before,
+      after: updated,
+    });
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : 'Could not change the supplier status' };
+  }
+
+  revalidatePath('/suppliers');
+  revalidatePath('/stock/in');
+  revalidatePath('/warranty');
+  return { ok: active ? 'Supplier restored.' : 'Supplier removed.' };
+}

@@ -209,7 +209,7 @@ describe('Phase 4 UI and API boundaries', () => {
 
   it('resolves movement actors from Better Auth instead of only legacy JSON users', () => {
     const ledger = source('src/app/(dashboard)/stock/movements/page.tsx');
-    expect(ledger).toContain('getAuthUserNames(all.map((movement) => movement.actorId))');
-    expect(ledger).toContain('actorNameById.get(m.actorId)');
+    expect(ledger).toContain('getAuthUserNames(filteredMovements.map((movement) => movement.actorId))');
+    expect(ledger).toContain('actorNameById.get(movement.actorId)');
   });
 });

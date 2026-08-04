@@ -1,21 +1,34 @@
 import Link from 'next/link';
+
 import { db } from '@/repositories';
 import { canSeeCosts, getAuthUserNames, getSession } from '@/lib/session';
 import { ReverseButton } from '@/components/stock/ReverseButton';
+import { MovementWorkspace } from '@/components/stock/MovementWorkspace';
 import {
   Badge,
+  Button,
   Card,
   EmptyState,
+  Field,
+  Input,
   Money,
   PageHeader,
+  Select,
   SerialChip,
   TableViewport,
 } from '@/components/ui';
-import type { MovementReason } from '@/domain/types';
+import {
+  MOVEMENT_REASONS,
+  MOVEMENT_TYPES,
+  type MovementReason,
+  type MovementType,
+} from '@/domain/types';
 import { createTranslator, type MessageKey } from '@/lib/i18n/messages';
 import type { Locale } from '@/lib/i18n/config';
 
 export const dynamic = 'force-dynamic';
+
+type RawParams = Record<string, string | string[] | undefined>;
 
 const REASON_LABEL: Record<MovementReason, MessageKey> = {
   INITIAL_STOCK: 'reason.initialStock',
@@ -41,209 +54,236 @@ const stamp = (iso: string, _locale: Locale) =>
     hour12: true,
   });
 
+function one(raw: RawParams, key: string): string {
+  const value = raw[key];
+  return (Array.isArray(value) ? value[0] : value)?.trim() ?? '';
+}
+
+function dateBoundary(value: string, endOfDay = false): Date | undefined {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
+  const date = new Date(`${value}T${endOfDay ? '23:59:59.999' : '00:00:00'}+06:00`);
+  return Number.isNaN(date.getTime()) ? undefined : date;
+}
+
 export default async function MovementsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ reason?: string; product?: string }>;
+  searchParams: Promise<RawParams>;
 }) {
-  const { reason, product: productFilter } = await searchParams;
+  const rawParams = await searchParams;
+  const query = one(rawParams, 'q');
+  const from = one(rawParams, 'from');
+  const to = one(rawParams, 'to');
+  const productFilter = one(rawParams, 'product');
+  const typeValue = one(rawParams, 'type');
+  const reasonValue = one(rawParams, 'reason');
+  const actorFilter = one(rawParams, 'actor');
+  const order = one(rawParams, 'order') === 'oldest' ? 'oldest' : 'newest';
+  const reason = MOVEMENT_REASONS.includes(reasonValue as MovementReason)
+    ? reasonValue as MovementReason
+    : undefined;
+  const type = MOVEMENT_TYPES.includes(typeValue as MovementType)
+    ? typeValue as MovementType
+    : undefined;
+  const fromDate = dateBoundary(from) ?? new Date(0);
+  const toDate = dateBoundary(to, true) ?? new Date();
+  const invalidDateRange = fromDate > toDate;
+
   const { role, locale } = await getSession();
   const t = createTranslator(locale);
   const showCosts = canSeeCosts(role);
   const canReverse = role === 'ADMIN' || role === 'MANAGER';
 
-  const [all, products, users] = await Promise.all([
-    // The ledger has no findAll — by design, reads are bounded. Epoch → now is
-    // "everything", and it becomes an indexed range scan in Postgres (§6).
-    db.movements.findByDateRange(new Date(0), new Date(), {
-      reason: reason as MovementReason | undefined,
-      productId: productFilter,
-    }),
+  const [candidateMovements, products, users, corrections, exactUnit] = await Promise.all([
+    invalidDateRange
+      ? Promise.resolve([])
+      : db.movements.findByDateRange(fromDate, toDate, {
+          reason,
+          productId: productFilter || undefined,
+          type,
+          actorId: actorFilter || undefined,
+        }),
     db.products.findAll(),
     db.users.findAll(),
+    db.movements.findByDateRange(new Date(0), new Date(), { reason: 'CORRECTION' }),
+    query ? db.units.findBySerial(query) : Promise.resolve(null),
   ]);
 
-  const productById = new Map(products.map((p) => [p.id, p]));
+  const productById = new Map(products.map((product) => [product.id, product]));
+  const normalizedQuery = query.toLocaleLowerCase();
+  const filteredMovements = normalizedQuery
+    ? candidateMovements.filter((movement) => {
+        const product = productById.get(movement.productId);
+        return product?.name.toLocaleLowerCase().includes(normalizedQuery)
+          || product?.sku.toLocaleLowerCase().includes(normalizedQuery)
+          || movement.reference?.toLocaleLowerCase().includes(normalizedQuery)
+          || movement.note?.toLocaleLowerCase().includes(normalizedQuery)
+          || movement.unitId === exactUnit?.id;
+      })
+    : candidateMovements;
+
   const actorNameById = new Map(users.map((user) => [user.id, user.name]));
-  const authActorNames = await getAuthUserNames(all.map((movement) => movement.actorId));
+  const authActorNames = await getAuthUserNames(filteredMovements.map((movement) => movement.actorId));
   for (const [id, name] of authActorNames) actorNameById.set(id, name);
 
-  // Which entries have already been reversed? They shouldn't offer the button.
-  const reversedIds = new Set(all.map((m) => m.reversesId).filter(Boolean));
-
+  const reversedIds = new Set(corrections.map((movement) => movement.reversesId).filter(Boolean));
+  const sorted = [...filteredMovements].sort((a, b) => (
+    order === 'oldest'
+      ? a.createdAt.localeCompare(b.createdAt)
+      : b.createdAt.localeCompare(a.createdAt)
+  ));
   const rows = await Promise.all(
-    all
-      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-      .slice(0, 200)
-      .map(async (m) => ({
-        m,
-        serial: m.unitId ? ((await db.units.findById(m.unitId))?.serialNo ?? null) : null,
-      })),
+    sorted.slice(0, 200).map(async (movement) => ({
+      movement,
+      serial: movement.unitId ? ((await db.units.findById(movement.unitId))?.serialNo ?? null) : null,
+    })),
   );
+
+  const tabs = [
+    { reason: '', label: t('ledger.all') },
+    { reason: 'PURCHASE', label: t('ledger.purchases') },
+    { reason: 'SALE', label: t('ledger.sales') },
+    { reason: 'DAMAGE', label: t('ledger.damage') },
+    { reason: 'LOSS', label: t('ledger.loss') },
+    { reason: 'CORRECTION', label: t('ledger.corrections') },
+  ];
 
   return (
     <>
       <PageHeader
         title={t('nav.movementLedger')}
-        count={t('ledger.entries', { count: all.length })}
+        count={t('ledger.entries', { count: filteredMovements.length })}
       />
 
-      <nav className="mb-4 flex flex-wrap gap-1.5">
-        {[
-          ['', t('ledger.all')],
-          ['PURCHASE', t('ledger.purchases')],
-          ['SALE', t('ledger.sales')],
-          ['DAMAGE', t('ledger.damage')],
-          ['LOSS', t('ledger.loss')],
-          ['CORRECTION', t('ledger.corrections')],
-        ].map(([value, label]) => {
-          const active = (reason ?? '') === value;
-          return (
-            <Link
-              key={label}
-              href={value ? `/stock/movements?reason=${value}` : '/stock/movements'}
-              className={`rounded-[3px] border px-2.5 py-1 text-[12px] transition-colors ${
-                active
-                  ? 'border-ink bg-ink text-white'
-                  : 'border-rule bg-card text-graphite hover:text-ink'
-              }`}
-            >
-              {label}
-            </Link>
-          );
-        })}
-      </nav>
+      <MovementWorkspace
+        tabs={tabs}
+        confirmedReason={reason ?? ''}
+        resultVersion={crypto.randomUUID()}
+      >
+        <Card className="mb-4 p-4">
+          <form action="/stock/movements" className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {reason && <input type="hidden" name="reason" value={reason} />}
+            <div className="sm:col-span-2">
+              <Field label={t('common.search')}>
+                <Input
+                  type="search"
+                  name="q"
+                  defaultValue={query}
+                  placeholder={t('ledger.searchPlaceholder')}
+                />
+              </Field>
+            </div>
+            <Field label={t('invoices.fromDate')}>
+              <Input type="date" name="from" defaultValue={from} />
+            </Field>
+            <Field label={t('invoices.toDate')}>
+              <Input type="date" name="to" defaultValue={to} />
+            </Field>
+            <Field label={t('common.product')}>
+              <Select name="product" defaultValue={productFilter}>
+                <option value="">{t('ledger.allProducts')}</option>
+                {products.map((product) => (
+                  <option key={product.id} value={product.id}>{product.sku} — {product.name}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label={t('ledger.direction')}>
+              <Select name="type" defaultValue={type ?? ''}>
+                <option value="">{t('ledger.allDirections')}</option>
+                <option value="IN">{t('ledger.stockIn')}</option>
+                <option value="OUT">{t('ledger.stockOut')}</option>
+                <option value="ADJUST">{t('ledger.adjustments')}</option>
+              </Select>
+            </Field>
+            <Field label={t('ledger.by')}>
+              <Select name="actor" defaultValue={actorFilter}>
+                <option value="">{t('ledger.allUsers')}</option>
+                {users.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}
+              </Select>
+            </Field>
+            <Field label={t('catalog.orderBy')}>
+              <Select name="order" defaultValue={order}>
+                <option value="newest">{t('ledger.newestFirst')}</option>
+                <option value="oldest">{t('ledger.oldestFirst')}</option>
+              </Select>
+            </Field>
+            <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
+              <Button type="submit">{t('common.applyFilters')}</Button>
+              <Button type="button" variant="ghost" data-ledger-reset>{t('common.reset')}</Button>
+            </div>
+          </form>
+          {invalidDateRange && <p className="mt-3 text-[12px] text-out">{t('invoices.invalidDates')}</p>}
+          <p className="mt-3 text-[11px] text-graphite">{t('ledger.limitHelp')}</p>
+        </Card>
 
-      <Card>
-        {rows.length === 0 ? (
-          <EmptyState title={t('ledger.empty')} />
-        ) : (
-          <TableViewport>
-            <table className="w-full">
-            <thead className="sticky top-0 z-10 bg-card">
-              <tr className="border-b border-rule">
-                <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.when')}</th>
-                <th className="eyebrow px-4 py-2.5 text-left">{t('common.product')}</th>
-                <th className="eyebrow px-4 py-2.5 text-left">{t('stock.reason')}</th>
-                <th className="eyebrow px-4 py-2.5 text-right">{t('ledger.qty')}</th>
-                {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
-                <th className="eyebrow px-4 py-2.5 text-right">{t('common.price')}</th>
-                <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.by')}</th>
-                {canReverse && <th className="px-4 py-2.5" />}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ m, serial }) => {
-                const p = productById.get(m.productId);
-                const inbound = m.quantity > 0;
-                const isCorrection = m.reason === 'CORRECTION';
-                const wasReversed = reversedIds.has(m.id);
-
-                return (
-                  <tr
-                    key={m.id}
-                    className={`border-b border-rule-soft last:border-0 ${
-                      isCorrection ? 'bg-plate/40' : ''
-                    }`}
-                  >
-                    <td className="tnum px-4 py-2.5 text-[12px] whitespace-nowrap text-graphite">
-                      {stamp(m.createdAt, locale)}
-                    </td>
-
-                    <td className="px-4 py-2.5">
-                      {p ? (
-                        <Link href={`/products/${p.id}`} className="text-[13px] hover:text-signal">
-                          {p.name}
-                        </Link>
-                      ) : (
-                        <span className="text-[13px] text-graphite">—</span>
-                      )}
-                      {serial && (
-                        <span className="mt-1 block">
-                          <SerialChip serial={serial} dim />
-                        </span>
-                      )}
-                      {m.reference && (
-                        <span className="tnum mt-0.5 block text-[11px] text-graphite">
-                          {m.reference}
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-2.5">
-                      <Badge
-                        tone={
-                          isCorrection
-                            ? 'low'
-                            : m.reason === 'SALE'
-                              ? 'ok'
-                              : inbound
-                                ? 'signal'
-                                : 'out'
-                        }
-                      >
-                        {t(REASON_LABEL[m.reason])}
-                      </Badge>
-                      {m.note && (
-                        <span className="mt-1 block max-w-56 text-[11px] text-graphite">
-                          {m.note}
-                        </span>
-                      )}
-                      {wasReversed && (
-                        <span className="mt-1 block text-[11px] text-low">{t('ledger.reversed')}</span>
-                      )}
-                    </td>
-
-                    {/* The sign IS the direction. There is no separate in/out column. */}
-                    <td className="px-4 py-2.5 text-right">
-                      <span
-                        className={`tnum text-[13px] font-medium ${
-                          inbound ? 'text-ok' : 'text-out'
-                        }`}
-                      >
-                        {inbound ? '+' : ''}
-                        {m.quantity}
-                      </span>
-                    </td>
-
-                    {showCosts && (
-                      <td className="px-4 py-2.5 text-right">
-                        <Money value={m.unitCost} muted />
-                      </td>
-                    )}
-                    <td className="px-4 py-2.5 text-right">
-                      <Money value={m.unitPrice} />
-                    </td>
-
-                    <td className="px-4 py-2.5 text-[12px] text-graphite">
-                      {m.actorId ? (actorNameById.get(m.actorId) ?? t('ledger.unknownUser')) : t('ledger.system')}
-                    </td>
-
-                    {canReverse && (
-                      <td className="px-4 py-2.5 text-right">
-                        {!isCorrection && !wasReversed && (
-                          <ReverseButton
-                            movementId={m.id}
-                            label={t('ledger.movementLabel', {
-                              reason: t(REASON_LABEL[m.reason]),
-                              item: p?.name ?? t('ledger.item'),
-                            })}
-                          />
-                        )}
-                      </td>
-                    )}
+        <Card>
+          {rows.length === 0 ? (
+            <EmptyState title={t('ledger.empty')} />
+          ) : (
+            <TableViewport>
+              <table className="w-full">
+                <thead className="sticky top-0 z-10 bg-card">
+                  <tr className="border-b border-rule">
+                    <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.when')}</th>
+                    <th className="eyebrow px-4 py-2.5 text-left">{t('common.product')}</th>
+                    <th className="eyebrow px-4 py-2.5 text-left">{t('stock.reason')}</th>
+                    <th className="eyebrow px-4 py-2.5 text-right">{t('ledger.qty')}</th>
+                    {showCosts && <th className="eyebrow px-4 py-2.5 text-right">{t('common.cost')}</th>}
+                    <th className="eyebrow px-4 py-2.5 text-right">{t('common.price')}</th>
+                    <th className="eyebrow px-4 py-2.5 text-left">{t('ledger.by')}</th>
+                    {canReverse && <th className="px-4 py-2.5" />}
                   </tr>
-                );
-              })}
-            </tbody>
-            </table>
-          </TableViewport>
-        )}
-      </Card>
+                </thead>
+                <tbody>
+                  {rows.map(({ movement, serial }) => {
+                    const product = productById.get(movement.productId);
+                    const inbound = movement.quantity > 0;
+                    const isCorrection = movement.reason === 'CORRECTION';
+                    const wasReversed = reversedIds.has(movement.id);
+                    return (
+                      <tr key={movement.id} className={`border-b border-rule-soft last:border-0 ${isCorrection ? 'bg-plate/40' : ''}`}>
+                        <td className="tnum whitespace-nowrap px-4 py-2.5 text-[12px] text-graphite">{stamp(movement.createdAt, locale)}</td>
+                        <td className="px-4 py-2.5">
+                          {product ? <Link href={`/products/${product.id}`} className="text-[13px] hover:text-signal">{product.name}</Link> : <span className="text-[13px] text-graphite">—</span>}
+                          {serial && <span className="mt-1 block"><SerialChip serial={serial} dim /></span>}
+                          {movement.reference && <span className="tnum mt-0.5 block text-[11px] text-graphite">{movement.reference}</span>}
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <Badge tone={isCorrection ? 'low' : movement.reason === 'SALE' ? 'ok' : inbound ? 'signal' : 'out'}>
+                            {t(REASON_LABEL[movement.reason])}
+                          </Badge>
+                          {movement.note && <span className="mt-1 block max-w-56 text-[11px] text-graphite">{movement.note}</span>}
+                          {wasReversed && <span className="mt-1 block text-[11px] text-low">{t('ledger.reversed')}</span>}
+                        </td>
+                        <td className="px-4 py-2.5 text-right">
+                          <span className={`tnum text-[13px] font-medium ${inbound ? 'text-ok' : 'text-out'}`}>{inbound ? '+' : ''}{movement.quantity}</span>
+                        </td>
+                        {showCosts && <td className="px-4 py-2.5 text-right"><Money value={movement.unitCost} muted /></td>}
+                        <td className="px-4 py-2.5 text-right"><Money value={movement.unitPrice} /></td>
+                        <td className="px-4 py-2.5 text-[12px] text-graphite">
+                          {movement.actorId ? (actorNameById.get(movement.actorId) ?? t('ledger.unknownUser')) : t('ledger.system')}
+                        </td>
+                        {canReverse && (
+                          <td className="px-4 py-2.5 text-right">
+                            {!isCorrection && !wasReversed && (
+                              <ReverseButton
+                                movementId={movement.id}
+                                label={t('ledger.movementLabel', { reason: t(REASON_LABEL[movement.reason]), item: product?.name ?? t('ledger.item') })}
+                              />
+                            )}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </TableViewport>
+          )}
+        </Card>
+      </MovementWorkspace>
 
-      <p className="mt-3 text-[12px] text-graphite">
-        {t('ledger.appendOnlyHelp')}
-      </p>
+      <p className="mt-3 text-[12px] text-graphite">{t('ledger.appendOnlyHelp')}</p>
     </>
   );
 }

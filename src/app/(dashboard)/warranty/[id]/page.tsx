@@ -23,6 +23,7 @@ export default async function WarrantyDetailPage({ params }: { params: Promise<{
     db.suppliers.findAll(), db.users.findAll(),
   ]);
   const product = unit ? await db.products.findById(unit.productId) : null;
+  const selectableSuppliers = suppliers.filter((supplier) => supplier.isActive || supplier.id === supplierCase?.supplierId);
   const names = await getAuthUserNames([claim.openedById, claim.assignedToId, ...events.map((e) => e.actorId)]);
   for (const user of users) names.set(user.id, user.name);
   const manage = role === 'ADMIN' || role === 'MANAGER';
@@ -45,7 +46,7 @@ export default async function WarrantyDetailPage({ params }: { params: Promise<{
         <Card className="p-5"><p className="eyebrow mb-3">{t('warranty.ownership')}</p><dl className="grid gap-3 text-[12px]"><div><dt className="text-graphite">{t('warranty.openedBy')}</dt><dd>{names.get(claim.openedById) ?? t('ledger.unknownUser')}</dd></div><div><dt className="text-graphite">{t('warranty.assignedTo')}</dt><dd>{claim.assignedToId ? names.get(claim.assignedToId) ?? t('ledger.unknownUser') : t('warranty.unassigned')}</dd></div><div><dt className="text-graphite">{t('warranty.opened')}</dt><dd>{stamp(claim.openedAt, locale)}</dd></div></dl></Card>
         {manage && !terminal && <Card className="p-5"><p className="eyebrow mb-3">{t('warranty.workflow')}</p><WarrantyTransitionForm claimId={claim.id} status={claim.status} coverage={claim.coverage} users={users} /></Card>}
         {manage && canResolve && <Card className="p-5"><p className="eyebrow mb-2">{t('warranty.inventoryResolution')}</p><p className="mb-3 text-[11px] text-graphite">{t('warranty.inventoryResolutionHelp')}</p><WarrantyResolutionForm claimId={claim.id} status={claim.status} /></Card>}
-        {manage && <Card className="p-5"><p className="eyebrow mb-2">{t('warranty.supplierWarranty')}</p><p className="mb-3 text-[11px] text-graphite">{t('warranty.supplierWarrantyHelp')}</p><SupplierWarrantyForm claimId={claim.id} suppliers={suppliers} value={supplierCase} /></Card>}
+        {manage && <Card className="p-5"><p className="eyebrow mb-2">{t('warranty.supplierWarranty')}</p><p className="mb-3 text-[11px] text-graphite">{t('warranty.supplierWarrantyHelp')}</p><SupplierWarrantyForm claimId={claim.id} suppliers={selectableSuppliers} value={supplierCase} /></Card>}
       </div>
     </div>
   </div>;

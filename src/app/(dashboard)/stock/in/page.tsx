@@ -21,6 +21,7 @@ export default async function StockInPage({
     db.products.findAll({ activeOnly: true }),
     db.suppliers.findAll(),
   ]);
+  const activeSuppliers = suppliers.filter((supplier) => supplier.isActive);
 
   return (
     <>
@@ -30,7 +31,7 @@ export default async function StockInPage({
       />
       <StockInForm
         products={products.map((item) => toProductDTO(item, role))}
-        suppliers={suppliers}
+        suppliers={activeSuppliers}
         initialProductId={product}
       />
     </>
