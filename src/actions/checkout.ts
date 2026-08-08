@@ -11,6 +11,7 @@ import { db } from '@/repositories';
 import {
   addCartItem,
   checkoutCart,
+  clearTradeInDraft,
   createCustomer,
   discardCart,
   removeCartItem,
@@ -155,11 +156,32 @@ export async function discardCartAction(
         customerId: discarded.cart.customerId,
         paymentMethod: discarded.cart.paymentMethod,
         paymentStatus: discarded.cart.paymentStatus,
+        tradeInAcquisitionId: discarded.cart.tradeInAcquisitionId,
         itemCount: discarded.itemCount,
       },
     });
     revalidatePath('/checkout');
     return { ok: 'Draft discarded. A fresh empty draft is ready.' };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function clearTradeInDraftAction(
+  _previous: CheckoutActionState,
+  fd: FormData,
+): Promise<CheckoutActionState> {
+  const actor = await requireCapability('MANAGE_USED_DEVICES');
+  try {
+    const cart = await clearTradeInDraft(str(fd, 'cartId') ?? '', actor.id);
+    await writeAudit({
+      actorId: actor.id,
+      action: 'trade_in.draft_discard',
+      entity: 'CartDraft',
+      entityId: cart.id,
+    });
+    revalidatePath('/checkout');
+    return { ok: 'Trade-in removed from this checkout.' };
   } catch (error) {
     return { error: message(error) };
   }
@@ -179,6 +201,8 @@ export async function updateCartDetailsAction(
       paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
       reference: str(fd, 'reference'),
       note: str(fd, 'note'),
+      tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
+      actorRole: actor.role,
     });
     await writeAudit({
       actorId: actor.id,
@@ -190,6 +214,7 @@ export async function updateCartDetailsAction(
         paymentMethod: cart.paymentMethod,
         paymentStatus: cart.paymentStatus,
         reference: cart.reference,
+        tradeInAcquisitionId: cart.tradeInAcquisitionId,
       },
     });
     revalidatePath('/checkout');
@@ -218,6 +243,7 @@ export async function createCustomerAction(
         cartId: cart.id,
         actorId: actor.id,
         customerId: customer.id,
+        actorRole: actor.role,
       });
     }
     await writeAudit({
@@ -251,6 +277,8 @@ export async function checkoutAction(
       paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
       reference: str(fd, 'reference'),
       note: str(fd, 'note'),
+      tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
+      actorRole: actor.role,
     });
     const sale = await checkoutCart({
       cartId,
@@ -272,6 +300,7 @@ export async function checkoutAction(
         subtotal: sale.subtotal,
         discount: sale.discount,
         total: sale.total,
+        tradeInCredit: sale.tradeInCredit,
       },
     });
   } catch (error) {

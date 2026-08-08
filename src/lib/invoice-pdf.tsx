@@ -20,6 +20,7 @@ const styles = StyleSheet.create({
   summaryRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 3 },
   total: { borderTopWidth: 1, paddingTop: 6, marginTop: 3, fontFamily: 'Helvetica-Bold', fontSize: 12 },
   note: { marginTop: 18, color: '#626c76', fontSize: 8 },
+  tradeIn: { marginTop: 12, borderWidth: 0.5, borderColor: '#d5dade', padding: 8 },
   footer: { position: 'absolute', left: 34, right: 34, bottom: 24, color: '#626c76', fontSize: 7 },
 });
 
@@ -71,16 +72,35 @@ function InvoiceDocument({
             <View style={styles.item}>
               <Text>{item.productName}</Text>
               <Text style={styles.muted}>Code (SKU) {item.sku}{item.serialNo ? ` / Device no. ${item.serialNo}` : ''}</Text>
+              {item.usedGrade && <Text style={styles.muted}>Used phone / {item.usedGrade === 'REFURBISHED' ? 'Refurbished' : item.usedGrade.replace('GRADE_', 'Grade ')}</Text>}
+              {item.knownDefects && <Text style={styles.muted}>Declared defects: {item.knownDefects}</Text>}
+              {item.warrantyDays
+                ? <Text style={styles.muted}>{item.warrantyDays} {item.warrantyDays === 1 ? 'day' : 'days'} warranty</Text>
+                : item.warrantyMonths
+                  ? <Text style={styles.muted}>{item.warrantyMonths} {item.warrantyMonths === 1 ? 'month' : 'months'} warranty</Text>
+                  : null}
             </View>
             <Text style={styles.qty}>{item.quantity}</Text>
             <Text style={styles.amount}>{money(item.actualUnitPrice)}</Text>
             <Text style={styles.amount}>{money(item.lineTotal)}</Text>
           </View>
         ))}
+        {sale.tradeInDetails && (
+          <View style={styles.tradeIn} wrap={false}>
+            <Text style={styles.label}>Trade-in device</Text>
+            <Text>{sale.tradeInDetails.productName}</Text>
+            <Text style={styles.muted}>Code (SKU) {sale.tradeInDetails.sku} / Device no. {sale.tradeInDetails.serialNo}</Text>
+            <Text style={styles.muted}>{sale.tradeInDetails.grade === 'REFURBISHED' ? 'Refurbished' : sale.tradeInDetails.grade.replace('GRADE_', 'Grade ')} / Credit {money(sale.tradeInDetails.acquisitionValue)}</Text>
+          </View>
+        )}
         <View style={styles.summary}>
-          <View style={styles.summaryRow}><Text>List subtotal</Text><Text>{money(sale.subtotal)}</Text></View>
-          {sale.discount !== 0 && <View style={styles.summaryRow}><Text>Price adjustment</Text><Text>{money(sale.discount)}</Text></View>}
           <View style={[styles.summaryRow, styles.total]}><Text>Total</Text><Text>{money(sale.total)}</Text></View>
+          {sale.tradeInCredit > 0 && (
+            <>
+              <View style={styles.summaryRow}><Text>Trade-in credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>
+              <View style={[styles.summaryRow, styles.total]}><Text>Amount due</Text><Text>{money(sale.total - sale.tradeInCredit)}</Text></View>
+            </>
+          )}
         </View>
         {sale.note && <Text style={styles.note}>Note: {sale.note}</Text>}
         <View style={styles.footer}>

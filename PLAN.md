@@ -1247,6 +1247,51 @@ Phase 9 is complete only after:
 
 **Completion confirmed 3 August 2026:** all six rollout checks passed.
 
+### 20.7 Post-completion extension — accepted used-phone intake
+
+**Implementation status: complete (8 August 2026).**
+
+Used phones are stored as serialized physical units of the existing product
+model; “new” and “used” are not catalog categories. Only MANAGER and ADMIN can
+inspect and accept a used phone. STAFF may view and sell an accepted unit, but
+there is no staff-prepared draft, pending approval queue, rejected-device record,
+photo storage, consignment workflow, or “for parts” grade.
+
+- The intake displays a collapsible checklist with Working, Defective, Not tested,
+  and Not applicable outcomes. Matching IMEI, cleared account/activation lock,
+  seller ownership confirmation, and server-side duplicate-IMEI validation are
+  acceptance gates.
+- Grades are A, B, C, and Refurbished, with definitions shown at the point of
+  selection. Battery health, declared defects, accessories, unit asking price,
+  location, and configurable warranty duration in exact days or calendar months
+  belong to `ProductUnit`.
+- `UsedDeviceAcquisition` is accepted-only permanent history: direct purchase or
+  completed checkout trade-in, normalized Bangladeshi seller mobile, optional identification text,
+  approved value, accepting user, declaration, reference, and note. It is not a
+  temporary inspection table.
+- A direct purchase uses one idempotent transaction to create the unit, accepted
+  acquisition, and exactly one `+1 PURCHASE` movement. A trade-in starts only
+  from Checkout and is stored provisionally inside that actor's cart draft; it
+  creates no unit, movement, credit, or acquisition until the linked sale commits.
+- Itemized pre-sale `RefurbishmentExpense` rows increase the exact unit cost while
+  preserving the original acquisition value. They can be added only while the
+  used phone remains in stock.
+- Unit asking price is the checkout default. Invoice items snapshot grade,
+  declared defects, warranty, and IMEI so later edits cannot rewrite the sale.
+- Trade-in value is stored and printed as payment credit, never as a selling-price
+  discount. On completion, the incoming unit, `+1 TRADE_IN` movement, acquisition,
+  outgoing sale movements, invoice, and acquisition-to-sale link commit in one
+  database transaction. Cancelling or discarding checkout deletes only the draft.
+  Legacy unattached trade-ins are not offered by Checkout; new trade-ins always
+  use the atomic cart-owned workflow. Credit above the sale total is intentionally rejected until cash-payout
+  accounting is designed.
+- The existing serialized-unit page filters new/used grades and acquisition type,
+  shows role-safe condition/acquisition details, and supports authorized
+  refurbishment costs and asking-price/warranty updates.
+
+The Phase 10 staff discount floor is deliberately not part of this extension.
+Until Phase 10, existing checkout price-editing behavior remains unchanged.
+
 Offline mutation queues and conflict resolution are not part of Phase 9. They
 remain deferred and may become Phase 10 if revisited.
 
@@ -1258,3 +1303,4 @@ remain deferred and may become Phase 10 if revisited.
 - **VAT / tax invoices** — the `taxRate` field (basis points) exists, but legal and numbering requirements must be defined first.
 - **Camera barcode scanning** — USB/Bluetooth keyboard scanners are Phase 7.
 - **Multi-branch** — requires `Location`, location-aware on-hand invariants, unit locations, transfers, permissions, and reports. Treat this as a separate major phase.
+- **Trade-in cash payout above sale total** — requires payment-out/refund accounting; current trade-in credit cannot exceed the sale total.

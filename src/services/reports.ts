@@ -275,7 +275,7 @@ function agingRows(ctx: Context, filters: ReportFilters, now: Date): ReportResul
   const reversedIds = new Set(ctx.movements.map((movement) => movement.reversesId).filter((id): id is string => Boolean(id)));
   for (const product of ctx.products.filter((item) => item.trackingType === 'QUANTITY' && allowedProduct(item, filters))) {
     let remaining = product.quantityOnHand;
-    const lots = ctx.movements.filter((movement) => movement.productId === product.id && movement.quantity > 0 && movement.reason !== 'CORRECTION' && !reversedIds.has(movement.id) && ['PURCHASE', 'INITIAL_STOCK', 'CUSTOMER_RETURN'].includes(economicReason(movement, byId))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const lots = ctx.movements.filter((movement) => movement.productId === product.id && movement.quantity > 0 && movement.reason !== 'CORRECTION' && !reversedIds.has(movement.id) && ['PURCHASE', 'TRADE_IN', 'INITIAL_STOCK', 'CUSTOMER_RETURN'].includes(economicReason(movement, byId))).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     for (const lot of lots) { if (remaining <= 0) break; const quantity = Math.min(remaining, lot.quantity); add(lot.createdAt, quantity, lot.unitCost); remaining -= quantity; }
     if (remaining > 0) add(product.createdAt, remaining, product.avgCostPrice);
   }

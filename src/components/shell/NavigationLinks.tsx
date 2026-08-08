@@ -18,6 +18,7 @@ import {
   Settings,
   ShieldCheck,
   ShoppingCart,
+  Smartphone,
   Tags,
   Truck,
   UserCog,
@@ -68,6 +69,7 @@ export function NavigationLinks({
       ))}
       {role !== 'STAFF' && (
         <>
+          <NavLink href="/stock/used-intake" onClick={onNavigate} icon={icon(Smartphone)}>{t('nav.usedPhoneIntake')}</NavLink>
           <NavLink href="/stock/reconcile" onClick={onNavigate} icon={icon(ClipboardCheck)} tooltip={desktop ? t('navHelp.reconciliation') : undefined}>{t('nav.reconciliation')}</NavLink>
           <p className="eyebrow mt-5 px-2 pb-1.5">{t('shell.analysis')}</p>
           <NavLink href="/reports" onClick={onNavigate} icon={icon(BarChart3)} tooltip={desktop ? t('navHelp.reports') : undefined}>{t('nav.reports')}</NavLink>

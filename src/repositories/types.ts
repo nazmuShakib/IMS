@@ -21,6 +21,8 @@ import type {
   InvoiceItem,
   PaymentMethod,
   PaymentStatus,
+  UsedDeviceAcquisition,
+  RefurbishmentExpense,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -106,6 +108,13 @@ export interface ProductUnitRepository {
   countInStock(productId: string): Promise<number>;
   findAllInStock(): Promise<ProductUnit[]>;
   createMany(units: ProductUnit[]): Promise<ProductUnit[]>;
+  updateDetails(
+    id: string,
+    patch: Partial<Pick<ProductUnit,
+      'costPrice' | 'warrantyMonths' | 'warrantyDays' | 'location' | 'note' | 'usedGrade' |
+      'batteryHealth' | 'inspectionResults' | 'knownDefects' |
+      'includedAccessories' | 'askingPrice'>>,
+  ): Promise<ProductUnit>;
 
   /**
    * Optimistic concurrency: succeeds ONLY if the unit is currently in `expectedStatus`.
@@ -132,13 +141,27 @@ export interface CartRepository {
   findByActor(actorId: string): Promise<CartDraft | null>;
   findById(id: string): Promise<CartDraft | null>;
   create(value: CartDraft): Promise<CartDraft>;
-  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note'>>): Promise<CartDraft>;
+  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note' | 'tradeInDraft' | 'tradeInAcquisitionId'>>): Promise<CartDraft>;
   findItems(cartId: string): Promise<CartItem[]>;
   findItem(id: string): Promise<CartItem | null>;
   createItem(value: CartItem): Promise<CartItem>;
   updateItem(id: string, patch: Partial<Pick<CartItem, 'quantity' | 'actualUnitPrice' | 'position'>>): Promise<CartItem>;
   deleteItem(id: string): Promise<void>;
   delete(id: string): Promise<void>;
+}
+
+export interface UsedDeviceAcquisitionRepository {
+  findById(id: string): Promise<UsedDeviceAcquisition | null>;
+  findByIdempotencyKey(key: string): Promise<UsedDeviceAcquisition | null>;
+  findByUnit(unitId: string): Promise<UsedDeviceAcquisition | null>;
+  findAvailableTradeIns(): Promise<UsedDeviceAcquisition[]>;
+  create(value: UsedDeviceAcquisition): Promise<UsedDeviceAcquisition>;
+  attachToSale(id: string, saleId: string): Promise<UsedDeviceAcquisition>;
+}
+
+export interface RefurbishmentExpenseRepository {
+  findByUnit(unitId: string): Promise<RefurbishmentExpense[]>;
+  create(value: RefurbishmentExpense): Promise<RefurbishmentExpense>;
 }
 
 export interface SaleRepository {
@@ -217,5 +240,7 @@ export interface Repositories {
   customers: CustomerRepository;
   carts: CartRepository;
   sales: SaleRepository;
+  usedDeviceAcquisitions: UsedDeviceAcquisitionRepository;
+  refurbishmentExpenses: RefurbishmentExpenseRepository;
   transaction: Transactor;
 }

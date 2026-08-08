@@ -6,6 +6,8 @@ import type {
   PaymentStatus,
   Sale,
   SaleItem,
+  Role,
+  TradeInCartDraft,
 } from '@/domain/types';
 import { uuidv7 } from '@/lib/ids';
 import { normalizeBangladeshMobile } from '@/lib/phone';
@@ -16,7 +18,10 @@ import {
   checkoutSchema,
   createCustomerSchema,
   type CreateCustomerInput,
+  acceptUsedDeviceSchema,
+  type AcceptUsedDeviceInput,
 } from '@/schemas';
+import { acceptUsedDeviceInTransaction } from '@/services/used-devices';
 
 export function normalizePhone(value: string | null | undefined): string | null {
   if (!value?.trim()) return null;
@@ -36,6 +41,8 @@ export async function getOrCreateCart(actorId: string): Promise<CartDraft> {
       paymentStatus: 'PAID',
       reference: null,
       note: null,
+      tradeInDraft: null,
+      tradeInAcquisitionId: null,
       createdAt: now,
       updatedAt: now,
     });
@@ -128,8 +135,8 @@ export async function addCartItem(input: {
       productId: product.id,
       unitId: unit?.id ?? null,
       quantity: 1,
-      listUnitPrice: product.defaultSalePrice,
-      actualUnitPrice: product.defaultSalePrice,
+      listUnitPrice: unit?.askingPrice ?? (unit?.usedGrade === 'REFURBISHED' ? unit.costPrice : product.defaultSalePrice),
+      actualUnitPrice: unit?.askingPrice ?? (unit?.usedGrade === 'REFURBISHED' ? unit.costPrice : product.defaultSalePrice),
       position: cartItems.reduce((highest, item) => Math.max(highest, item.position ?? 0), -1) + 1,
       createdAt: now,
       updatedAt: now,
@@ -217,21 +224,89 @@ export async function updateCartDetails(input: {
   paymentStatus: PaymentStatus;
   reference: string | null;
   note: string | null;
+  tradeInAcquisitionId: string | null;
+  actorRole: Role;
 }): Promise<CartDraft> {
   const details = cartDetailsSchema.parse(input);
   return db.transaction(async (tx) => {
-    await ownedCart(tx, input.cartId, input.actorId);
+    const cart = await ownedCart(tx, input.cartId, input.actorId);
     if (details.customerId) {
       const customer = await tx.customers.findById(details.customerId);
       if (!customer?.isActive) throw new Error('The selected customer is unavailable.');
     }
+    if (details.tradeInAcquisitionId !== cart.tradeInAcquisitionId) {
+      if (input.actorRole === 'STAFF') throw new Error('Only a Manager or Admin can apply a trade-in credit.');
+      if (cart.tradeInDraft && details.tradeInAcquisitionId) {
+        throw new Error('Remove the checkout trade-in draft before selecting a legacy trade-in.');
+      }
+      if (details.tradeInAcquisitionId) {
+        const acquisition = await tx.usedDeviceAcquisitions.findById(details.tradeInAcquisitionId);
+        if (!acquisition || acquisition.type !== 'TRADE_IN' || acquisition.tradeInSaleId) {
+          throw new Error('The selected trade-in is unavailable.');
+        }
+      }
+    }
     return tx.carts.update(input.cartId, details);
+  });
+}
+
+export async function saveTradeInDraft(raw: AcceptUsedDeviceInput & {
+  cartId: string;
+}): Promise<CartDraft> {
+  const input = acceptUsedDeviceSchema.parse({ ...raw, acquisitionType: 'TRADE_IN' });
+  return db.transaction(async (tx) => {
+    const cart = await ownedCart(tx, raw.cartId, input.actorId);
+    if (cart.tradeInAcquisitionId) {
+      throw new Error('Remove the existing legacy trade-in credit before preparing a new trade-in.');
+    }
+    const product = await tx.products.findById(input.productId);
+    if (!product?.isActive || product.trackingType !== 'SERIAL') {
+      throw new Error('Choose an active serial-tracked phone product.');
+    }
+    const duplicate = await tx.units.findBySerial(input.serialNo);
+    if (duplicate) {
+      throw new Error(`Device number ${input.serialNo} already exists (${duplicate.status.replaceAll('_', ' ').toLowerCase()}).`);
+    }
+    const draft: TradeInCartDraft = {
+      productId: input.productId,
+      serialNo: input.serialNo,
+      grade: input.grade,
+      batteryHealth: input.batteryHealth ?? null,
+      inspectionResults: input.inspectionResults,
+      knownDefects: input.knownDefects ?? null,
+      includedAccessories: input.includedAccessories ?? null,
+      askingPrice: input.askingPrice,
+      warrantyMonths: input.warrantyMonths ?? null,
+      warrantyDays: input.warrantyDays ?? null,
+      location: input.location ?? null,
+      sellerName: input.sellerName,
+      sellerPhone: input.sellerPhone,
+      identificationType: input.identificationType ?? null,
+      identificationNumber: input.identificationNumber ?? null,
+      acquisitionValue: input.acquisitionValue,
+      reference: input.reference ?? null,
+      note: input.note ?? null,
+    };
+    return tx.carts.update(cart.id, { tradeInDraft: draft });
+  });
+}
+
+export async function clearTradeInDraft(cartId: string, actorId: string): Promise<CartDraft> {
+  return db.transaction(async (tx) => {
+    const cart = await ownedCart(tx, cartId, actorId);
+    return tx.carts.update(cart.id, { tradeInDraft: null });
   });
 }
 
 function addMonths(iso: string, months: number): string {
   const date = new Date(iso);
   date.setUTCMonth(date.getUTCMonth() + months);
+  return date.toISOString();
+}
+
+function addDays(iso: string, days: number): string {
+  const date = new Date(iso);
+  date.setUTCDate(date.getUTCDate() + days);
   return date.toISOString();
 }
 
@@ -279,6 +354,34 @@ export async function checkoutCart(raw: {
       (sum, row) => sum + row.item.actualUnitPrice * row.item.quantity,
       0,
     );
+    const legacyTradeIn = cart.tradeInAcquisitionId
+      ? await tx.usedDeviceAcquisitions.findById(cart.tradeInAcquisitionId)
+      : null;
+    if (cart.tradeInAcquisitionId && (!legacyTradeIn || legacyTradeIn.type !== 'TRADE_IN' || legacyTradeIn.tradeInSaleId)) {
+      throw new Error('The selected trade-in is no longer available.');
+    }
+    if (cart.tradeInDraft && legacyTradeIn) throw new Error('A checkout cannot use two trade-ins.');
+    const tradeInCredit = cart.tradeInDraft?.acquisitionValue ?? legacyTradeIn?.acquisitionValue ?? 0;
+    if (tradeInCredit > total) {
+      throw new Error('Trade-in credit cannot exceed the sale total in this version.');
+    }
+    const acceptedTradeIn = cart.tradeInDraft
+      ? await acceptUsedDeviceInTransaction({
+          ...cart.tradeInDraft,
+          acquisitionType: 'TRADE_IN',
+          ownershipConfirmed: true,
+          actorId: input.actorId,
+          idempotencyKey: `${input.idempotencyKey}:trade-in`,
+        } as AcceptUsedDeviceInput, tx)
+      : null;
+    const legacyTradeInUnit = legacyTradeIn ? await tx.units.findById(legacyTradeIn.unitId) : null;
+    const incomingTradeInUnit = acceptedTradeIn?.unit ?? legacyTradeInUnit;
+    const incomingTradeInProduct = incomingTradeInUnit
+      ? await tx.products.findById(incomingTradeInUnit.productId)
+      : null;
+    if ((cart.tradeInDraft || legacyTradeIn) && (!incomingTradeInUnit || !incomingTradeInProduct || !incomingTradeInUnit.usedGrade)) {
+      throw new Error('The trade-in device details are incomplete.');
+    }
     const sale: Sale = {
       id: uuidv7(),
       invoiceNumber,
@@ -296,10 +399,22 @@ export async function checkoutCart(raw: {
       subtotal,
       discount: subtotal - total,
       total,
+      tradeInCredit,
+      tradeInDetails: incomingTradeInUnit && incomingTradeInProduct && incomingTradeInUnit.usedGrade
+        ? {
+            productName: incomingTradeInProduct.name,
+            sku: incomingTradeInProduct.sku,
+            serialNo: incomingTradeInUnit.serialNo,
+            grade: incomingTradeInUnit.usedGrade,
+            acquisitionValue: tradeInCredit,
+          }
+        : null,
       completedAt: now,
       createdAt: now,
     };
     await tx.sales.create(sale);
+    if (acceptedTradeIn) await tx.usedDeviceAcquisitions.attachToSale(acceptedTradeIn.acquisition.id, sale.id);
+    if (legacyTradeIn) await tx.usedDeviceAcquisitions.attachToSale(legacyTradeIn.id, sale.id);
 
     for (const [index, row] of resolved.entries()) {
       const { item, product, unit } = row;
@@ -308,9 +423,11 @@ export async function checkoutCart(raw: {
         await tx.units.transitionStatus(unit.id, 'IN_STOCK', 'SOLD', {
           salePrice: item.actualUnitPrice,
           soldAt: now,
-          warrantyExpiresAt: unit.warrantyMonths
-            ? addMonths(now, unit.warrantyMonths)
-            : null,
+          warrantyExpiresAt: unit.warrantyDays
+            ? addDays(now, unit.warrantyDays)
+            : unit.warrantyMonths
+              ? addMonths(now, unit.warrantyMonths)
+              : null,
         });
       } else {
         await tx.products._applyQuantityDelta(product.id, -item.quantity);
@@ -346,6 +463,9 @@ export async function checkoutCart(raw: {
         serialNo: unit?.serialNo ?? null,
         listUnitPrice: item.listUnitPrice,
         warrantyMonths: unit?.warrantyMonths ?? null,
+        warrantyDays: unit?.warrantyDays ?? null,
+        usedGrade: unit?.usedGrade ?? null,
+        knownDefects: unit?.knownDefects ?? null,
         position: item.position,
         createdAt: now,
       };

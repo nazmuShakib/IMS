@@ -117,7 +117,13 @@ export function InvoiceView({
                   <td>
                     <strong>{item.productName}</strong>
                     <span className="tnum">Code (SKU) {item.sku}{item.serialNo ? ` · Device no. ${item.serialNo}` : ''}</span>
-                    {item.warrantyMonths ? <span>{item.warrantyMonths} month warranty</span> : null}
+                    {item.usedGrade && <span>Used phone · {item.usedGrade === 'REFURBISHED' ? 'Refurbished' : item.usedGrade.replace('GRADE_', 'Grade ')}</span>}
+                    {item.knownDefects && <span>Declared defects: {item.knownDefects}</span>}
+                    {item.warrantyDays
+                      ? <span>{item.warrantyDays} {item.warrantyDays === 1 ? 'day' : 'days'} warranty</span>
+                      : item.warrantyMonths
+                        ? <span>{item.warrantyMonths} {item.warrantyMonths === 1 ? 'month' : 'months'} warranty</span>
+                        : null}
                   </td>
                   <td className="tnum">{item.quantity}</td>
                   <td className="tnum">{formatBDT(item.actualUnitPrice)}</td>
@@ -127,13 +133,24 @@ export function InvoiceView({
             </tbody>
           </table>
 
+          {sale.tradeInDetails && (
+            <section className="invoice-trade-in">
+              <span>Trade-in device</span>
+              <strong>{sale.tradeInDetails.productName}</strong>
+              <p className="tnum">Code (SKU) {sale.tradeInDetails.sku} · Device no. {sale.tradeInDetails.serialNo}</p>
+              <p>{sale.tradeInDetails.grade === 'REFURBISHED' ? 'Refurbished' : sale.tradeInDetails.grade.replace('GRADE_', 'Grade ')} · Credit {formatBDT(sale.tradeInDetails.acquisitionValue)}</p>
+            </section>
+          )}
+
           <section className="invoice-summary">
             <dl>
-              <div><dt>List subtotal</dt><dd className="tnum">{formatBDT(sale.subtotal)}</dd></div>
-              {sale.discount !== 0 && (
-                <div><dt>Price adjustment</dt><dd className="tnum">{formatBDT(sale.discount)}</dd></div>
-              )}
               <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
+              {sale.tradeInCredit > 0 && (
+                <>
+                  <div><dt>Trade-in credit</dt><dd className="tnum">−{formatBDT(sale.tradeInCredit)}</dd></div>
+                  <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(sale.total - sale.tradeInCredit)}</dd></div>
+                </>
+              )}
             </dl>
           </section>
 

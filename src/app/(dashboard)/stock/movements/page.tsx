@@ -33,6 +33,7 @@ type RawParams = Record<string, string | string[] | undefined>;
 const REASON_LABEL: Record<MovementReason, MessageKey> = {
   INITIAL_STOCK: 'reason.initialStock',
   PURCHASE: 'reason.purchase',
+  TRADE_IN: 'reason.tradeIn',
   CUSTOMER_RETURN: 'reason.customerReturn',
   SALE: 'reason.sale',
   RETURN_TO_SUPPLIER: 'reason.returnSupplier',
@@ -142,6 +143,7 @@ export default async function MovementsPage({
   const tabs = [
     { reason: '', label: t('ledger.all') },
     { reason: 'PURCHASE', label: t('ledger.purchases') },
+    { reason: 'TRADE_IN', label: t('reason.tradeIn') },
     { reason: 'SALE', label: t('ledger.sales') },
     { reason: 'DAMAGE', label: t('ledger.damage') },
     { reason: 'LOSS', label: t('ledger.loss') },

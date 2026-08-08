@@ -10,6 +10,9 @@ import {
   SUPPLIER_WARRANTY_STATUSES,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
+  USED_DEVICE_GRADES,
+  USED_ACQUISITION_TYPES,
+  INSPECTION_RESULTS,
 } from '@/domain/types';
 import { isBangladeshMobile } from '@/lib/phone';
 
@@ -89,6 +92,8 @@ export const receiveStockSchema = z
     // SERIAL path
     serialNumbers: z.array(z.string().min(1).max(120).trim()).optional(),
     warrantyMonths: z.number().int().min(0).max(120).optional().nullable(),
+    warrantyDays: z.number().int().min(0).max(3650).optional().nullable(),
+    unitCondition: z.enum(['NEW', 'REFURBISHED']).default('NEW'),
     location: z.string().max(100).optional().nullable(),
 
     // QUANTITY path
@@ -105,8 +110,104 @@ export const receiveStockSchema = z
   .refine(
     (i) => !i.serialNumbers || new Set(i.serialNumbers).size === i.serialNumbers.length,
     { message: 'Duplicate serial numbers in this batch', path: ['serialNumbers'] },
+  )
+  .refine(
+    (i) => i.warrantyMonths == null || i.warrantyDays == null,
+    { message: 'Choose either days or months for the warranty.', path: ['warrantyDays'] },
   );
-export type ReceiveStockInput = z.infer<typeof receiveStockSchema>;
+export type ReceiveStockInput = z.input<typeof receiveStockSchema>;
+
+const inspectionResult = z.enum(INSPECTION_RESULTS);
+export const usedDeviceInspectionSchema = z.object({
+  imeiMatches: inspectionResult,
+  activationLockClear: inspectionResult,
+  networkAndSim: inspectionResult,
+  wifi: inspectionResult,
+  bluetooth: inspectionResult,
+  display: inspectionResult,
+  touchscreen: inspectionResult,
+  cameras: inspectionResult,
+  microphone: inspectionResult,
+  speakers: inspectionResult,
+  chargingPort: inspectionResult,
+  buttons: inspectionResult,
+  biometrics: inspectionResult,
+  frameAndBack: inspectionResult,
+  waterDamageFree: inspectionResult,
+  battery: inspectionResult,
+});
+
+export const acceptUsedDeviceSchema = z.object({
+  productId: z.string().uuid(),
+  serialNo: z.string().trim().min(1).max(120),
+  grade: z.enum(USED_DEVICE_GRADES),
+  batteryHealth: z.number().int().min(0).max(100).optional().nullable(),
+  inspectionResults: usedDeviceInspectionSchema,
+  knownDefects: z.string().trim().max(2000).optional().nullable(),
+  includedAccessories: z.string().trim().max(1000).optional().nullable(),
+  askingPrice: paisa,
+  warrantyMonths: z.number().int().min(0).max(120).optional().nullable(),
+  warrantyDays: z.number().int().min(0).max(3650).optional().nullable(),
+  location: z.string().trim().max(100).optional().nullable(),
+  acquisitionType: z.enum(USED_ACQUISITION_TYPES),
+  sellerName: z.string().trim().min(1).max(150),
+  sellerPhone: z.string().trim().max(30).refine(
+    isBangladeshMobile,
+    'Enter a valid Bangladeshi mobile number, such as 01712345678 or +8801712345678.',
+  ),
+  identificationType: z.string().trim().max(100).optional().nullable(),
+  identificationNumber: z.string().trim().max(150).optional().nullable(),
+  acquisitionValue: paisa,
+  ownershipConfirmed: z.literal(true, 'Confirm that the seller owns the device.'),
+  reference: z.string().trim().max(100).optional().nullable(),
+  note: z.string().trim().max(1000).optional().nullable(),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+}).superRefine((input, context) => {
+  if (input.warrantyMonths != null && input.warrantyDays != null) {
+    context.addIssue({ code: 'custom', path: ['warrantyDays'], message: 'Choose either days or months for the warranty.' });
+  }
+  if (input.inspectionResults.imeiMatches !== 'WORKING') {
+    context.addIssue({ code: 'custom', path: ['inspectionResults', 'imeiMatches'], message: 'The IMEI must match the device before acceptance.' });
+  }
+  if (input.inspectionResults.activationLockClear !== 'WORKING') {
+    context.addIssue({ code: 'custom', path: ['inspectionResults', 'activationLockClear'], message: 'Remove all account and activation locks before acceptance.' });
+  }
+  if (
+    Object.values(input.inspectionResults).includes('DEFECTIVE')
+    && !input.knownDefects
+  ) {
+    context.addIssue({ code: 'custom', path: ['knownDefects'], message: 'Describe every defective inspection result before acceptance.' });
+  }
+  if ((input.grade === 'GRADE_C' || input.grade === 'REFURBISHED') && !input.knownDefects) {
+    context.addIssue({ code: 'custom', path: ['knownDefects'], message: 'Grade C and refurbished phones require a defect or repair-history note.' });
+  }
+});
+export type AcceptUsedDeviceInput = z.infer<typeof acceptUsedDeviceSchema>;
+
+export const refurbishmentExpenseSchema = z.object({
+  unitId: z.string().uuid(),
+  description: z.string().trim().min(2).max(500),
+  amount: paisa.refine((value) => value > 0, 'Expense must be greater than zero.'),
+  actorId: z.string().min(1),
+});
+export type RefurbishmentExpenseInput = z.infer<typeof refurbishmentExpenseSchema>;
+
+export const updateUsedDeviceSchema = z.object({
+  unitId: z.string().uuid(),
+  grade: z.enum(USED_DEVICE_GRADES),
+  batteryHealth: z.number().int().min(0).max(100).optional().nullable(),
+  knownDefects: z.string().trim().max(2000).optional().nullable(),
+  includedAccessories: z.string().trim().max(1000).optional().nullable(),
+  askingPrice: paisa,
+  warrantyMonths: z.number().int().min(0).max(120).optional().nullable(),
+  warrantyDays: z.number().int().min(0).max(3650).optional().nullable(),
+  actorId: z.string().min(1),
+}).refine((input) => input.warrantyMonths == null || input.warrantyDays == null, {
+  path: ['warrantyDays'],
+  message: 'Choose either days or months for the warranty.',
+});
+export type UpdateUsedDeviceInput = z.infer<typeof updateUsedDeviceSchema>;
 
 /**
  * STOCK OUT. A "sale" is just this, with reason=SALE and a salePrice. PLAN.md §1.1.
@@ -161,6 +262,7 @@ export const cartDetailsSchema = z.object({
   paymentStatus: z.enum(PAYMENT_STATUSES),
   reference: z.string().max(100).optional().nullable(),
   note: z.string().max(1000).optional().nullable(),
+  tradeInAcquisitionId: z.string().uuid().optional().nullable(),
 });
 
 export const checkoutSchema = z.object({

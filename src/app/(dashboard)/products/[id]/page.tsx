@@ -47,6 +47,13 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
     });
 
   const inStock = units.filter((u) => u.status === 'IN_STOCK');
+  const usedRows = showCosts
+    ? await Promise.all(rawUnits.filter((unit) => unit.usedGrade).map(async (unit) => ({
+        unit,
+        acquisition: await db.usedDeviceAcquisitions.findByUnit(unit.id),
+        expenses: await db.refurbishmentExpenses.findByUnit(unit.id),
+      })))
+    : [];
 
   // Valuation is only meaningful if you can see costs.
   const stockValue = showCosts
@@ -181,6 +188,20 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           productId={product.id}
           showCosts={showCosts}
           locale={locale}
+          canManageUsedDevices={role !== 'STAFF'}
+          usedDetails={usedRows.map(({ unit, acquisition, expenses }) => ({
+            unitId: unit.id,
+            acquisitionType: acquisition?.type ?? null,
+            sellerName: acquisition?.sellerName ?? null,
+            sellerPhone: acquisition?.sellerPhone ?? null,
+            identificationType: acquisition?.identificationType ?? null,
+            identificationNumber: acquisition?.identificationNumber ?? null,
+            acquisitionValue: acquisition?.acquisitionValue ?? null,
+            reference: acquisition?.reference ?? null,
+            note: acquisition?.note ?? null,
+            acquiredAt: acquisition?.acquiredAt ?? null,
+            refurbishmentTotal: expenses.reduce((sum, expense) => sum + expense.amount, 0),
+          }))}
         />
       )}
     </>

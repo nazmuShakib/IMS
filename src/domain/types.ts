@@ -30,6 +30,7 @@ export type MovementType = (typeof MOVEMENT_TYPES)[number];
 export const MOVEMENT_REASONS = [
   'INITIAL_STOCK',
   'PURCHASE',
+  'TRADE_IN',
   'CUSTOMER_RETURN',
   'SALE',
   'RETURN_TO_SUPPLIER',
@@ -46,6 +47,7 @@ export type MovementReason = (typeof MOVEMENT_REASONS)[number];
 export const INBOUND_REASONS: readonly MovementReason[] = [
   'INITIAL_STOCK',
   'PURCHASE',
+  'TRADE_IN',
   'CUSTOMER_RETURN',
 ];
 export const OUTBOUND_REASONS: readonly MovementReason[] = [
@@ -94,6 +96,14 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type SaleStatus = 'COMPLETED';
+
+export const USED_DEVICE_GRADES = ['GRADE_A', 'GRADE_B', 'GRADE_C', 'REFURBISHED'] as const;
+export type UsedDeviceGrade = (typeof USED_DEVICE_GRADES)[number];
+export const USED_ACQUISITION_TYPES = ['DIRECT_PURCHASE', 'TRADE_IN'] as const;
+export type UsedAcquisitionType = (typeof USED_ACQUISITION_TYPES)[number];
+export const INSPECTION_RESULTS = ['WORKING', 'DEFECTIVE', 'NOT_TESTED', 'NOT_APPLICABLE'] as const;
+export type InspectionResult = (typeof INSPECTION_RESULTS)[number];
+export type UsedDeviceInspection = Record<string, InspectionResult>;
 
 export interface User {
   id: string;
@@ -175,9 +185,16 @@ export interface ProductUnit {
   receivedAt: string;
   soldAt: string | null;
   warrantyMonths: number | null;
+  warrantyDays?: number | null;
   warrantyExpiresAt: string | null;
   location: string | null;
   note: string | null;
+  usedGrade: UsedDeviceGrade | null;
+  batteryHealth: number | null;
+  inspectionResults: UsedDeviceInspection | null;
+  knownDefects: string | null;
+  includedAccessories: string | null;
+  askingPrice: Paisa | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -284,8 +301,32 @@ export interface CartDraft {
   paymentStatus: PaymentStatus;
   reference: string | null;
   note: string | null;
+  tradeInDraft: TradeInCartDraft | null;
+  tradeInAcquisitionId: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+/** Provisional incoming phone. It becomes inventory only when checkout commits. */
+export interface TradeInCartDraft {
+  productId: string;
+  serialNo: string;
+  grade: UsedDeviceGrade;
+  batteryHealth: number | null;
+  inspectionResults: Record<string, InspectionResult>;
+  knownDefects: string | null;
+  includedAccessories: string | null;
+  askingPrice: Paisa;
+  warrantyMonths: number | null;
+  warrantyDays: number | null;
+  location: string | null;
+  sellerName: string;
+  sellerPhone: string;
+  identificationType: string | null;
+  identificationNumber: string | null;
+  acquisitionValue: Paisa;
+  reference: string | null;
+  note: string | null;
 }
 
 export interface CartItem {
@@ -318,8 +359,19 @@ export interface Sale {
   subtotal: Paisa;
   discount: Paisa;
   total: Paisa;
+  tradeInCredit: Paisa;
+  tradeInDetails: TradeInSaleSnapshot | null;
   completedAt: string;
   createdAt: string;
+}
+
+/** Immutable incoming-device summary printed with a completed trade-in sale. */
+export interface TradeInSaleSnapshot {
+  productName: string;
+  sku: string;
+  serialNo: string;
+  grade: UsedDeviceGrade;
+  acquisitionValue: Paisa;
 }
 
 export interface SaleItem {
@@ -331,6 +383,9 @@ export interface SaleItem {
   serialNo: string | null;
   listUnitPrice: Paisa;
   warrantyMonths: number | null;
+  warrantyDays?: number | null;
+  usedGrade: UsedDeviceGrade | null;
+  knownDefects: string | null;
   position: number;
   createdAt: string;
 }
@@ -341,4 +396,32 @@ export interface InvoiceItem extends SaleItem {
   actualUnitPrice: Paisa;
   discount: Paisa;
   lineTotal: Paisa;
+}
+
+export interface UsedDeviceAcquisition {
+  id: string;
+  idempotencyKey: string;
+  unitId: string;
+  type: UsedAcquisitionType;
+  sellerName: string;
+  sellerPhone: string;
+  identificationType: string | null;
+  identificationNumber: string | null;
+  acquisitionValue: Paisa;
+  ownershipConfirmed: boolean;
+  acceptedById: string;
+  reference: string | null;
+  note: string | null;
+  acquiredAt: string;
+  createdAt: string;
+  tradeInSaleId: string | null;
+}
+
+export interface RefurbishmentExpense {
+  id: string;
+  unitId: string;
+  description: string;
+  amount: Paisa;
+  actorId: string;
+  createdAt: string;
 }

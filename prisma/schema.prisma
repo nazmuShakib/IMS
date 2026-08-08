@@ -45,6 +45,7 @@ enum MovementType {
 enum MovementReason {
   INITIAL_STOCK // opening balance when first loading the system   (IN)
   PURCHASE // goods received from a supplier                  (IN)
+  TRADE_IN // used device accepted as credit against a sale     (IN)
   CUSTOMER_RETURN // customer returned an item                       (IN)
   SALE // sold to a customer                              (OUT)
   RETURN_TO_SUPPLIER // sent back / RMA                                 (OUT)
@@ -115,37 +116,51 @@ enum PaymentMethod {
   OTHER
 }
 
+enum UsedDeviceGrade {
+  GRADE_A
+  GRADE_B
+  GRADE_C
+  REFURBISHED
+}
+
+enum UsedAcquisitionType {
+  DIRECT_PURCHASE
+  TRADE_IN
+}
+
 // ===========================================================================
 //  AUTH  (Better Auth owns the shape of User/Session/Account/Verification)
 //  Run Better Auth's schema generator, then add `role` + business relations.
 // ===========================================================================
 
 model User {
-  id            String    @id // Better Auth generates this — no @default
-  name          String
-  email         String    @unique
-  emailVerified Boolean   @default(false)
-  phoneNumber         String?  @unique
-  phoneNumberVerified Boolean  @default(false)
-  image         String?
-  role          Role      @default(STAFF)
-  isActive      Boolean   @default(true)
-  locale        String    @default("en")
-  banned        Boolean   @default(false)
-  banReason     String?
-  banExpires    DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                  String    @id // Better Auth generates this — no @default
+  name                String
+  email               String    @unique
+  emailVerified       Boolean   @default(false)
+  phoneNumber         String?   @unique
+  phoneNumberVerified Boolean   @default(false)
+  image               String?
+  role                Role      @default(STAFF)
+  isActive            Boolean   @default(true)
+  locale              String    @default("en")
+  banned              Boolean   @default(false)
+  banReason           String?
+  banExpires          DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   sessions               Session[]
   accounts               Account[]
-  movements              StockMovement[]      @relation("MovementActor")
+  movements              StockMovement[]         @relation("MovementActor")
   auditLogs              AuditLog[]
-  openedWarrantyClaims   WarrantyClaim[]      @relation("WarrantyOpenedBy")
-  assignedWarrantyClaims WarrantyClaim[]      @relation("WarrantyAssignedTo")
+  openedWarrantyClaims   WarrantyClaim[]         @relation("WarrantyOpenedBy")
+  assignedWarrantyClaims WarrantyClaim[]         @relation("WarrantyAssignedTo")
   warrantyClaimEvents    WarrantyClaimEvent[]
   cartDraft              CartDraft?
   sales                  Sale[]
+  acceptedUsedDevices    UsedDeviceAcquisition[] @relation("UsedDeviceAcceptedBy")
+  refurbishmentExpenses  RefurbishmentExpense[]
 
   @@index([role])
   @@map("users")
@@ -343,17 +358,28 @@ model ProductUnit {
   soldAt     DateTime?
 
   warrantyMonths    Int?
-  warrantyExpiresAt DateTime? // computed at sale: soldAt + warrantyMonths
+  warrantyDays      Int?
+  warrantyExpiresAt DateTime? // computed at sale from warrantyDays or warrantyMonths
 
   location String? // "Shelf B3", "Back room"
   note     String?
 
+  // Accepted used/refurbished-device details. Null means ordinary/new stock.
+  usedGrade           UsedDeviceGrade?
+  batteryHealth       Int?
+  inspectionResults   Json?
+  knownDefects        String?
+  includedAccessories String?
+  askingPrice         Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  movements      StockMovement[]
-  warrantyClaims WarrantyClaim[]
-  cartItems      CartItem[]
+  movements             StockMovement[]
+  warrantyClaims        WarrantyClaim[]
+  cartItems             CartItem[]
+  usedAcquisition       UsedDeviceAcquisition?
+  refurbishmentExpenses RefurbishmentExpense[]
 
   @@index([productId, status]) // on-hand counts
   @@index([status])
@@ -547,12 +573,15 @@ model CartDraft {
   customerId String?
   customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
 
-  paymentMethod PaymentMethod @default(CASH)
-  paymentStatus PaymentStatus @default(PAID)
-  reference     String?
-  note          String?
-  createdAt     DateTime      @default(now())
-  updatedAt     DateTime      @updatedAt
+  paymentMethod        PaymentMethod          @default(CASH)
+  paymentStatus        PaymentStatus          @default(PAID)
+  reference            String?
+  note                 String?
+  tradeInDraft         Json?
+  tradeInAcquisitionId String?                @unique
+  tradeInAcquisition   UsedDeviceAcquisition? @relation("DraftTradeIn", fields: [tradeInAcquisitionId], references: [id], onDelete: SetNull)
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
 
   items CartItem[]
 
@@ -606,14 +635,17 @@ model Sale {
   reference     String?
   note          String?
 
-  subtotal Int
-  discount Int
-  total    Int
+  subtotal      Int
+  discount      Int
+  total         Int
+  tradeInCredit Int @default(0)
+  tradeInDetails Json?
 
   completedAt DateTime @default(now())
   createdAt   DateTime @default(now())
 
-  items SaleItem[]
+  items              SaleItem[]
+  tradeInAcquisition UsedDeviceAcquisition? @relation("TradeInSale")
 
   @@index([customerId, completedAt])
   @@index([actorId, completedAt])
@@ -635,10 +667,59 @@ model SaleItem {
   serialNo       String?
   listUnitPrice  Int
   warrantyMonths Int?
-  position       Int      @default(0)
+  warrantyDays   Int?
+  usedGrade      UsedDeviceGrade?
+  knownDefects   String?
+  position       Int              @default(0)
 
   createdAt DateTime @default(now())
 
   @@index([saleId, position])
   @@map("sale_items")
+}
+
+// Accepted-only record for a used phone. Rejected inspections and drafts are
+// deliberately not persisted.
+model UsedDeviceAcquisition {
+  id                   String              @id @default(uuid(7))
+  idempotencyKey       String              @unique
+  unitId               String              @unique
+  unit                 ProductUnit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  type                 UsedAcquisitionType
+  sellerName           String
+  sellerPhone          String
+  identificationType   String?
+  identificationNumber String?
+  acquisitionValue     Int
+  ownershipConfirmed   Boolean
+  acceptedById         String
+  acceptedBy           User                @relation("UsedDeviceAcceptedBy", fields: [acceptedById], references: [id], onDelete: Restrict)
+  reference            String?
+  note                 String?
+  acquiredAt           DateTime            @default(now())
+  createdAt            DateTime            @default(now())
+
+  tradeInSaleId String?    @unique
+  tradeInSale   Sale?      @relation("TradeInSale", fields: [tradeInSaleId], references: [id], onDelete: Restrict)
+  draft         CartDraft? @relation("DraftTradeIn")
+
+  @@index([type, acquiredAt])
+  @@index([sellerPhone])
+  @@index([acceptedById, acquiredAt])
+  @@map("used_device_acquisitions")
+}
+
+model RefurbishmentExpense {
+  id          String      @id @default(uuid(7))
+  unitId      String
+  unit        ProductUnit @relation(fields: [unitId], references: [id], onDelete: Restrict)
+  description String
+  amount      Int
+  actorId     String
+  actor       User        @relation(fields: [actorId], references: [id], onDelete: Restrict)
+  createdAt   DateTime    @default(now())
+
+  @@index([unitId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("refurbishment_expenses")
 }

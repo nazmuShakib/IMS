@@ -18,6 +18,8 @@ export const BUSINESS_DATA_TABLES = [
   'suppliers',
   'products',
   'product_units',
+  'used_device_acquisitions',
+  'refurbishment_expenses',
   'stock_movements',
   'warranty_claims',
   'warranty_claim_events',

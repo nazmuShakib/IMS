@@ -459,6 +459,33 @@ html[lang='bn'] .eyebrow {
   padding-top: 5mm;
 }
 
+.invoice-trade-in {
+  margin-top: 4mm;
+  border: 0.2mm solid #d5dade;
+  padding: 3mm;
+}
+
+.invoice-trade-in span {
+  display: block;
+  margin-bottom: 1mm;
+  color: #626c76;
+  font-size: 7pt;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.invoice-trade-in strong,
+.invoice-trade-in p {
+  display: block;
+}
+
+.invoice-trade-in p {
+  margin-top: 1mm;
+  color: #626c76;
+  font-size: 8pt;
+}
+
 .invoice-summary dl {
   width: 72mm;
 }

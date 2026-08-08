@@ -67,6 +67,10 @@ export default async function CheckoutPage({
             actualUnitPrice: item.actualUnitPrice,
             position: item.position,
             onHand: product.trackingType === 'SERIAL' ? 1 : product.quantityOnHand,
+            usedGrade: unit?.usedGrade ?? null,
+            knownDefects: unit?.knownDefects ?? null,
+            warrantyMonths: unit?.warrantyMonths ?? null,
+            warrantyDays: unit?.warrantyDays ?? null,
           }];
         })}
         products={products.map((product) => ({
@@ -86,9 +90,11 @@ export default async function CheckoutPage({
             productName: product.name,
             sku: product.sku,
             serialNo: unit.serialNo,
+            usedGrade: unit.usedGrade ?? null,
           }] : [];
         })}
         customers={customers}
+        role={actor.role}
       />
     </>
   );

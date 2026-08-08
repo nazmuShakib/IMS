@@ -72,6 +72,24 @@ const bnMessages: Record<string, string> = {
   'STAFF may only print labels for products currently in stock.': 'স্টাফ শুধু বর্তমানে স্টকে থাকা পণ্যের লেবেল প্রিন্ট করতে পারবেন।',
   'Enter a device number or IMEI': 'ডিভাইস নম্বর বা IMEI লিখুন।',
   'Use Checkout for every sale so an invoice and complete sale record are created.': 'প্রতিটি বিক্রয়ের জন্য চেকআউট ব্যবহার করুন, যাতে ইনভয়েস ও সম্পূর্ণ বিক্রয় রেকর্ড তৈরি হয়।',
+  'Refurbishment cost added to this phone.': 'এই ফোনের সঙ্গে মেরামতের খরচ যোগ হয়েছে।',
+  'Used-phone details updated.': 'পুরোনো ফোনের তথ্য হালনাগাদ হয়েছে।',
+  'Only a Manager or Admin can apply a trade-in credit.': 'শুধু ম্যানেজার বা অ্যাডমিন ট্রেড-ইন ক্রেডিট প্রয়োগ করতে পারেন।',
+  'The selected trade-in is unavailable.': 'নির্বাচিত ট্রেড-ইনটি ব্যবহার করা যাচ্ছে না।',
+  'The selected trade-in is no longer available.': 'নির্বাচিত ট্রেড-ইনটি আর ব্যবহার করা যাচ্ছে না।',
+  'Trade-in credit cannot exceed the sale total in this version.': 'এই সংস্করণে ট্রেড-ইন ক্রেডিট বিক্রয়ের মোট মূল্যের বেশি হতে পারবে না।',
+  'Trade-in removed from this checkout.': 'এই চেকআউট থেকে ট্রেড-ইন সরানো হয়েছে।',
+  'A checkout cannot use two trade-ins.': 'একটি চেকআউটে দুটি ট্রেড-ইন ব্যবহার করা যাবে না।',
+  'Remove the existing legacy trade-in credit before preparing a new trade-in.': 'নতুন ট্রেড-ইন প্রস্তুত করার আগে আগের ট্রেড-ইন ক্রেডিট সরান।',
+  'Remove the checkout trade-in draft before selecting a legacy trade-in.': 'আগের ট্রেড-ইন নির্বাচন করার আগে চেকআউটের ট্রেড-ইন খসড়া সরান।',
+  'Start a trade-in from Checkout so the credit and sale complete together.': 'ক্রেডিট ও বিক্রয় একসঙ্গে সম্পন্ন করতে চেকআউট থেকে ট্রেড-ইন শুরু করুন।',
+  'The IMEI must match the device before acceptance.': 'গ্রহণের আগে IMEI ডিভাইসের সঙ্গে মিলতে হবে।',
+  'Remove all account and activation locks before acceptance.': 'গ্রহণের আগে সব অ্যাকাউন্ট ও অ্যাক্টিভেশন লক সরান।',
+  'Describe every defective inspection result before acceptance.': 'গ্রহণের আগে পরিদর্শনে পাওয়া প্রতিটি ত্রুটি বর্ণনা করুন।',
+  'Grade C and refurbished phones require a defect or repair-history note.': 'গ্রেড C ও মেরামতকৃত ফোনের জন্য ত্রুটি বা মেরামতের ইতিহাস লিখতে হবে।',
+  'Enter a valid Bangladeshi mobile number, such as 01712345678 or +8801712345678.': 'সঠিক বাংলাদেশি মোবাইল নম্বর লিখুন, যেমন 01712345678 বা +8801712345678।',
+  'Confirm that the seller owns the device.': 'বিক্রেতা যে ডিভাইসটির মালিক তা নিশ্চিত করুন।',
+  'Choose either days or months for the warranty.': 'ওয়ারেন্টির জন্য দিন অথবা মাস—যেকোনো একটি বেছে নিন।',
 };
 
 export function translateActionMessage(locale: Locale, value: string): string {
@@ -96,6 +114,8 @@ export function translateActionMessage(locale: Locale, value: string): string {
   if (match) return `এই ফোন নম্বরটি ইতিমধ্যে ${match[1]}-এর।`;
   match = value.match(/^Device number (.+) belongs to a different product and cannot be revived here\.$/);
   if (match) return `ডিভাইস নম্বর ${match[1]} অন্য একটি পণ্যের এবং এখানে পুনরায় সক্রিয় করা যাবে না।`;
+  match = value.match(/^Accepted (.+) into used-phone inventory\.$/);
+  if (match) return `${match[1]} পুরোনো ফোনের স্টকে গ্রহণ করা হয়েছে।`;
 
   return value;
 }

@@ -73,8 +73,16 @@ export interface ProductUnitDTO {
   receivedAt: string;
   soldAt: string | null;
   warrantyExpiresAt: string | null;
+  warrantyMonths: number | null;
+  warrantyDays: number | null;
   location: string | null;
   salePrice: Paisa | null;
+  usedGrade: ProductUnit['usedGrade'];
+  batteryHealth: number | null;
+  inspectionResults: ProductUnit['inspectionResults'];
+  knownDefects: string | null;
+  includedAccessories: string | null;
+  askingPrice: Paisa | null;
 
   /** undefined for STAFF — this is the margin, and staff don't get it. */
   costPrice?: Paisa;
@@ -90,8 +98,16 @@ export function toProductUnitDTO(u: ProductUnit, role: Role): ProductUnitDTO {
     receivedAt: u.receivedAt,
     soldAt: u.soldAt,
     warrantyExpiresAt: u.warrantyExpiresAt,
+    warrantyMonths: u.warrantyMonths,
+    warrantyDays: u.warrantyDays ?? null,
     location: u.location,
     salePrice: u.salePrice,
+    usedGrade: u.usedGrade ?? null,
+    batteryHealth: u.batteryHealth ?? null,
+    inspectionResults: u.inspectionResults ?? null,
+    knownDefects: u.knownDefects ?? null,
+    includedAccessories: u.includedAccessories ?? null,
+    askingPrice: u.askingPrice ?? null,
   };
 
   if (!canSeeCosts(role)) return base;

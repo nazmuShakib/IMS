@@ -32,7 +32,9 @@ export type Collection =
   | 'cart-drafts'
   | 'cart-items'
   | 'sales'
-  | 'sale-items';
+  | 'sale-items'
+  | 'used-device-acquisitions'
+  | 'refurbishment-expenses';
 
 /** Tiny in-memory cache so a single request doesn't re-read the same file 20 times. */
 const cache = new Map<Collection, unknown[]>();

@@ -67,7 +67,9 @@ async function main() {
         id: unitId, serialNo: `VERIFY-${unitId}`, productId: serialProductId,
         status: 'IN_STOCK', costPrice: 50_000, salePrice: null, supplierId,
         receivedAt: now, soldAt: null, warrantyMonths: 12, warrantyExpiresAt: null,
-        location: null, note: null, createdAt: now, updatedAt: now,
+        location: null, note: null, usedGrade: null, batteryHealth: null,
+        inspectionResults: null, knownDefects: null, includedAccessories: null,
+        askingPrice: null, createdAt: now, updatedAt: now,
       }]);
       await tx.movements.record({
         id: uuidv7(), type: 'IN', reason: 'PURCHASE', productId: serialProductId,
@@ -138,6 +140,8 @@ async function main() {
         paymentStatus: 'PAID',
         reference: 'ROLLBACK-VERIFY',
         note: null,
+        tradeInDraft: null,
+        tradeInAcquisitionId: null,
         createdAt: now,
         updatedAt: now,
       });
@@ -173,6 +177,8 @@ async function main() {
         subtotal: 1_500,
         discount: 100,
         total: 1_400,
+        tradeInCredit: 0,
+        tradeInDetails: null,
         completedAt: now,
         createdAt: now,
       });
@@ -194,6 +200,8 @@ async function main() {
         serialNo: null,
         listUnitPrice: 1_500,
         warrantyMonths: null,
+        usedGrade: null,
+        knownDefects: null,
         position: 0,
         createdAt: now,
       });

@@ -16,6 +16,8 @@ import type {
   Sale,
   SaleItem,
   InvoiceItem,
+  UsedDeviceAcquisition,
+  RefurbishmentExpense,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -32,6 +34,8 @@ import type {
   CustomerRepository,
   CartRepository,
   SaleRepository,
+  UsedDeviceAcquisitionRepository,
+  RefurbishmentExpenseRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -284,6 +288,16 @@ const units: ProductUnitRepository = {
     }
     await writeAll('product-units', [...rows, ...newUnits]);
     return newUnits;
+  },
+  async updateDetails(id, patch) {
+    const rows = await readAll<ProductUnit>('product-units');
+    const index = rows.findIndex((unit) => unit.id === id);
+    if (index < 0) throw new Error(`Unit not found: ${id}`);
+    const updated = { ...rows[index]!, ...patch, updatedAt: nowIso() };
+    const copy = [...rows];
+    copy[index] = updated;
+    await writeAll('product-units', copy);
+    return updated;
   },
   /**
    * ⚠️ THE CONCURRENCY GUARD. PLAN.md §8.1.
@@ -603,6 +617,60 @@ const sales: SaleRepository = {
   },
 };
 
+const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
+  async findById(id) {
+    return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
+      .find((item) => item.id === id) ?? null;
+  },
+  async findByIdempotencyKey(key) {
+    return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
+      .find((item) => item.idempotencyKey === key) ?? null;
+  },
+  async findByUnit(unitId) {
+    return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
+      .find((item) => item.unitId === unitId) ?? null;
+  },
+  async findAvailableTradeIns() {
+    const claimedByDraft = new Set((await readAll<CartDraft>('cart-drafts')).map((cart) => cart.tradeInAcquisitionId).filter(Boolean));
+    return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
+      .filter((item) => item.type === 'TRADE_IN' && item.tradeInSaleId === null && !claimedByDraft.has(item.id))
+      .sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt));
+  },
+  async create(value) {
+    const rows = await readAll<UsedDeviceAcquisition>('used-device-acquisitions');
+    if (rows.some((item) => item.unitId === value.unitId)) {
+      throw new Error('This device already has an acquisition record.');
+    }
+    await writeAll('used-device-acquisitions', [...rows, value]);
+    return value;
+  },
+  async attachToSale(id, saleId) {
+    const rows = await readAll<UsedDeviceAcquisition>('used-device-acquisitions');
+    const index = rows.findIndex((item) => item.id === id);
+    const current = rows[index];
+    if (!current || current.type !== 'TRADE_IN' || current.tradeInSaleId) {
+      throw new Error('That trade-in has already been used or is unavailable.');
+    }
+    const updated = { ...current, tradeInSaleId: saleId };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('used-device-acquisitions', copy);
+    return updated;
+  },
+};
+
+const refurbishmentExpenses: RefurbishmentExpenseRepository = {
+  async findByUnit(unitId) {
+    return (await readAll<RefurbishmentExpense>('refurbishment-expenses'))
+      .filter((item) => item.unitId === unitId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+  async create(value) {
+    const rows = await readAll<RefurbishmentExpense>('refurbishment-expenses');
+    await writeAll('refurbishment-expenses', [...rows, value]);
+    return value;
+  },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -615,6 +683,8 @@ export const jsonRepositories: Repositories = {
   customers,
   carts,
   sales,
+  usedDeviceAcquisitions,
+  refurbishmentExpenses,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

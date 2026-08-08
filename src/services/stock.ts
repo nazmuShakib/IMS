@@ -95,9 +95,16 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
               salePrice: null,
               soldAt: null,
               warrantyMonths: input.warrantyMonths ?? null,
+              warrantyDays: input.warrantyDays ?? null,
               warrantyExpiresAt: null,
               location: input.location ?? null,
               note: null,
+              usedGrade: input.unitCondition === 'REFURBISHED' ? 'REFURBISHED' : null,
+              batteryHealth: null,
+              inspectionResults: null,
+              knownDefects: null,
+              includedAccessories: null,
+              askingPrice: input.unitCondition === 'REFURBISHED' ? input.unitCost : null,
             }),
           );
           continue;
@@ -114,9 +121,16 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
           receivedAt: now,
           soldAt: null,
           warrantyMonths: input.warrantyMonths ?? null,
+          warrantyDays: input.warrantyDays ?? null,
           warrantyExpiresAt: null, // set at sale time, from soldAt + warrantyMonths
           location: input.location ?? null,
           note: null,
+          usedGrade: input.unitCondition === 'REFURBISHED' ? 'REFURBISHED' : null,
+          batteryHealth: null,
+          inspectionResults: null,
+          knownDefects: null,
+          includedAccessories: null,
+          askingPrice: input.unitCondition === 'REFURBISHED' ? input.unitCost : null,
           createdAt: now,
           updatedAt: now,
         });
@@ -220,10 +234,13 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
         throw new Error(`Device number ${input.serialNo} belongs to a different product`);
       }
 
-      const warrantyExpiresAt =
-        input.reason === 'SALE' && unit.warrantyMonths
-          ? addMonths(now, unit.warrantyMonths)
-          : null;
+      const warrantyExpiresAt = input.reason === 'SALE'
+        ? unit.warrantyDays
+          ? addDays(now, unit.warrantyDays)
+          : unit.warrantyMonths
+            ? addMonths(now, unit.warrantyMonths)
+            : null
+        : null;
 
       // ⚠️ OPTIMISTIC CONCURRENCY. Throws if the unit isn't IN_STOCK any more.
       // Two staff selling the same IMEI: the second one fails here rather than
@@ -397,6 +414,12 @@ function addMonths(iso: string, months: number): string {
   const d = new Date(iso);
   d.setMonth(d.getMonth() + months);
   return d.toISOString();
+}
+
+function addDays(iso: string, days: number): string {
+  const date = new Date(iso);
+  date.setDate(date.getDate() + days);
+  return date.toISOString();
 }
 
 export type { Paisa };

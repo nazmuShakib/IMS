@@ -9,7 +9,7 @@ const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf
 
 describe('English and Bengali interface', () => {
   it('keeps both dictionaries complete and interpolates values', () => {
-    expect(Object.keys(messages.bn)).toEqual(Object.keys(messages.en));
+    expect(Object.keys(messages.bn).sort()).toEqual(Object.keys(messages.en).sort());
     expect(translate('en', 'dashboard.days', { count: 30 })).toBe('30 days');
     expect(translate('bn', 'dashboard.days', { count: 30 })).toBe('30 দিন');
   });
@@ -31,7 +31,7 @@ describe('English and Bengali interface', () => {
     const schema = source('prisma/schema.prisma');
     const action = source('src/actions/locale.ts');
     const migration = source('prisma/migrations/20260802002000_add_user_locale/migration.sql');
-    expect(schema).toContain('locale        String');
+    expect(schema).toMatch(/locale\s+String\s+@default\("en"\)/);
     expect(action).toContain('z.enum(LOCALES)');
     expect(action).toContain('prisma.user.update');
     expect(action).toContain('httpOnly: true');

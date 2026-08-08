@@ -186,7 +186,8 @@ describe('Phase 8 stock and invoice invariants', () => {
 
   it('keeps SaleItem lean and derives movement-owned invoice values', () => {
     const schema = source('prisma/schema.prisma');
-    const saleItemModel = schema.slice(schema.indexOf('model SaleItem'));
+    const saleItemStart = schema.indexOf('model SaleItem');
+    const saleItemModel = schema.slice(saleItemStart, schema.indexOf('\nmodel ', saleItemStart + 1));
     const repository = source('src/repositories/prisma/index.ts');
     const migration = source('prisma/migrations/20260728215000_simplify_sale_items/migration.sql');
 

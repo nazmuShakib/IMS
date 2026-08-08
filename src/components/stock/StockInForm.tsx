@@ -29,7 +29,9 @@ interface StockConfirmation {
   reference: string | null;
   note: string | null;
   location: string | null;
-  warrantyMonths: string | null;
+  warrantyDuration: string | null;
+  warrantyUnit: 'DAYS' | 'MONTHS';
+  unitCondition: 'NEW' | 'REFURBISHED';
 }
 
 export function StockInForm({
@@ -51,6 +53,7 @@ export function StockInForm({
   const [serialText, setSerialText] = useState('');
   const [serialScan, setSerialScan] = useState('');
   const [cost, setCost] = useState('');
+  const [warrantyUnit, setWarrantyUnit] = useState<'DAYS' | 'MONTHS'>('MONTHS');
   const [key, setKey] = useState('');
   const [scanError, setScanError] = useState('');
   const [serialScanError, setSerialScanError] = useState('');
@@ -224,7 +227,9 @@ export function StockInForm({
       reference: nullable('reference'),
       note: nullable('note'),
       location: nullable('location'),
-      warrantyMonths: nullable('warrantyMonths'),
+      warrantyDuration: nullable('warrantyDuration'),
+      warrantyUnit: data.get('warrantyUnit') === 'DAYS' ? 'DAYS' : 'MONTHS',
+      unitCondition: data.get('unitCondition') === 'REFURBISHED' ? 'REFURBISHED' : 'NEW',
     });
   }
 
@@ -395,10 +400,16 @@ export function StockInForm({
                 <dt className="eyebrow">{t('stock.totalReceivedCost')}</dt>
                 <dd className="tnum mt-1 text-[15px] font-semibold">{formatBDT(confirmation.totalCost)}</dd>
               </div>
-              {confirmation.warrantyMonths && (
+              {confirmation.trackingType === 'SERIAL' && (
                 <div>
-                  <dt className="eyebrow">{t('stock.warrantyMonths')}</dt>
-                  <dd className="tnum mt-1 text-[14px]">{confirmation.warrantyMonths}</dd>
+                  <dt className="eyebrow">{t('stock.unitCondition')}</dt>
+                  <dd className="mt-1 text-[14px]">{confirmation.unitCondition === 'REFURBISHED' ? t('used.refurbished') : t('used.newStock')}</dd>
+                </div>
+              )}
+              {confirmation.warrantyDuration && (
+                <div>
+                  <dt className="eyebrow">{t('stock.warrantyDuration')}</dt>
+                  <dd className="tnum mt-1 text-[14px]">{confirmation.warrantyDuration} {confirmation.warrantyUnit === 'DAYS' ? (confirmation.warrantyDuration === '1' ? t('used.warrantyDay') : t('used.warrantyDays')) : (confirmation.warrantyDuration === '1' ? t('used.warrantyMonth') : t('used.warrantyMonths'))}</dd>
                 </div>
               )}
               {confirmation.reference && (
@@ -682,8 +693,20 @@ export function StockInForm({
               </div>
 
               <div className="mt-4 grid gap-4 sm:grid-cols-2">
-                <Field label={t('stock.warrantyMonths')} hint={t('stock.warrantyHint')}>
-                  <MonoInput name="warrantyMonths" inputMode="numeric" defaultValue={12} />
+                <Field label={t('stock.unitCondition')}>
+                  <Select name="unitCondition" defaultValue="NEW">
+                    <option value="NEW">{t('used.newStock')}</option>
+                    <option value="REFURBISHED">{t('used.refurbished')}</option>
+                  </Select>
+                </Field>
+                <Field label={t('stock.warrantyDuration')} hint={t('stock.warrantyHint')}>
+                  <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2">
+                    <MonoInput name="warrantyDuration" type="number" min={0} max={warrantyUnit === 'DAYS' ? 3650 : 120} inputMode="numeric" defaultValue={12} />
+                    <Select name="warrantyUnit" value={warrantyUnit} onChange={(event) => setWarrantyUnit(event.target.value as 'DAYS' | 'MONTHS')}>
+                      <option value="DAYS">{t('used.warrantyDays')}</option>
+                      <option value="MONTHS">{t('used.warrantyMonths')}</option>
+                    </Select>
+                  </div>
                 </Field>
                 <Field label={t('stock.location')}>
                   <Input name="location" placeholder="Shelf A1" />

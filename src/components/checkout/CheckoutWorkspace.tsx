@@ -12,10 +12,12 @@ import {
   type HTMLAttributes,
 } from "react";
 import { Trash2 } from "lucide-react";
+import Link from "next/link";
 
 import {
   addCartItemAction,
   checkoutAction,
+  clearTradeInDraftAction,
   createCustomerAction,
   removeCartItemAction,
   reorderCartItemsAction,
@@ -42,6 +44,7 @@ import type {
   PaymentMethod,
   PaymentStatus,
   TrackingType,
+  Role,
 } from "@/domain/types";
 import { formatBDT, toTaka } from "@/lib/money";
 import { useI18n } from "@/components/i18n/I18nProvider";
@@ -61,6 +64,7 @@ export interface CheckoutUnitOption {
   productName: string;
   sku: string;
   serialNo: string;
+  usedGrade: string | null;
 }
 
 export interface CheckoutLine {
@@ -76,6 +80,10 @@ export interface CheckoutLine {
   actualUnitPrice: number;
   position: number;
   onHand: number;
+  usedGrade: string | null;
+  knownDefects: string | null;
+  warrantyMonths: number | null;
+  warrantyDays: number | null;
 }
 
 function Message({ state }: { state: CheckoutActionState }) {
@@ -207,6 +215,15 @@ function CartLineEditor({
         <div className="min-w-0">
           <p className="text-[13px] font-medium">{line.productName}</p>
           <p className="tnum text-[11px] text-graphite">{line.sku}</p>
+          {line.usedGrade && <p className="mt-1 text-[11px] font-medium text-signal">{line.usedGrade === 'REFURBISHED' ? t('used.refurbished') : `${t('used.usedPhone')} · ${line.usedGrade.replace('GRADE_', `${t('used.grade')} `)}`}</p>}
+          {(line.warrantyDays || line.warrantyMonths) && (
+            <p className="mt-1 text-[11px] text-graphite">
+              {t('used.warrantyDuration')}: {line.warrantyDays
+                ? `${line.warrantyDays} ${line.warrantyDays === 1 ? t('used.warrantyDay') : t('used.warrantyDays')}`
+                : `${line.warrantyMonths} ${line.warrantyMonths === 1 ? t('used.warrantyMonth') : t('used.warrantyMonths')}`}
+            </p>
+          )}
+          {line.knownDefects && <p className="mt-1 max-w-xl text-[11px] text-out">{t('used.knownDefects')}: {line.knownDefects}</p>}
           <p className="mt-1 text-[11px] text-graphite">
             {t("checkout.listPrice", { price: formatBDT(line.listUnitPrice) })}
           </p>
@@ -357,6 +374,7 @@ export function CheckoutWorkspace({
   products,
   units,
   customers,
+  role,
 }: {
   cart: CartDraft;
   initialIdentifier?: string;
@@ -364,11 +382,13 @@ export function CheckoutWorkspace({
   products: CheckoutProductOption[];
   units: CheckoutUnitOption[];
   customers: Customer[];
+  role: Role;
 }) {
   const { t } = useI18n();
   const [checkoutKey, setCheckoutKey] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
+  const [confirmingTradeInRemoval, setConfirmingTradeInRemoval] = useState(false);
   const [orderedLines, setOrderedLines] = useState(lines);
   const orderedLinesRef = useRef(lines);
   const cartLinesRef = useRef<HTMLDivElement>(null);
@@ -392,6 +412,10 @@ export function CheckoutWorkspace({
   );
   const [checkoutState, completeAction, checkingOut] = useActionState(
     checkoutAction,
+    {},
+  );
+  const [clearTradeInState, clearTradeInAction, clearingTradeIn] = useActionState(
+    clearTradeInDraftAction,
     {},
   );
   const lineUpdatesPending = pendingLineIds.size > 0;
@@ -464,6 +488,10 @@ export function CheckoutWorkspace({
     return () => window.removeEventListener("keydown", close);
   }, [confirmingCheckout, checkingOut]);
 
+  useEffect(() => {
+    if (clearTradeInState.ok) setConfirmingTradeInRemoval(false);
+  }, [clearTradeInState.ok]);
+
   const quantityProducts = products.filter(
     (product) => product.trackingType === "QUANTITY",
   );
@@ -491,6 +519,11 @@ export function CheckoutWorkspace({
       ),
     [orderedLines],
   );
+  const tradeInProduct = products.find((product) => product.id === cart.tradeInDraft?.productId);
+  const tradeInCredit = cart.tradeInDraft?.acquisitionValue
+    ?? 0;
+  const amountDue = Math.max(0, total - tradeInCredit);
+  const priceAdjustment = total - subtotal;
 
   const setLineOrder = (next: CheckoutLine[]) => {
     orderedLinesRef.current = next;
@@ -631,7 +664,7 @@ export function CheckoutWorkspace({
                   </option>
                   {units.map((unit) => (
                     <option key={unit.id} value={unit.id}>
-                      {unit.serialNo} — {unit.sku} — {unit.productName}
+                      {unit.serialNo} — {unit.sku} — {unit.productName}{unit.usedGrade ? ` — ${unit.usedGrade.replace('GRADE_', 'Grade ')}` : ''}
                     </option>
                   ))}
                 </Select>
@@ -817,6 +850,37 @@ export function CheckoutWorkspace({
                   </Select>
                 </Field>
               </div>
+              {role === "STAFF" ? (
+                <input type="hidden" name="tradeInAcquisitionId" value="" />
+              ) : cart.tradeInDraft ? (
+                <div>
+                  <p className="eyebrow mb-1.5">{t("checkout.tradeInCredit")}</p>
+                  <p className="mb-2 text-[11px] text-graphite">{t("checkout.tradeInDraftHelp")}</p>
+                  <input type="hidden" name="tradeInAcquisitionId" value="" />
+                  <div className="rounded-[3px] border border-rule bg-plate/30 p-3 text-[12px]">
+                    <p className="font-semibold">{tradeInProduct?.name ?? t("common.product")} · <span className="tnum">{cart.tradeInDraft.serialNo}</span></p>
+                    <p className="mt-1 text-graphite">{cart.tradeInDraft.sellerName} · {formatBDT(cart.tradeInDraft.acquisitionValue)}</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <Link href={`/stock/used-intake?cart=${cart.id}`} className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[13px] hover:bg-plate">
+                        {t("checkout.editTradeIn")}
+                      </Link>
+                      <Button type="button" variant="danger" onClick={() => setConfirmingTradeInRemoval(true)} disabled={clearingTradeIn}>
+                        {t("checkout.removeTradeIn")}
+                      </Button>
+                    </div>
+                  </div>
+                  <Message state={clearTradeInState} />
+                </div>
+              ) : (
+                <div>
+                  <p className="eyebrow mb-1.5">{t("checkout.tradeInCredit")}</p>
+                  <p className="mb-2 text-[11px] text-graphite">{t("checkout.tradeInHelp")}</p>
+                  <Link href={`/stock/used-intake?cart=${cart.id}`} className="mb-2 inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[13px] font-medium hover:bg-plate">
+                    {t("checkout.prepareTradeIn")}
+                  </Link>
+                  <input type="hidden" name="tradeInAcquisitionId" value="" />
+                </div>
+              )}
               <Field label={t("common.reference")}>
                 <Input
                   name="reference"
@@ -837,12 +901,26 @@ export function CheckoutWorkspace({
               </div>
               <div className="flex justify-between">
                 <dt>{t("checkout.priceAdjustment")}</dt>
-                <dd className="tnum">{formatBDT(subtotal - total)}</dd>
+                <dd className={`tnum font-medium ${priceAdjustment > 0 ? "text-ok" : priceAdjustment < 0 ? "text-out" : "text-graphite"}`}>
+                  {priceAdjustment > 0 ? "+" : ""}{formatBDT(priceAdjustment)}
+                </dd>
               </div>
               <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
                 <dt>{t("common.total")}</dt>
                 <dd className="tnum">{formatBDT(total)}</dd>
               </div>
+              {tradeInCredit > 0 && (
+                <>
+                  <div className="flex justify-between text-[13px] text-out">
+                    <dt>{t("checkout.tradeInCredit")}</dt>
+                    <dd className="tnum">−{formatBDT(tradeInCredit)}</dd>
+                  </div>
+                  <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
+                    <dt>{t("checkout.amountDue")}</dt>
+                    <dd className="tnum">{formatBDT(amountDue)}</dd>
+                  </div>
+                </>
+              )}
             </dl>
 
             <div className="mt-5 grid gap-2">
@@ -880,6 +958,44 @@ export function CheckoutWorkspace({
               {t("checkout.transactionHelp")}
             </p>
 
+            {confirmingTradeInRemoval && cart.tradeInDraft && (
+              <div
+                className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
+                onMouseDown={(event) => {
+                  if (event.target === event.currentTarget && !clearingTradeIn) {
+                    setConfirmingTradeInRemoval(false);
+                  }
+                }}
+              >
+                <div
+                  role="alertdialog"
+                  aria-modal="true"
+                  aria-labelledby="remove-trade-in-title"
+                  aria-describedby="remove-trade-in-description"
+                  className="w-full max-w-md rounded-[3px] border border-rule bg-card p-5 shadow-xl"
+                >
+                  <h2 id="remove-trade-in-title" className="text-[17px] font-semibold">
+                    {t("checkout.removeTradeInTitle")}
+                  </h2>
+                  <p id="remove-trade-in-description" className="mt-2 text-[13px] text-graphite">
+                    {t("checkout.removeTradeInDescription")}
+                  </p>
+                  <p className="mt-3 rounded-[3px] border border-rule bg-plate/30 p-3 text-[12px]">
+                    <span className="font-semibold">{tradeInProduct?.name ?? t("common.product")}</span>
+                    <span className="tnum ml-2">{cart.tradeInDraft.serialNo}</span>
+                  </p>
+                  <div className="mt-5 flex justify-end gap-2">
+                    <Button type="button" variant="ghost" onClick={() => setConfirmingTradeInRemoval(false)} disabled={clearingTradeIn}>
+                      {t("common.cancel")}
+                    </Button>
+                    <Button type="submit" variant="danger" formAction={clearTradeInAction} disabled={clearingTradeIn}>
+                      {clearingTradeIn ? t("common.saving") : t("checkout.yesRemoveTradeIn")}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {confirmingCheckout && (
               <div
                 className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
@@ -916,6 +1032,14 @@ export function CheckoutWorkspace({
                       total: formatBDT(total),
                     })}
                   </p>
+                  {tradeInCredit > 0 && (
+                    <p className="mt-2 text-[12px] text-graphite">
+                      {t("checkout.tradeInConfirmation", {
+                        credit: formatBDT(tradeInCredit),
+                        due: formatBDT(amountDue),
+                      })}
+                    </p>
+                  )}
                   <p className="mt-2 text-[12px] text-out">
                     {t("checkout.cannotUndo")}
                   </p>

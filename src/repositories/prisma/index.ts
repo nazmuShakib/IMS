@@ -17,6 +17,11 @@ import type {
   Sale,
   SaleItem,
   InvoiceItem,
+  UsedDeviceAcquisition,
+  RefurbishmentExpense,
+  UsedDeviceInspection,
+  TradeInCartDraft,
+  TradeInSaleSnapshot,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
@@ -62,12 +67,29 @@ function product(row: Awaited<ReturnType<Client['product']['findUniqueOrThrow']>
 function unit(row: Awaited<ReturnType<Client['productUnit']['findUniqueOrThrow']>>): ProductUnit {
   return {
     ...row,
+    inspectionResults: row.inspectionResults as UsedDeviceInspection | null,
     receivedAt: iso(row.receivedAt),
     soldAt: row.soldAt ? iso(row.soldAt) : null,
     warrantyExpiresAt: row.warrantyExpiresAt ? iso(row.warrantyExpiresAt) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
+}
+
+function usedDeviceAcquisition(
+  row: Awaited<ReturnType<Client['usedDeviceAcquisition']['findUniqueOrThrow']>>,
+): UsedDeviceAcquisition {
+  return {
+    ...row,
+    acquiredAt: iso(row.acquiredAt),
+    createdAt: iso(row.createdAt),
+  };
+}
+
+function refurbishmentExpense(
+  row: Awaited<ReturnType<Client['refurbishmentExpense']['findUniqueOrThrow']>>,
+): RefurbishmentExpense {
+  return { ...row, createdAt: iso(row.createdAt) };
 }
 
 function movement(row: Awaited<ReturnType<Client['stockMovement']['findUniqueOrThrow']>>): StockMovement {
@@ -91,7 +113,12 @@ function customer(row: Awaited<ReturnType<Client['customer']['findUniqueOrThrow'
 }
 
 function cartDraft(row: Awaited<ReturnType<Client['cartDraft']['findUniqueOrThrow']>>): CartDraft {
-  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+  return {
+    ...row,
+    tradeInDraft: row.tradeInDraft as TradeInCartDraft | null,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
 }
 
 function cartItem(row: Awaited<ReturnType<Client['cartItem']['findUniqueOrThrow']>>): CartItem {
@@ -99,7 +126,12 @@ function cartItem(row: Awaited<ReturnType<Client['cartItem']['findUniqueOrThrow'
 }
 
 function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sale {
-  return { ...row, completedAt: iso(row.completedAt), createdAt: iso(row.createdAt) };
+  return {
+    ...row,
+    tradeInDetails: row.tradeInDetails as TradeInSaleSnapshot | null,
+    completedAt: iso(row.completedAt),
+    createdAt: iso(row.createdAt),
+  };
 }
 
 function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow']>>): SaleItem {
@@ -124,8 +156,10 @@ function productPatch(
 }
 
 function unitData(value: ProductUnit): Prisma.ProductUnitUncheckedCreateInput {
+  const { inspectionResults, ...rest } = value;
   return {
-    ...value,
+    ...rest,
+    inspectionResults: inspectionResults ?? Prisma.DbNull,
     receivedAt: new Date(value.receivedAt),
     soldAt: value.soldAt ? new Date(value.soldAt) : null,
     warrantyExpiresAt: value.warrantyExpiresAt ? new Date(value.warrantyExpiresAt) : null,
@@ -135,9 +169,12 @@ function unitData(value: ProductUnit): Prisma.ProductUnitUncheckedCreateInput {
 }
 
 function unitPatch(value: Partial<ProductUnit>): Prisma.ProductUnitUncheckedUpdateManyInput {
-  const { receivedAt, soldAt, warrantyExpiresAt, createdAt, updatedAt, ...rest } = value;
+  const { receivedAt, soldAt, warrantyExpiresAt, createdAt, updatedAt, inspectionResults, ...rest } = value;
   return {
     ...rest,
+    ...(inspectionResults !== undefined
+      ? { inspectionResults: inspectionResults ?? Prisma.DbNull }
+      : {}),
     ...(receivedAt ? { receivedAt: new Date(receivedAt) } : {}),
     ...(soldAt !== undefined ? { soldAt: soldAt ? new Date(soldAt) : null } : {}),
     ...(warrantyExpiresAt !== undefined
@@ -375,6 +412,12 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           return rows.map(unit);
         } catch (error) { return friendlyDatabaseError(error); }
       },
+      async updateDetails(id, patch) {
+        return unit(await client.productUnit.update({
+          where: { id },
+          data: unitPatch(patch),
+        }));
+      },
       async transitionStatus(id, expectedStatus, next, patch) {
         const result = await client.productUnit.updateMany({
           where: { id, status: expectedStatus },
@@ -564,13 +607,27 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return cartDraft(await client.cartDraft.create({
           data: {
             ...value,
+            tradeInDraft: value.tradeInDraft
+              ? value.tradeInDraft as unknown as Prisma.InputJsonValue
+              : Prisma.DbNull,
             createdAt: new Date(value.createdAt),
             updatedAt: new Date(value.updatedAt),
           },
         }));
       },
       async update(id, patch) {
-        return cartDraft(await client.cartDraft.update({ where: { id }, data: patch }));
+        const data = 'tradeInDraft' in patch
+          ? {
+              ...patch,
+              tradeInDraft: patch.tradeInDraft
+                ? patch.tradeInDraft as unknown as Prisma.InputJsonValue
+                : Prisma.DbNull,
+            }
+          : patch;
+        return cartDraft(await client.cartDraft.update({
+          where: { id },
+          data: data as unknown as Prisma.CartDraftUncheckedUpdateInput,
+        }));
       },
       async findItems(cartId) {
         return (await client.cartItem.findMany({
@@ -670,6 +727,9 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return sale(await client.sale.create({
           data: {
             ...value,
+            tradeInDetails: value.tradeInDetails
+              ? value.tradeInDetails as unknown as Prisma.InputJsonValue
+              : Prisma.DbNull,
             completedAt: new Date(value.completedAt),
             createdAt: new Date(value.createdAt),
           },
@@ -700,6 +760,9 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             serialNo: row.serialNo,
             listUnitPrice: row.listUnitPrice,
             warrantyMonths: row.warrantyMonths,
+            warrantyDays: row.warrantyDays,
+            usedGrade: row.usedGrade,
+            knownDefects: row.knownDefects,
             position: row.position,
             createdAt: iso(row.createdAt),
             quantity,
@@ -708,6 +771,58 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             lineTotal: row.movement.unitPrice * quantity,
           };
         });
+      },
+    },
+    usedDeviceAcquisitions: {
+      async findById(id) {
+        const row = await client.usedDeviceAcquisition.findUnique({ where: { id } });
+        return row ? usedDeviceAcquisition(row) : null;
+      },
+      async findByIdempotencyKey(idempotencyKey) {
+        const row = await client.usedDeviceAcquisition.findUnique({ where: { idempotencyKey } });
+        return row ? usedDeviceAcquisition(row) : null;
+      },
+      async findByUnit(unitId) {
+        const row = await client.usedDeviceAcquisition.findUnique({ where: { unitId } });
+        return row ? usedDeviceAcquisition(row) : null;
+      },
+      async findAvailableTradeIns() {
+        return (await client.usedDeviceAcquisition.findMany({
+          where: { type: 'TRADE_IN', tradeInSaleId: null, draft: null },
+          orderBy: { acquiredAt: 'desc' },
+        })).map(usedDeviceAcquisition);
+      },
+      async create(value) {
+        try {
+          return usedDeviceAcquisition(await client.usedDeviceAcquisition.create({
+            data: {
+              ...value,
+              acquiredAt: new Date(value.acquiredAt),
+              createdAt: new Date(value.createdAt),
+            },
+          }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async attachToSale(id, saleId) {
+        const result = await client.usedDeviceAcquisition.updateMany({
+          where: { id, type: 'TRADE_IN', tradeInSaleId: null },
+          data: { tradeInSaleId: saleId },
+        });
+        if (result.count !== 1) throw new Error('That trade-in has already been used or is unavailable.');
+        return usedDeviceAcquisition(await client.usedDeviceAcquisition.findUniqueOrThrow({ where: { id } }));
+      },
+    },
+    refurbishmentExpenses: {
+      async findByUnit(unitId) {
+        return (await client.refurbishmentExpense.findMany({
+          where: { unitId },
+          orderBy: { createdAt: 'asc' },
+        })).map(refurbishmentExpense);
+      },
+      async create(value) {
+        return refurbishmentExpense(await client.refurbishmentExpense.create({
+          data: { ...value, createdAt: new Date(value.createdAt) },
+        }));
       },
     },
     transaction: transact ?? ((fn) => fn(repositories)),

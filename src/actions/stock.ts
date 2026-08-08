@@ -165,6 +165,8 @@ export async function receiveStockAction(
     const reason = (str(fd, 'reason') ?? 'PURCHASE') as 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
     const location = str(fd, 'location');
     const reference = str(fd, 'reference');
+    const warrantyDuration = str(fd, 'warrantyDuration') ? Number(str(fd, 'warrantyDuration')) : null;
+    const warrantyUnit = str(fd, 'warrantyUnit') ?? 'MONTHS';
     const movements = await receiveStock({
       productId,
       supplierId,
@@ -172,7 +174,9 @@ export async function receiveStockAction(
       reason,
       serialNumbers: product.trackingType === 'SERIAL' ? serialNumbers : undefined,
       quantity: product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
-      warrantyMonths: str(fd, 'warrantyMonths') ? Number(str(fd, 'warrantyMonths')) : null,
+      warrantyMonths: warrantyUnit === 'MONTHS' ? warrantyDuration : null,
+      warrantyDays: warrantyUnit === 'DAYS' ? warrantyDuration : null,
+      unitCondition: str(fd, 'unitCondition') === 'REFURBISHED' ? 'REFURBISHED' : 'NEW',
       location,
       reference,
       note: str(fd, 'note'),
@@ -199,7 +203,7 @@ export async function receiveStockAction(
       action: 'stock.in',
       entity: 'StockMovement',
       entityId: movements[0]?.id,
-      after: { movementIds: movements.map((movement) => movement.id), productId, count },
+      after: { movementIds: movements.map((movement) => movement.id), productId, count, unitCondition: str(fd, 'unitCondition') === 'REFURBISHED' ? 'REFURBISHED' : 'NEW', warrantyDuration, warrantyUnit },
     });
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
