@@ -221,12 +221,19 @@ export default async function DashboardPage() {
           {recentActivity.length === 0 ? <EmptyState title={t('dashboard.noMovement')} /> : (
             <TableViewport className="max-h-96">
               <div className="divide-y divide-rule-soft">
-                {recentActivity.map((activity) => (
-                  <Link key={activity.id} href={`/products/${activity.productId}`} className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-plate/50">
-                    <span><span className="text-[12px] font-medium">{activity.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{activity.reason.replaceAll('_', ' ')} · {activity.actorName} · {dhaka(activity.createdAt, locale)}</span></span>
-                    <span className={`tnum text-[12px] font-medium ${activity.quantity > 0 ? 'text-ok' : 'text-out'}`}>{activity.quantity > 0 ? '+' : ''}{activity.quantity}</span>
-                  </Link>
-                ))}
+                {recentActivity.map((activity) => {
+                  const correction = activity.reason === 'CORRECTION';
+                  return (
+                    <Link key={activity.id} href={`/products/${activity.productId}`} className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-plate/50">
+                      <span><span className="text-[12px] font-medium">{activity.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{activity.reason.replaceAll('_', ' ')} · {activity.actorName} · {dhaka(activity.createdAt, locale)}</span></span>
+                      <span className={`tnum text-right text-[12px] font-medium ${correction ? 'text-low' : activity.quantity > 0 ? 'text-ok' : 'text-out'}`}>
+                        {correction
+                          ? t(activity.quantity > 0 ? 'dashboard.correctionRestored' : 'dashboard.correctionRemoved', { count: Math.abs(activity.quantity) })
+                          : `${activity.quantity > 0 ? '+' : ''}${activity.quantity}`}
+                      </span>
+                    </Link>
+                  );
+                })}
               </div>
             </TableViewport>
           )}

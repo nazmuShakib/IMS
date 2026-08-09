@@ -103,6 +103,11 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.monthRevenue).toBe(800);
     expect(dashboard.monthCogs).toBe(500);
     expect(dashboard.monthGrossProfit).toBe(300);
+    expect(dashboard.recentActivity.some((item) => item.reason === 'CORRECTION')).toBe(true);
+    expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockIn, 0)).toBe(0);
+    expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockOut, 0)).toBe(1);
+    expect(dashboard.topMovers.find((item) => item.productId === bulkProduct.id)?.movedLast30Days).toBe(0);
+    expect(dashboard.topMovers.find((item) => item.productId === serialProduct.id)?.movedLast30Days).toBe(1);
   });
 
   it('never serializes financial or cost fields for STAFF', async () => {

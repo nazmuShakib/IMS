@@ -150,6 +150,14 @@ export async function getDashboard(
 
   const productById = new Map(products.map((product) => [product.id, product]));
   const movementById = new Map(movements.map((movement) => [movement.id, movement]));
+  const reversedMovementIds = new Set(
+    movements
+      .filter((movement) => movement.reason === 'CORRECTION' && movement.reversesId)
+      .map((movement) => movement.reversesId!),
+  );
+  const isEffectiveOperation = (movement: StockMovement) => (
+    movement.reason !== 'CORRECTION' && !reversedMovementIds.has(movement.id)
+  );
   const userById = new Map(users.map((user: User) => [user.id, user.name]));
   const onHand = new Map<string, number>();
 
@@ -180,7 +188,7 @@ export async function getDashboard(
   const cutoff60 = new Date(now.getTime() - 60 * DAY_MS);
   const recentOutboundByProduct = new Map<string, StockMovement[]>();
   for (const movement of movements) {
-    if (movement.quantity < 0 && movement.reason !== 'CORRECTION') {
+    if (movement.quantity < 0 && isEffectiveOperation(movement)) {
       const list = recentOutboundByProduct.get(movement.productId) ?? [];
       list.push(movement);
       recentOutboundByProduct.set(movement.productId, list);
@@ -243,7 +251,7 @@ export async function getDashboard(
 
   const movementCount30 = new Map<string, number>();
   for (const movement of movements) {
-    if (new Date(movement.createdAt) < cutoff30 || movement.quantity >= 0 || movement.reason === 'CORRECTION') continue;
+    if (new Date(movement.createdAt) < cutoff30 || movement.quantity >= 0 || !isEffectiveOperation(movement)) continue;
     movementCount30.set(
       movement.productId,
       (movementCount30.get(movement.productId) ?? 0) + Math.abs(movement.quantity),
@@ -269,7 +277,7 @@ export async function getDashboard(
   for (const movement of movements) {
     const key = dhakaDateKey(new Date(movement.createdAt));
     const operation = operations.get(key);
-    if (operation) {
+    if (operation && isEffectiveOperation(movement)) {
       if (movement.quantity > 0) operation.stockIn += movement.quantity;
       if (movement.quantity < 0) operation.stockOut += Math.abs(movement.quantity);
     }
