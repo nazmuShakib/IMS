@@ -134,10 +134,16 @@ export default async function MovementsPage({
       : b.createdAt.localeCompare(a.createdAt)
   ));
   const rows = await Promise.all(
-    sorted.slice(0, 200).map(async (movement) => ({
-      movement,
-      serial: movement.unitId ? ((await db.units.findById(movement.unitId))?.serialNo ?? null) : null,
-    })),
+    sorted.slice(0, 200).map(async (movement) => {
+      const [unit, acquisition] = await Promise.all([
+        movement.unitId ? db.units.findById(movement.unitId) : Promise.resolve(null),
+        movement.unitId ? db.usedDeviceAcquisitions.findByUnit(movement.unitId) : Promise.resolve(null),
+      ]);
+      const linkedSale = acquisition?.tradeInSaleId
+        ? await db.sales.findById(acquisition.tradeInSaleId)
+        : null;
+      return { movement, serial: unit?.serialNo ?? null, linkedSale };
+    }),
   );
 
   const tabs = [
@@ -237,11 +243,12 @@ export default async function MovementsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ movement, serial }) => {
+                  {rows.map(({ movement, serial, linkedSale }) => {
                     const product = productById.get(movement.productId);
                     const inbound = movement.quantity > 0;
                     const isCorrection = movement.reason === 'CORRECTION';
                     const wasReversed = reversedIds.has(movement.id);
+                    const invoiceOwnedTradeIn = Boolean(linkedSale && movement.reason === 'TRADE_IN');
                     return (
                       <tr key={movement.id} className={`border-b border-rule-soft last:border-0 ${isCorrection ? 'bg-plate/40' : ''}`}>
                         <td className="tnum whitespace-nowrap px-4 py-2.5 text-[12px] text-graphite">{stamp(movement.createdAt, locale)}</td>
@@ -267,11 +274,27 @@ export default async function MovementsPage({
                         </td>
                         {canReverse && (
                           <td className="px-4 py-2.5 text-right">
-                            {!isCorrection && !wasReversed && (
+                            {!isCorrection && !wasReversed && movement.reason !== 'SALE' && !invoiceOwnedTradeIn && (
                               <ReverseButton
                                 movementId={movement.id}
                                 label={t('ledger.movementLabel', { reason: t(REASON_LABEL[movement.reason]), item: product?.name ?? t('ledger.item') })}
                               />
+                            )}
+                            {movement.reason === 'SALE' && !wasReversed && movement.reference && (
+                              <Link
+                                href={`/invoices?q=${encodeURIComponent(movement.reference)}`}
+                                className="text-[11px] text-signal underline underline-offset-2"
+                              >
+                                Void from its invoice
+                              </Link>
+                            )}
+                            {linkedSale && movement.reason === 'TRADE_IN' && (
+                              <Link
+                                href={`/invoices/${linkedSale.id}`}
+                                className="text-[11px] text-signal underline underline-offset-2"
+                              >
+                                Managed by {linkedSale.invoiceNumber}
+                              </Link>
                             )}
                           </td>
                         )}

@@ -15,6 +15,7 @@ import {
   type StockOutInput,
   type CorrectionInput,
 } from '@/schemas';
+import type { Repositories } from '@/repositories/types';
 
 /**
  * THE CORE OF THE APPLICATION. PLAN.md §8.
@@ -305,12 +306,30 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
 // CORRECTION — never edit or delete a movement. Write an opposing one. §8.3.
 // ---------------------------------------------------------------------------
 
-export async function correctMovement(raw: CorrectionInput): Promise<StockMovement> {
-  const input = correctionSchema.parse(raw);
-
-  return db.transaction(async (tx) => {
+export async function correctMovementInTransaction(
+  input: CorrectionInput,
+  tx: Repositories,
+  options: { allowSale?: boolean; allowAttachedTradeIn?: boolean } = {},
+): Promise<StockMovement> {
     const original = await tx.movements.findById(input.movementId);
     if (!original) throw new Error(`Movement not found: ${input.movementId}`);
+
+    if (original.reason === 'SALE' && !options.allowSale) {
+      throw new Error('Void the complete invoice instead of reversing an individual sale movement.');
+    }
+
+    if (original.reason === 'TRADE_IN' && original.unitId && !options.allowAttachedTradeIn) {
+      const acquisition = await tx.usedDeviceAcquisitions.findByUnit(original.unitId);
+      if (acquisition?.tradeInSaleId) {
+        const sale = await tx.sales.findById(acquisition.tradeInSaleId);
+        if (sale) {
+          throw new Error(
+            `This trade-in belongs to invoice ${sale.invoiceNumber}. `
+            + 'Void the complete invoice instead of reversing its trade-in movement.',
+          );
+        }
+      }
+    }
 
     const product = await tx.products.findById(original.productId);
     if (!product) throw new Error(`Product not found: ${original.productId}`);
@@ -371,6 +390,12 @@ export async function correctMovement(raw: CorrectionInput): Promise<StockMoveme
       reversesId: original.id,
       createdAt: now,
     });
+}
+
+export async function correctMovement(raw: CorrectionInput): Promise<StockMovement> {
+  const input = correctionSchema.parse(raw);
+  return db.transaction(async (tx) => {
+    return correctMovementInTransaction(input, tx);
   });
 }
 

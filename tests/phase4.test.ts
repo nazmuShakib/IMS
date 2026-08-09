@@ -28,13 +28,17 @@ const units: ProductUnit[] = [
     id: 'unit-in', serialNo: 'IMEI-EXACT', productId: serialProduct.id, status: 'IN_STOCK',
     costPrice: 500, salePrice: null, supplierId: 'supplier-1', receivedAt: '2026-06-01T00:00:00.000Z',
     soldAt: null, warrantyMonths: 12, warrantyExpiresAt: '2027-06-01T00:00:00.000Z',
-    location: 'A1', note: null, createdAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:00:00.000Z',
+    location: 'A1', note: null, usedGrade: 'GRADE_B', batteryHealth: 90,
+    inspectionResults: null, knownDefects: null, includedAccessories: null, askingPrice: 900,
+    createdAt: '2026-06-01T00:00:00.000Z', updatedAt: '2026-06-01T00:00:00.000Z',
   },
   {
     id: 'unit-sold', serialNo: 'IMEI-SOLD', productId: serialProduct.id, status: 'SOLD',
     costPrice: 500, salePrice: 800, supplierId: 'supplier-1', receivedAt: '2026-05-01T00:00:00.000Z',
     soldAt: '2026-07-05T00:00:00.000Z', warrantyMonths: 12, warrantyExpiresAt: '2027-05-01T00:00:00.000Z',
-    location: null, note: null, createdAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-07-05T00:00:00.000Z',
+    location: null, note: null, usedGrade: null, batteryHealth: null,
+    inspectionResults: null, knownDefects: null, includedAccessories: null, askingPrice: null,
+    createdAt: '2026-05-01T00:00:00.000Z', updatedAt: '2026-07-05T00:00:00.000Z',
   },
 ];
 
@@ -94,8 +98,8 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.canSeeFinancials).toBe(true);
     if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
     expect(dashboard.stockValueAtCost).toBe(1_500);
-    expect(dashboard.stockValueAtRetail).toBe(2_800);
-    expect(dashboard.potentialMargin).toBe(1_300);
+    expect(dashboard.stockValueAtRetail).toBe(2_900);
+    expect(dashboard.potentialMargin).toBe(1_400);
     expect(dashboard.monthRevenue).toBe(800);
     expect(dashboard.monthCogs).toBe(500);
     expect(dashboard.monthGrossProfit).toBe(300);

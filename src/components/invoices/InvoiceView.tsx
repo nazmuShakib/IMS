@@ -1,12 +1,14 @@
 'use client';
 
-import { useActionState, useEffect, useState } from 'react';
+import { useActionState, useEffect, useState, type FormEvent } from 'react';
+import { useRouter } from 'next/navigation';
 
-import { recordInvoicePrintAction } from '@/actions/checkout';
+import { recordInvoicePrintAction, voidInvoiceAction } from '@/actions/checkout';
 import { Button } from '@/components/ui';
-import type { InvoiceItem, Sale } from '@/domain/types';
+import { PAYMENT_METHODS, type InvoiceItem, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
 
 export interface InvoiceShop {
   name: string;
@@ -28,18 +30,73 @@ export function InvoiceView({
   sale,
   items,
   shop,
+  canVoid,
 }: {
   sale: Sale;
   items: InvoiceItem[];
   shop: InvoiceShop;
+  canVoid: boolean;
 }) {
+  const router = useRouter();
   const [layout, setLayout] = useState<'a4' | 'thermal'>('a4');
   const [state, action, pending] = useActionState(recordInvoicePrintAction, {});
+  const [voidState, voidAction, voidPending] = useActionState(voidInvoiceAction, {});
+  const [showVoid, setShowVoid] = useState(false);
+  const [voidKey, setVoidKey] = useState('');
+  const [voidFields, setVoidFields] = useState<VoidInvoiceFields>({
+    reason: '',
+    refundMethod: sale.paymentMethod,
+    confirmed: false,
+  });
+  const [clientVoidErrors, setClientVoidErrors] = useState<Partial<Record<keyof VoidInvoiceFields, string>>>({});
+  const [hideServerVoidErrors, setHideServerVoidErrors] = useState(true);
   const { message } = useI18n();
 
   useEffect(() => {
     if (state.printNonce) window.print();
   }, [state.printNonce]);
+  useEffect(() => setVoidKey(crypto.randomUUID()), []);
+  useEffect(() => {
+    if (voidState.ok) {
+      setShowVoid(false);
+      router.refresh();
+    }
+  }, [router, voidState.ok]);
+  useEffect(() => {
+    if (voidState.error || voidState.fieldErrors) setHideServerVoidErrors(false);
+  }, [voidState]);
+
+  const refundAmount = sale.paymentStatus === 'PAID'
+    ? Math.max(0, sale.total - sale.tradeInCredit)
+    : 0;
+
+  function openVoidDialog() {
+    setVoidFields({ reason: '', refundMethod: sale.paymentMethod, confirmed: false });
+    setClientVoidErrors({});
+    setHideServerVoidErrors(true);
+    setShowVoid(true);
+  }
+
+  function updateVoidField<K extends keyof VoidInvoiceFields>(key: K, value: VoidInvoiceFields[K]) {
+    setVoidFields((current) => ({ ...current, [key]: value }));
+    setClientVoidErrors((current) => ({ ...current, [key]: undefined }));
+    setHideServerVoidErrors(true);
+  }
+
+  function validateVoidForm(event: FormEvent<HTMLFormElement>) {
+    const result = voidInvoiceFieldsSchema.safeParse(voidFields);
+    if (result.success) {
+      setClientVoidErrors({});
+      return;
+    }
+    event.preventDefault();
+    const fields = result.error.flatten().fieldErrors;
+    setClientVoidErrors({
+      reason: fields.reason?.[0],
+      refundMethod: fields.refundMethod?.[0],
+      confirmed: fields.confirmed?.[0],
+    });
+  }
 
   return (
     <div className="invoice-root" data-layout={layout}>
@@ -49,6 +106,7 @@ export function InvoiceView({
             <p className="text-[13px] font-medium">Invoice layout</p>
             <p className="text-[11px] text-graphite">Reprints use the original completed-sale snapshot.</p>
           </div>
+          <div className="flex flex-wrap items-center gap-2">
           <form action={action} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="saleId" value={sale.id} />
             <select
@@ -70,8 +128,15 @@ export function InvoiceView({
               Download PDF
             </a>
           </form>
+          {canVoid && (
+            <Button type="button" variant="danger" onClick={openVoidDialog}>
+              Void invoice
+            </Button>
+          )}
+          </div>
         </div>
         {state.error && <p className="mb-3 text-[12px] text-out">{message(state.error)}</p>}
+        {voidState.ok && <p className="mb-3 text-[12px] text-ok">{voidState.ok}</p>}
       </div>
 
       <div className="invoice-preview-viewport" tabIndex={0} aria-label="Scrollable invoice preview">
@@ -83,7 +148,7 @@ export function InvoiceView({
               {shop.phone && <p>{shop.phone}</p>}
             </div>
             <div className="invoice-title">
-              <strong>INVOICE</strong>
+              <strong>{sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}</strong>
               <span className="tnum">{sale.invoiceNumber}</span>
             </div>
           </header>
@@ -157,6 +222,13 @@ export function InvoiceView({
           <section className="invoice-payment">
             <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
             {sale.note && <p><span>Note:</span> {sale.note}</p>}
+            {sale.status === 'VOIDED' && (
+              <p className="invoice-void-details">
+                <span>Voided:</span> {sale.voidedAt ? dateTime(sale.voidedAt) : 'Recorded'}
+                {sale.voidedByName ? ` by ${sale.voidedByName}` : ''}. Reason: {sale.voidReason ?? 'Not recorded'}.
+                {' '}Refund: {formatBDT(sale.refundAmount ?? 0)}{sale.refundMethod ? ` via ${sale.refundMethod.replaceAll('_', ' ')}` : ''}.
+              </p>
+            )}
           </section>
 
           <footer>
@@ -165,6 +237,96 @@ export function InvoiceView({
           </footer>
         </article>
       </div>
+
+      {showVoid && (
+        <div
+          className="fixed inset-0 z-[100] grid place-items-center overflow-y-auto bg-black/55 p-3 print:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="void-invoice-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget && !voidPending) setShowVoid(false);
+          }}
+        >
+          <form action={voidAction} onSubmit={validateVoidForm} noValidate className="w-full max-w-xl rounded-[4px] border border-rule bg-card shadow-2xl">
+            <input type="hidden" name="saleId" value={sale.id} />
+            <input type="hidden" name="idempotencyKey" value={voidKey} />
+            <div className="border-b border-rule p-5">
+              <h2 id="void-invoice-title" className="text-[18px] font-semibold text-out">Void {sale.invoiceNumber}?</h2>
+              <p className="mt-2 text-[13px] text-graphite">
+                This reverses the complete sale. Sold stock will be restored, financial metrics will receive opposing entries, and this invoice will remain permanently marked VOIDED.
+              </p>
+            </div>
+            <div className="space-y-4 p-5">
+              <div className="rounded-[3px] border border-out/30 bg-out/5 p-3 text-[13px]">
+                <p><strong>{items.length}</strong> invoice line{items.length === 1 ? '' : 's'} will be reversed.</p>
+                {sale.tradeInDetails && <p className="mt-1">The trade-in device must be returned to the customer and will leave available inventory.</p>}
+                <p className="mt-1">Refund to record: <strong>{formatBDT(refundAmount)}</strong></p>
+              </div>
+              <label className="block">
+                <span className="eyebrow mb-1.5 block">Reason for voiding</span>
+                <textarea
+                  name="reason"
+                  value={voidFields.reason}
+                  onChange={(event) => updateVoidField('reason', event.target.value)}
+                  required
+                  minLength={5}
+                  maxLength={1000}
+                  autoFocus
+                  className="min-h-24 w-full rounded-[3px] border border-rule bg-card px-3 py-2 text-[13px] outline-none focus:border-signal"
+                  placeholder="For example, wrong device or incorrect selling price"
+                />
+                {(clientVoidErrors.reason ?? (!hideServerVoidErrors ? voidState.fieldErrors?.reason : undefined)) && (
+                  <span className="mt-1 block text-[12px] text-out">{clientVoidErrors.reason ?? voidState.fieldErrors?.reason}</span>
+                )}
+              </label>
+              {refundAmount > 0 && (
+                <label className="block">
+                  <span className="eyebrow mb-1.5 block">Refund method</span>
+                  <select
+                    name="refundMethod"
+                    required
+                    value={voidFields.refundMethod ?? ''}
+                    onChange={(event) => updateVoidField('refundMethod', event.target.value as VoidInvoiceFields['refundMethod'])}
+                    className="h-10 w-full rounded-[3px] border border-rule bg-card px-3 text-[13px]"
+                  >
+                    {PAYMENT_METHODS.map((method) => (
+                      <option key={method} value={method}>{method.replaceAll('_', ' ')}</option>
+                    ))}
+                  </select>
+                  {(clientVoidErrors.refundMethod ?? (!hideServerVoidErrors ? voidState.fieldErrors?.refundMethod : undefined)) && (
+                    <span className="mt-1 block text-[12px] text-out">{clientVoidErrors.refundMethod ?? voidState.fieldErrors?.refundMethod}</span>
+                  )}
+                </label>
+              )}
+              <div>
+                <label className="flex items-start gap-2 text-[13px]">
+                  <input
+                    name="confirmed"
+                    value="yes"
+                    type="checkbox"
+                    checked={voidFields.confirmed}
+                    onChange={(event) => updateVoidField('confirmed', event.target.checked)}
+                    required
+                    className="mt-0.5"
+                  />
+                  <span>I have verified the invoice, customer refund, and physical items. I understand this action cannot be undone by deleting records.</span>
+                </label>
+                {(clientVoidErrors.confirmed ?? (!hideServerVoidErrors ? voidState.fieldErrors?.confirmed : undefined)) && (
+                  <p className="mt-1 text-[12px] text-out">{clientVoidErrors.confirmed ?? voidState.fieldErrors?.confirmed}</p>
+                )}
+              </div>
+              {!hideServerVoidErrors && voidState.error && <p className="text-[12px] text-out">{message(voidState.error)}</p>}
+            </div>
+            <div className="flex flex-wrap justify-end gap-2 border-t border-rule p-4">
+              <Button type="button" variant="ghost" onClick={() => setShowVoid(false)} disabled={voidPending}>Cancel</Button>
+              <Button type="submit" variant="danger" disabled={voidPending}>
+                {voidPending ? 'Voiding invoice…' : 'Confirm complete void'}
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

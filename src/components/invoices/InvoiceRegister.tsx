@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
-import { Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
+import { Badge, Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
 import { PAYMENT_METHODS, PAYMENT_STATUSES, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -239,7 +239,10 @@ export function InvoiceRegister({
                 <tbody>
                   {sales.map((sale) => (
                     <tr key={sale.id} className="border-b border-rule-soft last:border-0">
-                      <td className="px-4 py-3"><Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link></td>
+                      <td className="px-4 py-3">
+                        <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
+                        {sale.status === 'VOIDED' && <span className="ml-2"><Badge tone="out">VOIDED</Badge></span>}
+                      </td>
                       <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
                       <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
                       <td className="px-4 py-3">{domainLabel(t, sale.paymentMethod)} · {domainLabel(t, sale.paymentStatus)}</td>

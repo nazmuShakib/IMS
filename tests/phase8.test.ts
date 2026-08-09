@@ -252,11 +252,12 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(prisma).toContain('total: filters.minTotal');
   });
 
-  it('keeps returns and refunds out of the first implementation', () => {
+  it('keeps item-level returns out while permitting invoice void refund metadata', () => {
     const schema = source('prisma/schema.prisma');
     expect(schema).not.toContain('model SaleReturn');
     expect(schema).not.toContain('model ReturnItem');
-    expect(source('src/actions/checkout.ts')).not.toContain('refund');
+    expect(schema).toContain('refundAmount');
+    expect(source('src/services/sales.ts')).toContain("status: 'VOIDED'");
   });
 
   it('uses Checkout as the only user-facing sale path', () => {

@@ -303,13 +303,20 @@ export async function getDashboard(
   for (const product of products) {
     const quantity = onHand.get(product.id) ?? 0;
     if (product.trackingType === 'SERIAL') {
-      stockValueAtCost += (unitsByProduct.get(product.id) ?? [])
-        .filter((unit) => unit.status === 'IN_STOCK')
-        .reduce((sum, unit) => sum + unit.costPrice, 0);
+      const inStockUnits = (unitsByProduct.get(product.id) ?? [])
+        .filter((unit) => unit.status === 'IN_STOCK');
+      stockValueAtCost += inStockUnits.reduce((sum, unit) => sum + unit.costPrice, 0);
+      stockValueAtRetail += inStockUnits.reduce(
+        (sum, unit) => sum + (
+          unit.askingPrice
+          ?? (unit.usedGrade === 'REFURBISHED' ? unit.costPrice : product.defaultSalePrice)
+        ),
+        0,
+      );
     } else {
       stockValueAtCost += quantity * product.avgCostPrice;
+      stockValueAtRetail += quantity * product.defaultSalePrice;
     }
-    stockValueAtRetail += quantity * product.defaultSalePrice;
   }
 
   const monthStart = monthStartDhaka(now);

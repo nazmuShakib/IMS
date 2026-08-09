@@ -95,7 +95,7 @@ export const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_BANKING', 'BANK_TRANSFER
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
-export type SaleStatus = 'COMPLETED';
+export type SaleStatus = 'COMPLETED' | 'VOIDED';
 
 export const USED_DEVICE_GRADES = ['GRADE_A', 'GRADE_B', 'GRADE_C', 'REFURBISHED'] as const;
 export type UsedDeviceGrade = (typeof USED_DEVICE_GRADES)[number];
@@ -363,6 +363,13 @@ export interface Sale {
   tradeInDetails: TradeInSaleSnapshot | null;
   completedAt: string;
   createdAt: string;
+  voidedAt: string | null;
+  voidedById: string | null;
+  voidedByName: string | null;
+  voidReason: string | null;
+  refundAmount: Paisa | null;
+  refundMethod: PaymentMethod | null;
+  voidIdempotencyKey: string | null;
 }
 
 /** Immutable incoming-device summary printed with a completed trade-in sale. */

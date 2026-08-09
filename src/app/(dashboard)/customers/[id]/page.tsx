@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { Card, EmptyState, PageHeader, TableViewport } from '@/components/ui';
+import { Badge, Card, EmptyState, PageHeader, TableViewport } from '@/components/ui';
 import { formatBDT } from '@/lib/money';
 import { getSession, requireCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
@@ -17,7 +17,8 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const customer = await db.customers.findById(id);
   if (!customer) notFound();
   const sales = await db.sales.findByCustomer(customer.id);
-  const total = sales.reduce((sum, sale) => sum + sale.total, 0);
+  const completedSales = sales.filter((sale) => sale.status === 'COMPLETED');
+  const total = completedSales.reduce((sum, sale) => sum + sale.total, 0);
 
   return (
     <>
@@ -25,7 +26,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
         title={customer.name}
         count={t('customers.lifetime', {
           phone: customer.phone ?? t('customers.noPhone'),
-          count: sales.length,
+          count: completedSales.length,
           total: formatBDT(total),
         })}
         action={<Link href="/customers" className="rounded-[3px] border border-rule bg-card px-3 py-2 text-[13px]">{t('customers.all')}</Link>}
@@ -41,7 +42,10 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                 <th className="eyebrow px-4 py-2.5 text-right">{t('common.total')}</th>
               </tr></thead>
               <tbody>{sales.map((sale) => <tr key={sale.id} className="border-b border-rule-soft last:border-0">
-                <td className="px-4 py-3"><Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link></td>
+                <td className="px-4 py-3">
+                  <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
+                  {sale.status === 'VOIDED' && <span className="ml-2"><Badge tone="out">VOIDED</Badge></span>}
+                </td>
                 <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
                 <td className="px-4 py-3">{sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</td>
                 <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>

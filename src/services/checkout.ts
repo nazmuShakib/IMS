@@ -411,6 +411,13 @@ export async function checkoutCart(raw: {
         : null,
       completedAt: now,
       createdAt: now,
+      voidedAt: null,
+      voidedById: null,
+      voidedByName: null,
+      voidReason: null,
+      refundAmount: null,
+      refundMethod: null,
+      voidIdempotencyKey: null,
     };
     await tx.sales.create(sale);
     if (acceptedTradeIn) await tx.usedDeviceAcquisitions.attachToSale(acceptedTradeIn.acquisition.id, sale.id);

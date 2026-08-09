@@ -131,6 +131,7 @@ function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sa
     tradeInDetails: row.tradeInDetails as TradeInSaleSnapshot | null,
     completedAt: iso(row.completedAt),
     createdAt: iso(row.createdAt),
+    voidedAt: row.voidedAt ? iso(row.voidedAt) : null,
   };
 }
 
@@ -735,6 +736,17 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           },
         }));
       },
+      async markVoided(id, patch) {
+        const result = await client.sale.updateMany({
+          where: { id, status: 'COMPLETED' },
+          data: {
+            ...patch,
+            voidedAt: patch.voidedAt ? new Date(patch.voidedAt) : null,
+          },
+        });
+        if (result.count !== 1) throw new Error('This invoice is no longer eligible to be voided.');
+        return sale(await client.sale.findUniqueOrThrow({ where: { id } }));
+      },
       async createItem(value) {
         return saleItem(await client.saleItem.create({
           data: { ...value, createdAt: new Date(value.createdAt) },
@@ -784,6 +796,10 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async findByUnit(unitId) {
         const row = await client.usedDeviceAcquisition.findUnique({ where: { unitId } });
+        return row ? usedDeviceAcquisition(row) : null;
+      },
+      async findBySale(tradeInSaleId) {
+        const row = await client.usedDeviceAcquisition.findUnique({ where: { tradeInSaleId } });
         return row ? usedDeviceAcquisition(row) : null;
       },
       async findAvailableTradeIns() {

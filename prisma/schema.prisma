@@ -100,6 +100,7 @@ enum SupplierWarrantyStatus {
 
 enum SaleStatus {
   COMPLETED
+  VOIDED
 }
 
 enum PaymentStatus {
@@ -635,14 +636,24 @@ model Sale {
   reference     String?
   note          String?
 
-  subtotal      Int
-  discount      Int
-  total         Int
-  tradeInCredit Int @default(0)
+  subtotal       Int
+  discount       Int
+  total          Int
+  tradeInCredit  Int   @default(0)
   tradeInDetails Json?
 
   completedAt DateTime @default(now())
   createdAt   DateTime @default(now())
+
+  // A void preserves the original invoice and records the compensating action.
+  // Inventory is restored through append-only correction movements.
+  voidedAt           DateTime?
+  voidedById         String?
+  voidedByName       String?
+  voidReason         String?
+  refundAmount       Int?
+  refundMethod       PaymentMethod?
+  voidIdempotencyKey String?        @unique
 
   items              SaleItem[]
   tradeInAcquisition UsedDeviceAcquisition? @relation("TradeInSale")

@@ -587,6 +587,15 @@ const sales: SaleRepository = {
     await writeAll('sales', [...await readAll<Sale>('sales'), value]);
     return value;
   },
+  async markVoided(id, patch) {
+    const rows = await readAll<Sale>('sales');
+    const index = rows.findIndex((item) => item.id === id && item.status === 'COMPLETED');
+    if (index < 0) throw new Error('This invoice is no longer eligible to be voided.');
+    const updated = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('sales', copy);
+    return updated;
+  },
   async createItem(value) {
     await writeAll('sale-items', [...await readAll<SaleItem>('sale-items'), value]);
     return value;
@@ -629,6 +638,10 @@ const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
   async findByUnit(unitId) {
     return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
       .find((item) => item.unitId === unitId) ?? null;
+  },
+  async findBySale(saleId) {
+    return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
+      .find((item) => item.tradeInSaleId === saleId) ?? null;
   },
   async findAvailableTradeIns() {
     const claimedByDraft = new Set((await readAll<CartDraft>('cart-drafts')).map((cart) => cart.tradeInAcquisitionId).filter(Boolean));

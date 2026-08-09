@@ -154,6 +154,7 @@ export interface UsedDeviceAcquisitionRepository {
   findById(id: string): Promise<UsedDeviceAcquisition | null>;
   findByIdempotencyKey(key: string): Promise<UsedDeviceAcquisition | null>;
   findByUnit(unitId: string): Promise<UsedDeviceAcquisition | null>;
+  findBySale(saleId: string): Promise<UsedDeviceAcquisition | null>;
   findAvailableTradeIns(): Promise<UsedDeviceAcquisition[]>;
   create(value: UsedDeviceAcquisition): Promise<UsedDeviceAcquisition>;
   attachToSale(id: string, saleId: string): Promise<UsedDeviceAcquisition>;
@@ -173,6 +174,10 @@ export interface SaleRepository {
   findByIdempotencyKey(key: string): Promise<Sale | null>;
   findByCustomer(customerId: string): Promise<Sale[]>;
   create(value: Sale): Promise<Sale>;
+  markVoided(
+    id: string,
+    patch: Pick<Sale, 'status' | 'voidedAt' | 'voidedById' | 'voidedByName' | 'voidReason' | 'refundAmount' | 'refundMethod' | 'voidIdempotencyKey'>,
+  ): Promise<Sale>;
   createItem(value: SaleItem): Promise<SaleItem>;
   findItems(saleId: string): Promise<InvoiceItem[]>;
 }

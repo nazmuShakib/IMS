@@ -280,6 +280,18 @@ export const correctionSchema = z.object({
 });
 export type CorrectionInput = z.infer<typeof correctionSchema>;
 
+/** Shared by the invoice void dialog and its server boundary. */
+export const voidInvoiceFieldsSchema = z.object({
+  reason: z.string().trim()
+    .min(5, 'Give a clear reason using at least 5 characters.')
+    .max(1000, 'The reason must not exceed 1000 characters.'),
+  refundMethod: z.enum(PAYMENT_METHODS).nullable(),
+  confirmed: z.boolean().refine((value) => value, {
+    message: 'Confirm that you verified the invoice, refund, and physical items.',
+  }),
+});
+export type VoidInvoiceFields = z.infer<typeof voidInvoiceFieldsSchema>;
+
 export const createUserSchema = z.object({
   name: z.string().min(1).max(100).trim(),
   email: z.string().email(),

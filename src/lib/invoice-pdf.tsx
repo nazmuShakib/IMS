@@ -7,6 +7,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 22 },
   shop: { fontSize: 17, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
   title: { fontSize: 14, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
+  voided: { color: '#b42318' },
   muted: { color: '#626c76', fontSize: 8, marginTop: 2 },
   meta: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 18 },
   metaBox: { width: '47%' },
@@ -47,7 +48,9 @@ function InvoiceDocument({
             {shop.phone && <Text style={styles.muted}>{shop.phone}</Text>}
           </View>
           <View>
-            <Text style={styles.title}>INVOICE</Text>
+            <Text style={[styles.title, sale.status === 'VOIDED' ? styles.voided : {}]}>
+              {sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}
+            </Text>
             <Text style={styles.muted}>{sale.invoiceNumber}</Text>
           </View>
         </View>
@@ -103,6 +106,13 @@ function InvoiceDocument({
           )}
         </View>
         {sale.note && <Text style={styles.note}>Note: {sale.note}</Text>}
+        {sale.status === 'VOIDED' && (
+          <Text style={[styles.note, styles.voided]}>
+            VOIDED {sale.voidedAt ? new Date(sale.voidedAt).toLocaleString('en-BD', { timeZone: 'Asia/Dhaka' }) : ''}
+            {sale.voidedByName ? ` by ${sale.voidedByName}` : ''}. Reason: {sale.voidReason ?? 'Not recorded'}.
+            {' '}Refund: {money(sale.refundAmount ?? 0)}{sale.refundMethod ? ` via ${sale.refundMethod.replaceAll('_', ' ')}` : ''}.
+          </Text>
+        )}
         <View style={styles.footer}>
           {shop.policy && <Text>{shop.policy}</Text>}
           <Text>This is an ordinary sales invoice, not a VAT/tax invoice.</Text>

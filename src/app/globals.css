@@ -394,6 +394,11 @@ html[lang='bn'] .eyebrow {
   font-size: 18pt;
 }
 
+.invoice-root:has(.invoice-void-details) .invoice-title strong,
+.invoice-void-details {
+  color: #b42318;
+}
+
 .invoice-meta {
   padding: 6mm 0;
 }

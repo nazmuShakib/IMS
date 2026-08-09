@@ -181,6 +181,13 @@ async function main() {
         tradeInDetails: null,
         completedAt: now,
         createdAt: now,
+        voidedAt: null,
+        voidedById: null,
+        voidedByName: null,
+        voidReason: null,
+        refundAmount: null,
+        refundMethod: null,
+        voidIdempotencyKey: null,
       });
       await tx.products._applyQuantityDelta(bulkProductId, -1);
       const checkoutMovement = await tx.movements.record({

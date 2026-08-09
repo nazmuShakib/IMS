@@ -19,11 +19,33 @@ import {
   updateCartDetails,
   updateCartItem,
 } from '@/services/checkout';
-import type { PaymentMethod, PaymentStatus } from '@/domain/types';
+import { voidSale } from '@/services/sales';
+import { type PaymentMethod, type PaymentStatus } from '@/domain/types';
+import { voidInvoiceFieldsSchema } from '@/schemas';
 
 export interface CheckoutActionState {
   error?: string;
   ok?: string;
+}
+
+export interface VoidInvoiceActionState extends CheckoutActionState {
+  fieldErrors?: Partial<Record<'reason' | 'refundMethod' | 'confirmed', string>>;
+}
+
+const voidInvoiceFormSchema = voidInvoiceFieldsSchema.extend({
+  saleId: z.string().uuid('The invoice identifier is invalid.'),
+  idempotencyKey: z.string().min(8, 'The void request is not ready. Close the dialog and try again.'),
+});
+
+function voidFieldErrors(error: z.ZodError): VoidInvoiceActionState['fieldErrors'] {
+  const result: VoidInvoiceActionState['fieldErrors'] = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+    if ((field === 'reason' || field === 'refundMethod' || field === 'confirmed') && !result[field]) {
+      result[field] = issue.message;
+    }
+  }
+  return result;
 }
 
 function str(fd: FormData, key: string): string | null {
@@ -332,4 +354,78 @@ export async function recordInvoicePrintAction(
     after: { invoiceNumber: sale.invoiceNumber, layout },
   });
   return { printNonce: crypto.randomUUID() };
+}
+
+export async function voidInvoiceAction(
+  _previous: VoidInvoiceActionState,
+  fd: FormData,
+): Promise<VoidInvoiceActionState> {
+  const actor = await requireCapability('VIEW_INVOICES');
+  const parsed = voidInvoiceFormSchema.safeParse({
+    saleId: str(fd, 'saleId') ?? '',
+    idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+    reason: str(fd, 'reason') ?? '',
+    refundMethod: str(fd, 'refundMethod'),
+    confirmed: str(fd, 'confirmed') === 'yes',
+  });
+  if (!parsed.success) {
+    const fieldErrors = voidFieldErrors(parsed.error);
+    const hiddenIssue = parsed.error.issues.find((issue) => (
+      issue.path[0] === 'saleId' || issue.path[0] === 'idempotencyKey'
+    ));
+    return { fieldErrors, error: hiddenIssue?.message };
+  }
+
+  try {
+    const before = await db.sales.findById(parsed.data.saleId);
+    if (before?.paymentStatus === 'PAID'
+      && before.total - before.tradeInCredit > 0
+      && !parsed.data.refundMethod) {
+      return { fieldErrors: { refundMethod: 'Choose how the customer was refunded.' } };
+    }
+    const sale = await voidSale({
+      saleId: parsed.data.saleId,
+      actorId: actor.id,
+      actorName: actor.name,
+      actorRole: actor.role,
+      reason: parsed.data.reason,
+      refundMethod: parsed.data.refundMethod as PaymentMethod | null,
+      idempotencyKey: parsed.data.idempotencyKey,
+    });
+    try {
+      await writeAudit({
+        actorId: actor.id,
+        action: 'sale.void',
+        entity: 'Sale',
+        entityId: sale.id,
+        before: before ? { status: before.status } : undefined,
+        after: {
+          invoiceNumber: sale.invoiceNumber,
+          status: sale.status,
+          reason: sale.voidReason,
+          refundAmount: sale.refundAmount,
+          refundMethod: sale.refundMethod,
+        },
+      });
+    } catch (auditError) {
+      // The immutable Sale record already contains the actor, reason, refund,
+      // and timestamp. Do not report the atomic void as failed if this secondary
+      // request-metadata log is temporarily unavailable.
+      console.error('Invoice void audit-log write failed', auditError);
+    }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return { fieldErrors: voidFieldErrors(error), error: message(error) };
+    }
+    return { error: message(error) };
+  }
+
+  revalidatePath('/');
+  revalidatePath('/invoices');
+  revalidatePath(`/invoices/${parsed.data.saleId}`);
+  revalidatePath('/products');
+  revalidatePath('/stock/movements');
+  revalidatePath('/reports');
+  revalidatePath('/customers');
+  return { ok: 'Invoice voided. Inventory and financial records were reversed together.' };
 }
