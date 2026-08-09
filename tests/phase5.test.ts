@@ -39,11 +39,11 @@ const brand: Brand = { id: 'b1', name: 'Acme', slug: 'acme', isActive: true, cre
 const supplier: Supplier = { id: 's1', name: 'Supplier', phone: null, email: null, address: null, note: null, isActive: true, createdAt: '', updatedAt: '' };
 const user: User = { id: 'legacy-user', name: 'Legacy', email: 'legacy@example.com', emailVerified: true, phoneNumber: null, phoneNumberVerified: false, image: null, role: 'ADMIN', isActive: true, createdAt: '', updatedAt: '' };
 
-function repositories(): Repositories {
+function repositories(movementRows: StockMovement[] = movements): Repositories {
   return {
     products: { findAll: vi.fn(async () => [product, bulk]) },
     units: { findByProduct: vi.fn(async (id: string) => id === product.id ? [unit] : []) },
-    movements: { findByDateRange: vi.fn(async () => movements) },
+    movements: { findByDateRange: vi.fn(async () => movementRows) },
     categories: { findAll: vi.fn(async () => [category]) },
     brands: { findAll: vi.fn(async () => [brand]) },
     suppliers: { findAll: vi.fn(async () => [supplier]) },
@@ -55,6 +55,38 @@ describe('Phase 5 calculations', () => {
   it('cancels a reversed sale instead of overstating revenue, COGS, or profit', async () => {
     const report = await getReport({ report: 'sales' }, { now, repositories: repositories() });
     expect(report.totals).toMatchObject({ quantity: 1, revenue: 80_000, cogs: 50_000, profit: 30_000 });
+  });
+
+  it('omits fully corrected products and suppliers from aggregate reports', async () => {
+    const damageCorrection = movement({
+      id: 'damage-correction', type: 'ADJUST', reason: 'CORRECTION', productId: bulk.id,
+      quantity: 1, unitCost: 1_000, unitPrice: null, reversesId: 'damage',
+      createdAt: '2026-07-11T06:00:00.000Z',
+    });
+    const purchaseCorrection = movement({
+      id: 'purchase-correction', type: 'ADJUST', reason: 'CORRECTION', productId: bulk.id,
+      quantity: -4, unitCost: 1_000, unitPrice: null, supplierId: 's1', reversesId: 'purchase',
+      createdAt: '2026-07-11T06:00:00.000Z',
+    });
+    const correctedRepositories = repositories([...movements, damageCorrection, purchaseCorrection]);
+
+    const shrinkage = await getReport({ report: 'shrinkage' }, { now, repositories: correctedRepositories });
+    const purchases = await getReport({ report: 'purchases' }, { now, repositories: correctedRepositories });
+
+    expect(shrinkage.rows).toEqual([]);
+    expect(shrinkage.totals).toMatchObject({ quantity: 0, damage: 0, loss: 0, value: 0 });
+    expect(purchases.rows).toEqual([]);
+    expect(purchases.totals).toMatchObject({ quantity: 0, spend: 0 });
+  });
+
+  it('omits a fully corrected product from profit by product', async () => {
+    const correctedRepositories = repositories([
+      movements.find((item) => item.id === 'reversed-sale')!,
+      movements.find((item) => item.id === 'sale-correction')!,
+    ]);
+    const report = await getReport({ report: 'profit' }, { now, repositories: correctedRepositories });
+    expect(report.rows).toEqual([]);
+    expect(report.totals).toMatchObject({ quantity: 0, revenue: 0, cogs: 0, profit: 0 });
   });
 
   it('values current serial and quantity inventory and assigns aging buckets', async () => {

@@ -220,7 +220,9 @@ function saleRows(ctx: Context, filters: ReportFilters, now: Date): ReportResult
     bucket.cogs += -movement.quantity * movement.unitCost;
     buckets.set(key, bucket);
   }
-  const rows = [...buckets].map(([id, item]) => ({ id, cells: { group: item.label, quantity: item.quantity, revenue: item.revenue, cogs: item.cogs, profit: item.revenue - item.cogs, margin: item.revenue === 0 ? 0 : Math.round(((item.revenue - item.cogs) / item.revenue) * 10_000) / 100 } }));
+  const rows = [...buckets]
+    .filter(([, item]) => item.quantity !== 0 || item.revenue !== 0 || item.cogs !== 0)
+    .map(([id, item]) => ({ id, cells: { group: item.label, quantity: item.quantity, revenue: item.revenue, cogs: item.cogs, profit: item.revenue - item.cogs, margin: item.revenue === 0 ? 0 : Math.round(((item.revenue - item.cogs) / item.revenue) * 10_000) / 100 } }));
   const sortKey = filters.sort ?? 'revenue'; const direction = filters.direction === 'asc' ? 1 : -1;
   rows.sort((a, b) => direction * (Number((a.cells as Record<string, ReportCell>)[sortKey] ?? 0) - Number((b.cells as Record<string, ReportCell>)[sortKey] ?? 0)));
   return { kind: 'sales', title: 'Revenue, cost and sales profit', description: `Sales results grouped by ${groupBy}.`, generatedAt: now.toISOString(),
@@ -238,7 +240,9 @@ function profitRows(ctx: Context, filters: ReportFilters, now: Date): ReportResu
     const bucket = buckets.get(product.id) ?? { product, quantity: 0, revenue: 0, cogs: 0 };
     bucket.quantity += -movement.quantity; bucket.revenue += movement.unitPrice === null ? 0 : -movement.quantity * movement.unitPrice; bucket.cogs += -movement.quantity * movement.unitCost; buckets.set(product.id, bucket);
   }
-  const rows = [...buckets].map(([id, item]) => ({ id, cells: { product: item.product.name, sku: item.product.sku, quantity: item.quantity, revenue: item.revenue, cogs: item.cogs, profit: item.revenue - item.cogs, margin: item.revenue === 0 ? 0 : Math.round(((item.revenue - item.cogs) / item.revenue) * 10_000) / 100 } }));
+  const rows = [...buckets]
+    .filter(([, item]) => item.quantity !== 0 || item.revenue !== 0 || item.cogs !== 0)
+    .map(([id, item]) => ({ id, cells: { product: item.product.name, sku: item.product.sku, quantity: item.quantity, revenue: item.revenue, cogs: item.cogs, profit: item.revenue - item.cogs, margin: item.revenue === 0 ? 0 : Math.round(((item.revenue - item.cogs) / item.revenue) * 10_000) / 100 } }));
   const sortKey = filters.sort ?? 'profit'; const direction = filters.direction === 'asc' ? 1 : -1;
   rows.sort((a, b) => direction * (Number((a.cells as Record<string, ReportCell>)[sortKey] ?? 0) - Number((b.cells as Record<string, ReportCell>)[sortKey] ?? 0)));
   return { ...base, kind: 'profit', title: 'Profit per product', description: 'Exact sale margin from snapshotted selling price and cost.',
@@ -256,7 +260,10 @@ function purchaseRows(ctx: Context, filters: ReportFilters, now: Date): ReportRe
     const bucket = buckets.get(key) ?? { label, quantity: 0, spend: 0 };
     bucket.quantity += movement.quantity; bucket.spend += movement.quantity * movement.unitCost; buckets.set(key, bucket);
   }
-  const rows = [...buckets].map(([id, item]) => ({ id, cells: { supplier: item.label, quantity: item.quantity, spend: item.spend } })).sort((a, b) => Number(b.cells.spend) - Number(a.cells.spend));
+  const rows = [...buckets]
+    .filter(([, item]) => item.quantity !== 0 || item.spend !== 0)
+    .map(([id, item]) => ({ id, cells: { supplier: item.label, quantity: item.quantity, spend: item.spend } }))
+    .sort((a, b) => Number(b.cells.spend) - Number(a.cells.spend));
   return { kind: 'purchases', title: 'Purchase spend', description: 'Net purchase receipts by supplier; corrections cancel original spend.', generatedAt: now.toISOString(), columns: [{ key: 'supplier', label: 'Supplier', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['spend', 'Spend']])], rows, totals: { quantity: sum(rows, 'quantity'), spend: sum(rows, 'spend') } };
 }
 
@@ -293,7 +300,10 @@ function shrinkageRows(ctx: Context, filters: ReportFilters, now: Date): ReportR
     const value = -movement.quantity * movement.unitCost; bucket.quantity += -movement.quantity;
     if (reason === 'DAMAGE') bucket.damage += value; else bucket.loss += value; buckets.set(product.id, bucket);
   }
-  const rows = [...buckets].map(([id, item]) => ({ id, cells: { product: item.product.name, sku: item.product.sku, quantity: item.quantity, damage: item.damage, loss: item.loss, value: item.damage + item.loss } })).sort((a, b) => Number(b.cells.value) - Number(a.cells.value));
+  const rows = [...buckets]
+    .filter(([, item]) => item.quantity !== 0 || item.damage !== 0 || item.loss !== 0)
+    .map(([id, item]) => ({ id, cells: { product: item.product.name, sku: item.product.sku, quantity: item.quantity, damage: item.damage, loss: item.loss, value: item.damage + item.loss } }))
+    .sort((a, b) => Number(b.cells.value) - Number(a.cells.value));
   return { kind: 'shrinkage', title: 'Shrinkage', description: 'Damage and loss valued at snapshotted cost.', generatedAt: now.toISOString(), columns: [{ key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'quantity', label: 'Units', type: 'number' }, ...moneyCols([['damage', 'Damage'], ['loss', 'Loss'], ['value', 'Total']])], rows, totals: { quantity: sum(rows, 'quantity'), damage: sum(rows, 'damage'), loss: sum(rows, 'loss'), value: sum(rows, 'value') } };
 }
 
