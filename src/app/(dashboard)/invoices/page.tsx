@@ -10,6 +10,7 @@ import {
   PAYMENT_STATUSES,
   type PaymentMethod,
   type PaymentStatus,
+  type SaleStatus,
 } from '@/domain/types';
 import { getSession, requireCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
@@ -47,6 +48,7 @@ export default async function InvoicesPage({
   const t = createTranslator(locale);
   const raw = await searchParams;
   const query = one(raw, 'q');
+  const status = one(raw, 'status');
   const from = one(raw, 'from');
   const to = one(raw, 'to');
   const customerType = one(raw, 'customerType');
@@ -56,6 +58,7 @@ export default async function InvoicesPage({
   const maxTotal = one(raw, 'maxTotal');
   const confirmedFilters: InvoiceFilterValues = {
     q: query,
+    status,
     from,
     to,
     customerType,
@@ -66,6 +69,9 @@ export default async function InvoicesPage({
   };
   const filters: SaleFilters = {
     query: query || undefined,
+    status: status === 'COMPLETED' || status === 'VOIDED'
+      ? status as SaleStatus
+      : undefined,
     from: dateBoundary(from),
     to: dateBoundary(to, true),
     customerType: customerType === 'WALK_IN' || customerType === 'REGISTERED'

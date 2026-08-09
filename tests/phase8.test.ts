@@ -22,6 +22,22 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '01212345678' }).success).toBe(false);
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '12345' }).success).toBe(false);
     expect(createCustomerSchema.safeParse({ name: 'Mithun', phone: '' }).success).toBe(false);
+    expect(createCustomerSchema.safeParse({ name: '   ', phone: '01712345678' }).success).toBe(false);
+  });
+
+  it('uses the shared customer schema for client and server field validation', () => {
+    const form = source('src/components/customers/CreateCustomerForm.tsx');
+    const action = source('src/actions/checkout.ts');
+    const checkout = source('src/components/checkout/CheckoutWorkspace.tsx');
+
+    expect(form).toContain('createCustomerSchema.safeParse(values)');
+    expect(form).toContain('onSubmit={validate}');
+    expect(form).toContain('noValidate');
+    expect(form).toContain("error={fieldError('name')}");
+    expect(form).toContain("error={fieldError('phone')}");
+    expect(action).toContain('createCustomerSchema.safeParse({');
+    expect(action).toContain('fieldErrors: customerFieldErrors(parsed.error)');
+    expect(checkout).toContain('<CreateCustomerForm cartId={cart.id} stacked />');
   });
 
   it('accepts only Bangladeshi mobile numbers when creating or editing suppliers', () => {
@@ -59,7 +75,8 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(customerModel).not.toContain('email');
     expect(customerModel).not.toContain('address');
     expect(customerModel).not.toContain('note');
-    expect(source('src/app/(dashboard)/customers/page.tsx')).toContain('db.customers.search');
+    const page = source('src/app/(dashboard)/customers/page.tsx');
+    expect(page).toContain('db.customers.search');
     expect(source('src/app/(dashboard)/customers/[id]/page.tsx')).toContain('db.sales.findByCustomer');
     const register = source('src/components/customers/CustomerRegister.tsx');
     expect(register).toContain('setFiltering(true)');
@@ -67,10 +84,30 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(register).toContain("t('loading.searchCustomers')");
     expect(register).toContain('window.history.pushState');
     expect(register).toContain('router.refresh()');
+    expect(register).toContain('sm:grid-cols-2');
+    expect(register).toContain('sm:p-5');
+    expect(page).toContain('max-w-5xl');
   });
 
   it('numbers invoices by the Dhaka calendar year', () => {
     expect(dhakaYear(new Date('2026-12-31T20:00:00.000Z'))).toBe(2027);
+  });
+
+  it('filters completed and voided invoices independently of payment status', () => {
+    const register = source('src/components/invoices/InvoiceRegister.tsx');
+    const page = source('src/app/(dashboard)/invoices/page.tsx');
+    const prisma = source('src/repositories/prisma/index.ts');
+    const json = source('src/repositories/json/index.ts');
+    const messages = source('src/lib/i18n/messages.ts');
+
+    expect(register).toContain('name="status"');
+    expect(register).toContain('<option value="COMPLETED">');
+    expect(register).toContain('<option value="VOIDED">');
+    expect(register).toContain("placeholder={t('invoices.setMaximumPrice')}");
+    expect(page).toContain("status === 'COMPLETED' || status === 'VOIDED'");
+    expect(prisma).toContain('status: filters.status');
+    expect(json).toContain('!filters.status || item.status === filters.status');
+    expect(messages).toContain("'invoices.setMaximumPrice': 'Set maximum price'");
   });
 
   it('persists one server draft per actor and records payment details', () => {

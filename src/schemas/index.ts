@@ -238,7 +238,11 @@ export const stockOutSchema = z
 export type StockOutInput = z.infer<typeof stockOutSchema>;
 
 export const createCustomerSchema = z.object({
-  name: z.string().min(1).max(150).trim(),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Enter a customer name.')
+    .max(150, 'Customer name must be 150 characters or fewer.'),
   phone: z
     .string()
     .trim()

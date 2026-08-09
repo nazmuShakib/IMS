@@ -58,6 +58,7 @@ export function StockInForm({
   const [scanError, setScanError] = useState('');
   const [serialScanError, setSerialScanError] = useState('');
   const [confirmation, setConfirmation] = useState<StockConfirmation | null>(null);
+  const [confirmationSubmitted, setConfirmationSubmitted] = useState(false);
   const [confirmationError, setConfirmationError] = useState('');
   const [serialConflicts, setSerialConflicts] = useState<StockSerialConflict[]>([]);
   const [preflightPending, setPreflightPending] = useState(false);
@@ -86,7 +87,12 @@ export function StockInForm({
   }, [state.ok]);
 
   useEffect(() => {
-    if (state.receipt) setReceiptOpen(true);
+    if (state.receipt) {
+      setReceiptOpen(true);
+      setConfirmation(null);
+      setConfirmationSubmitted(false);
+      confirmationDataRef.current = null;
+    }
   }, [state.receipt]);
 
   useEffect(() => {
@@ -103,6 +109,7 @@ export function StockInForm({
     document.body.style.overflow = 'hidden';
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key !== 'Escape') return;
+      if (pending) return;
       if (serialConflicts.length > 0) setSerialConflicts([]);
       else if (confirmation) closeConfirmation();
       else setReceiptOpen(false);
@@ -113,7 +120,7 @@ export function StockInForm({
       document.body.style.paddingRight = previousPaddingRight;
       window.removeEventListener('keydown', closeOnEscape);
     };
-  }, [receiptOpen, confirmation, serialConflicts]);
+  }, [receiptOpen, confirmation, serialConflicts, pending]);
 
   useEffect(() => {
     if (isSerial) serialScanRef.current?.focus();
@@ -214,6 +221,7 @@ export function StockInForm({
     }
 
     confirmationDataRef.current = data;
+    setConfirmationSubmitted(false);
     setConfirmation({
       productName: product.name,
       sku: product.sku,
@@ -236,13 +244,14 @@ export function StockInForm({
   function confirmReceipt() {
     const data = confirmationDataRef.current;
     if (!data) return;
-    setConfirmation(null);
-    confirmationDataRef.current = null;
+    setConfirmationSubmitted(true);
     startTransition(() => formAction(data));
   }
 
   function closeConfirmation() {
+    if (pending) return;
     setConfirmation(null);
+    setConfirmationSubmitted(false);
     confirmationDataRef.current = null;
   }
 
@@ -339,12 +348,13 @@ export function StockInForm({
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) closeConfirmation();
+            if (!pending && event.target === event.currentTarget) closeConfirmation();
           }}
         >
           <div
             role="dialog"
             aria-modal="true"
+            aria-busy={pending}
             aria-labelledby="stock-confirm-title"
             aria-describedby="stock-confirm-description"
             className="max-h-[calc(100dvh-1.5rem)] w-full max-w-xl overflow-y-auto rounded-[3px] border border-rule bg-card shadow-xl"
@@ -357,6 +367,18 @@ export function StockInForm({
                 {t('stock.confirmReceiveHelp')}
               </p>
             </div>
+
+            {pending && (
+              <div className="mx-5 mt-5 flex items-center gap-3 rounded-[3px] border border-signal/20 bg-signal/5 px-3 py-2.5" role="status" aria-live="polite">
+                <span className="size-5 shrink-0 animate-spin rounded-full border-2 border-rule border-t-signal" aria-hidden="true" />
+                <span><span className="block text-[13px] font-medium">{t('stock.receiving')}</span><span className="block text-[11px] text-graphite">{t('stock.receivingHelp')}</span></span>
+              </div>
+            )}
+            {!pending && confirmationSubmitted && state.error && (
+              <div className="mx-5 mt-5 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[12px] text-out" role="alert">
+                {message(state.error)}
+              </div>
+            )}
 
             <dl className="grid gap-x-6 gap-y-4 p-5 sm:grid-cols-2">
               <div className="sm:col-span-2">
@@ -441,11 +463,11 @@ export function StockInForm({
             </dl>
 
             <div className="flex flex-col-reverse gap-2 border-t border-rule p-4 sm:flex-row sm:justify-end">
-              <Button type="button" variant="ghost" onClick={closeConfirmation}>
+              <Button type="button" variant="ghost" onClick={closeConfirmation} disabled={pending}>
                 {t('stock.backToReceipt')}
               </Button>
-              <Button type="button" onClick={confirmReceipt}>
-                {t('stock.yesReceive')}
+              <Button type="button" onClick={confirmReceipt} disabled={pending}>
+                {pending ? t('stock.receiving') : t('stock.yesReceive')}
               </Button>
             </div>
           </div>

@@ -88,6 +88,9 @@ const bnMessages: Record<string, string> = {
   'Describe every defective inspection result before acceptance.': 'গ্রহণের আগে পরিদর্শনে পাওয়া প্রতিটি ত্রুটি বর্ণনা করুন।',
   'Grade C and refurbished phones require a defect or repair-history note.': 'গ্রেড C ও মেরামতকৃত ফোনের জন্য ত্রুটি বা মেরামতের ইতিহাস লিখতে হবে।',
   'Enter a valid Bangladeshi mobile number, such as 01712345678 or +8801712345678.': 'সঠিক বাংলাদেশি মোবাইল নম্বর লিখুন, যেমন 01712345678 বা +8801712345678।',
+  'Enter a customer name.': 'ক্রেতার নাম লিখুন।',
+  'Customer name must be 150 characters or fewer.': 'ক্রেতার নাম সর্বোচ্চ ১৫০ অক্ষরের হতে হবে।',
+  'A mobile number is required.': 'মোবাইল নম্বর লিখুন।',
   'Confirm that the seller owns the device.': 'বিক্রেতা যে ডিভাইসটির মালিক তা নিশ্চিত করুন।',
   'Choose either days or months for the warranty.': 'ওয়ারেন্টির জন্য দিন অথবা মাস—যেকোনো একটি বেছে নিন।',
 };

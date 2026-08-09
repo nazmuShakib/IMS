@@ -679,6 +679,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         const query = filters.query?.trim();
         return (await client.sale.findMany({
           where: {
+            status: filters.status,
             completedAt: filters.from || filters.to
               ? { gte: filters.from, lte: filters.to }
               : undefined,

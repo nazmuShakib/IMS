@@ -21,6 +21,7 @@ import type {
   InvoiceItem,
   PaymentMethod,
   PaymentStatus,
+  SaleStatus,
   UsedDeviceAcquisition,
   RefurbishmentExpense,
 } from '@/domain/types';
@@ -184,6 +185,7 @@ export interface SaleRepository {
 
 export interface SaleFilters {
   query?: string;
+  status?: SaleStatus;
   from?: Date;
   to?: Date;
   customerType?: 'WALK_IN' | 'REGISTERED';

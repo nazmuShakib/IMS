@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
-import { Button, Card, EmptyState, Input, TableViewport } from '@/components/ui';
+import { Button, Card, EmptyState, Input } from '@/components/ui';
 import type { Customer } from '@/domain/types';
 import { useI18n } from '@/components/i18n/I18nProvider';
 
@@ -51,61 +51,56 @@ export function CustomerRegister({
 
   return (
     <>
-      <form className="mb-4 flex gap-2" onSubmit={search}>
-        <Input
-          type="search"
-          name="q"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-          disabled={pending}
-          placeholder={t('customers.searchPlaceholder')}
-          aria-label={t('nav.customers')}
-        />
-        <Button type="submit" disabled={pending}>
-          {pending ? t('customers.searching') : t('common.search')}
-        </Button>
-        <Button type="button" variant="ghost" disabled={pending} onClick={() => navigate('')}>
-          {t('common.reset')}
-        </Button>
-      </form>
+      <Card className="mb-4 p-4 sm:p-5">
+        <form className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]" onSubmit={search}>
+          <Input
+            type="search"
+            name="q"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            disabled={pending}
+            placeholder={t('customers.searchPlaceholder')}
+            aria-label={t('nav.customers')}
+          />
+          <Button type="submit" disabled={pending}>
+            {pending ? t('customers.searching') : t('common.search')}
+          </Button>
+          <Button type="button" variant="ghost" disabled={pending} onClick={() => navigate('')}>
+            {t('common.reset')}
+          </Button>
+        </form>
+      </Card>
 
       {pending ? (
         <Card>
           <LoadingScreen compact label={t('loading.searchCustomers')} />
         </Card>
       ) : (
-        <Card>
+        <Card className="p-3 sm:p-4">
           {customers.length === 0 ? (
             <EmptyState title={confirmedQuery ? t('customers.noMatch') : t('customers.empty')} />
           ) : (
-            <TableViewport>
-              <table className="w-full border-collapse text-[12px]">
-                <thead className="sticky top-0 bg-card">
-                  <tr className="border-b border-rule text-left">
-                    <th className="eyebrow px-4 py-2.5">{t('common.name')}</th>
-                    <th className="eyebrow px-4 py-2.5">{t('common.phone')}</th>
-                    <th className="eyebrow px-4 py-2.5"><span className="sr-only">History</span></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {customers.map((customer) => (
-                    <tr key={customer.id} className="border-b border-rule-soft last:border-0">
-                      <td className="px-4 py-3 font-medium">
-                        <Link href={`/customers/${customer.id}`} className="text-signal">
-                          {customer.name}
-                        </Link>
-                      </td>
-                      <td className="tnum px-4 py-3">{customer.phone ?? '—'}</td>
-                      <td className="px-4 py-3 text-right">
-                        <Link href={`/customers/${customer.id}`} className="text-signal">
-                          {t('customers.purchaseHistory')}
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </TableViewport>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {customers.map((customer) => (
+                <article
+                  key={customer.id}
+                  className="rounded-[3px] border border-rule-soft p-4 transition-colors hover:border-rule hover:bg-canvas/60 sm:p-5"
+                >
+                  <p className="eyebrow mb-1.5">{t('common.name')}</p>
+                  <Link href={`/customers/${customer.id}`} className="font-medium text-signal">
+                    {customer.name}
+                  </Link>
+                  <p className="eyebrow mb-1.5 mt-4">{t('common.phone')}</p>
+                  <p className="tnum text-[13px]">{customer.phone ?? '—'}</p>
+                  <Link
+                    href={`/customers/${customer.id}`}
+                    className="mt-4 inline-flex text-[12px] font-medium text-signal hover:underline"
+                  >
+                    {t('customers.purchaseHistory')}
+                  </Link>
+                </article>
+              ))}
+            </div>
           )}
         </Card>
       )}

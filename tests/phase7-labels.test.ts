@@ -65,6 +65,10 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(stockIn).toContain('event.preventDefault()');
     expect(stockIn).toContain('preflightStockSerials');
     expect(stockIn).toContain('startTransition(() => formAction(data))');
+    expect(stockIn).toContain('aria-busy={pending}');
+    expect(stockIn).toContain("t('stock.receivingHelp')");
+    expect(stockIn).toContain('animate-spin');
+    expect(stockIn).toContain('onClick={confirmReceipt} disabled={pending}');
     expect(stockIn).toContain("t('stock.confirmReceiveTitle')");
     expect(stockIn).toContain("t('stock.yesReceive')");
     expect(stockIn).toContain('role="alertdialog"');

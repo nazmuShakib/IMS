@@ -548,7 +548,8 @@ const sales: SaleRepository = {
     const query = filters.query?.trim().toLowerCase();
     return (await readAll<Sale>('sales'))
       .filter((item) => (
-        (!filters.from || new Date(item.completedAt) >= filters.from)
+        (!filters.status || item.status === filters.status)
+        && (!filters.from || new Date(item.completedAt) >= filters.from)
         && (!filters.to || new Date(item.completedAt) <= filters.to)
         && (
           !filters.customerType

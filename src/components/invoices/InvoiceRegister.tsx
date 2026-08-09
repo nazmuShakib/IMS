@@ -13,6 +13,7 @@ import { domainLabel } from '@/lib/i18n/domain';
 
 export interface InvoiceFilterValues {
   q: string;
+  status: string;
   from: string;
   to: string;
   customerType: string;
@@ -24,6 +25,7 @@ export interface InvoiceFilterValues {
 
 const EMPTY_FILTERS: InvoiceFilterValues = {
   q: '',
+  status: '',
   from: '',
   to: '',
   customerType: '',
@@ -101,6 +103,19 @@ export function InvoiceRegister({
               disabled={pending}
               placeholder={t('invoices.searchPlaceholder')}
             />
+          </label>
+          <label>
+            <span className="eyebrow mb-1.5 block">{t('invoices.invoiceStatus')}</span>
+            <Select
+              name="status"
+              value={values.status}
+              onChange={(event) => update('status', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">{t('invoices.allInvoiceStatuses')}</option>
+              <option value="COMPLETED">{t('invoices.completedOnly')}</option>
+              <option value="VOIDED">{t('invoices.voidedOnly')}</option>
+            </Select>
           </label>
           <label>
             <span className="eyebrow mb-1.5 block">{t('invoices.fromDate')}</span>
@@ -184,7 +199,7 @@ export function InvoiceRegister({
               value={values.maxTotal}
               onChange={(event) => update('maxTotal', event.target.value)}
               disabled={pending}
-              placeholder={t('invoices.noMaximum')}
+              placeholder={t('invoices.setMaximumPrice')}
             />
           </label>
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">

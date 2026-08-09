@@ -20,7 +20,7 @@ export default async function CustomersPage({
     ? await db.customers.search(q, 100)
     : await db.customers.findAll();
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title={t('customers.title')}
         count={t('customers.summary', {
@@ -28,7 +28,7 @@ export default async function CustomersPage({
           kind: t(q ? 'customers.matching' : 'customers.reusable'),
         })}
       />
-      <Card className="mb-4 p-5">
+      <Card className="mb-4 p-5 sm:p-6">
         <p className="eyebrow mb-4">{t('customers.new')}</p>
         <CreateCustomerForm />
       </Card>
@@ -37,6 +37,6 @@ export default async function CustomersPage({
         customers={customers}
         resultVersion={crypto.randomUUID()}
       />
-    </>
+    </div>
   );
 }

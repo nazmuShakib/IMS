@@ -21,11 +21,19 @@ import {
 } from '@/services/checkout';
 import { voidSale } from '@/services/sales';
 import { type PaymentMethod, type PaymentStatus } from '@/domain/types';
-import { voidInvoiceFieldsSchema } from '@/schemas';
+import {
+  createCustomerSchema,
+  voidInvoiceFieldsSchema,
+  type CreateCustomerInput,
+} from '@/schemas';
 
 export interface CheckoutActionState {
   error?: string;
   ok?: string;
+}
+
+export interface CustomerActionState extends CheckoutActionState {
+  fieldErrors?: Partial<Record<keyof CreateCustomerInput, string>>;
 }
 
 export interface VoidInvoiceActionState extends CheckoutActionState {
@@ -42,6 +50,17 @@ function voidFieldErrors(error: z.ZodError): VoidInvoiceActionState['fieldErrors
   for (const issue of error.issues) {
     const field = issue.path[0];
     if ((field === 'reason' || field === 'refundMethod' || field === 'confirmed') && !result[field]) {
+      result[field] = issue.message;
+    }
+  }
+  return result;
+}
+
+function customerFieldErrors(error: z.ZodError): CustomerActionState['fieldErrors'] {
+  const result: CustomerActionState['fieldErrors'] = {};
+  for (const issue of error.issues) {
+    const field = issue.path[0];
+    if ((field === 'name' || field === 'phone') && !result[field]) {
       result[field] = issue.message;
     }
   }
@@ -247,15 +266,19 @@ export async function updateCartDetailsAction(
 }
 
 export async function createCustomerAction(
-  _previous: CheckoutActionState,
+  _previous: CustomerActionState,
   fd: FormData,
-): Promise<CheckoutActionState> {
+): Promise<CustomerActionState> {
   const actor = await requireCapability('MANAGE_CUSTOMERS');
+  const parsed = createCustomerSchema.safeParse({
+    name: typeof fd.get('name') === 'string' ? fd.get('name') : '',
+    phone: typeof fd.get('phone') === 'string' ? fd.get('phone') : '',
+  });
+  if (!parsed.success) {
+    return { fieldErrors: customerFieldErrors(parsed.error) };
+  }
   try {
-    const customer = await createCustomer({
-      name: str(fd, 'name') ?? '',
-      phone: str(fd, 'phone') ?? '',
-    });
+    const customer = await createCustomer(parsed.data);
     const cartId = str(fd, 'cartId');
     if (cartId) {
       const cart = await db.carts.findById(cartId);

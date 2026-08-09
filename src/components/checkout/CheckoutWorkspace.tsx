@@ -18,7 +18,6 @@ import {
   addCartItemAction,
   checkoutAction,
   clearTradeInDraftAction,
-  createCustomerAction,
   removeCartItemAction,
   reorderCartItemsAction,
   updateCartDetailsAction,
@@ -27,6 +26,7 @@ import {
 } from "@/actions/checkout";
 import { ScannerInput } from "@/components/search/ScannerInput";
 import { DiscardDraftControl } from "@/components/checkout/DiscardDraftControl";
+import { CreateCustomerForm } from "@/components/customers/CreateCustomerForm";
 import {
   Button,
   Card,
@@ -404,10 +404,6 @@ export function CheckoutWorkspace({
   const [addState, addAction, adding] = useActionState(addCartItemAction, {});
   const [detailState, detailAction, saving] = useActionState(
     updateCartDetailsAction,
-    {},
-  );
-  const [customerState, customerAction, creatingCustomer] = useActionState(
-    createCustomerAction,
     {},
   );
   const [checkoutState, completeAction, checkingOut] = useActionState(
@@ -1073,30 +1069,9 @@ export function CheckoutWorkspace({
           <summary className="cursor-pointer px-4 py-3 text-[13px] font-medium">
             {t("checkout.newCustomer")}
           </summary>
-          <form action={customerAction} className="border-t border-rule p-4">
-            <input type="hidden" name="cartId" value={cart.id} />
-            <div className="space-y-3">
-              <Field label={t("common.name")}>
-                <Input name="name" required maxLength={150} />
-              </Field>
-              <Field label={t("customers.mobile")}>
-                <MonoInput
-                  name="phone"
-                  type="tel"
-                  inputMode="tel"
-                  required
-                  maxLength={30}
-                  placeholder="01712345678"
-                />
-              </Field>
-              <Button type="submit" disabled={creatingCustomer}>
-                {creatingCustomer
-                  ? t("customers.creating")
-                  : t("checkout.createSelect")}
-              </Button>
-              <Message state={customerState} />
-            </div>
-          </form>
+          <div className="border-t border-rule p-4">
+            <CreateCustomerForm cartId={cart.id} stacked />
+          </div>
         </details>
       </aside>
     </div>
