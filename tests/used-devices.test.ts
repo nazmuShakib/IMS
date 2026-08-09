@@ -109,6 +109,26 @@ describe('accepted used-device workflow', () => {
     expect(action).toContain('Start a trade-in from Checkout');
   });
 
+  it('requires a distinct shop selling price when preparing a trade-in', () => {
+    const form = source('src/components/stock/UsedDeviceIntakeForm.tsx');
+    const action = source('src/actions/used-devices.ts');
+    expect(form).toContain("required('askingPrice')");
+    expect(form).toContain('initialTradeInDraft.askingPrice');
+    expect(form).not.toContain("!tradeInCartId && <div><dt className=\"eyebrow\">{t('used.askingPrice')}");
+    expect(action).not.toContain("resolvedAcquisitionType === 'TRADE_IN'\n        ? acquisitionValue");
+  });
+
+  it('revives a safely voided IMEI while retaining separate acquisition history', () => {
+    const schema = source('prisma/schema.prisma');
+    const service = source('src/services/used-devices.ts');
+    const migration = source('prisma/migrations/20260809183000_reusable_voided_used_units/migration.sql');
+    expect(schema).toContain('usedAcquisitions      UsedDeviceAcquisition[]');
+    expect(schema).toContain('@@index([unitId, acquiredAt])');
+    expect(service).toContain("transitionStatus(existingUnit.id, 'VOID', 'IN_STOCK'");
+    expect(service).toContain('has later warranty, refurbishment, or invoice history');
+    expect(migration).toContain('DROP INDEX "used_device_acquisitions_unitId_key"');
+  });
+
   it('prints an immutable incoming-device snapshot on trade-in invoices', () => {
     const schema = source('prisma/schema.prisma');
     const invoice = source('src/components/invoices/InvoiceView.tsx');

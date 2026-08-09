@@ -17,6 +17,30 @@ export interface AcceptedUsedDevice {
   movement: StockMovement;
 }
 
+async function assertVoidedUnitCanBeReceivedAgain(
+  tx: Repositories,
+  unit: ProductUnit,
+  productId: string,
+): Promise<void> {
+  if (unit.status !== 'VOID') {
+    throw new Error(`Device number ${unit.serialNo} already exists (${unit.status.replaceAll('_', ' ').toLowerCase()}).`);
+  }
+  if (unit.productId !== productId) {
+    throw new Error(`Device number ${unit.serialNo} belongs to a different product and cannot be revived here.`);
+  }
+
+  const [claims, expenses, latestAcquisition] = await Promise.all([
+    tx.warranties.findAll({ unitId: unit.id }),
+    tx.refurbishmentExpenses.findByUnit(unit.id),
+    tx.usedDeviceAcquisitions.findByUnit(unit.id),
+  ]);
+  if (claims.length > 0 || expenses.length > 0 || latestAcquisition?.tradeInSaleId) {
+    throw new Error(
+      `Device number ${unit.serialNo} has later warranty, refurbishment, or invoice history and cannot be reused automatically.`,
+    );
+  }
+}
+
 export async function updateUsedDeviceDetails(raw: UpdateUsedDeviceInput): Promise<ProductUnit> {
   const input = updateUsedDeviceSchema.parse(raw);
   return db.transaction(async (tx) => {
@@ -64,11 +88,11 @@ export async function acceptUsedDeviceInTransaction(
     if (!product?.isActive || product.trackingType !== 'SERIAL') {
       throw new Error('Choose an active serial-tracked phone product.');
     }
-    const duplicate = await tx.units.findBySerial(input.serialNo);
-    if (duplicate) throw new Error(`Device number ${input.serialNo} already exists (${duplicate.status.replaceAll('_', ' ').toLowerCase()}).`);
+    const existingUnit = await tx.units.findBySerial(input.serialNo);
+    if (existingUnit) await assertVoidedUnitCanBeReceivedAgain(tx, existingUnit, product.id);
 
     const now = new Date().toISOString();
-    const unit: ProductUnit = {
+    const unitValues: ProductUnit = {
       id: uuidv7(),
       serialNo: input.serialNo,
       productId: product.id,
@@ -92,7 +116,27 @@ export async function acceptUsedDeviceInTransaction(
       createdAt: now,
       updatedAt: now,
     };
-    await tx.units.createMany([unit]);
+    const unit = existingUnit
+      ? await tx.units.transitionStatus(existingUnit.id, 'VOID', 'IN_STOCK', {
+          costPrice: unitValues.costPrice,
+          salePrice: null,
+          supplierId: null,
+          receivedAt: now,
+          soldAt: null,
+          warrantyMonths: unitValues.warrantyMonths,
+          warrantyDays: unitValues.warrantyDays,
+          warrantyExpiresAt: null,
+          location: unitValues.location,
+          note: unitValues.note,
+          usedGrade: unitValues.usedGrade,
+          batteryHealth: unitValues.batteryHealth,
+          inspectionResults: unitValues.inspectionResults,
+          knownDefects: unitValues.knownDefects,
+          includedAccessories: unitValues.includedAccessories,
+          askingPrice: unitValues.askingPrice,
+        })
+      : unitValues;
+    if (!existingUnit) await tx.units.createMany([unit]);
 
     const movement = await tx.movements.record({
       id: uuidv7(),

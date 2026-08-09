@@ -637,7 +637,8 @@ const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
   },
   async findByUnit(unitId) {
     return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
-      .find((item) => item.unitId === unitId) ?? null;
+      .filter((item) => item.unitId === unitId)
+      .sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt) || b.createdAt.localeCompare(a.createdAt))[0] ?? null;
   },
   async findBySale(saleId) {
     return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
@@ -651,9 +652,6 @@ const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
   },
   async create(value) {
     const rows = await readAll<UsedDeviceAcquisition>('used-device-acquisitions');
-    if (rows.some((item) => item.unitId === value.unitId)) {
-      throw new Error('This device already has an acquisition record.');
-    }
     await writeAll('used-device-acquisitions', [...rows, value]);
     return value;
   },

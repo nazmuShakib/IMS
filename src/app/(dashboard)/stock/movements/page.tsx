@@ -135,14 +135,17 @@ export default async function MovementsPage({
   ));
   const rows = await Promise.all(
     sorted.slice(0, 200).map(async (movement) => {
-      const [unit, acquisition] = await Promise.all([
+      const [unit, acquisition, invoiceSale] = await Promise.all([
         movement.unitId ? db.units.findById(movement.unitId) : Promise.resolve(null),
         movement.unitId ? db.usedDeviceAcquisitions.findByUnit(movement.unitId) : Promise.resolve(null),
+        movement.reason === 'SALE' && movement.reference
+          ? db.sales.findByInvoiceNumber(movement.reference)
+          : Promise.resolve(null),
       ]);
       const linkedSale = acquisition?.tradeInSaleId
         ? await db.sales.findById(acquisition.tradeInSaleId)
         : null;
-      return { movement, serial: unit?.serialNo ?? null, linkedSale };
+      return { movement, serial: unit?.serialNo ?? null, linkedSale, invoiceSale };
     }),
   );
 
@@ -243,7 +246,7 @@ export default async function MovementsPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ movement, serial, linkedSale }) => {
+                  {rows.map(({ movement, serial, linkedSale, invoiceSale }) => {
                     const product = productById.get(movement.productId);
                     const inbound = movement.quantity > 0;
                     const isCorrection = movement.reason === 'CORRECTION';
@@ -280,9 +283,9 @@ export default async function MovementsPage({
                                 label={t('ledger.movementLabel', { reason: t(REASON_LABEL[movement.reason]), item: product?.name ?? t('ledger.item') })}
                               />
                             )}
-                            {movement.reason === 'SALE' && !wasReversed && movement.reference && (
+                            {movement.reason === 'SALE' && !wasReversed && invoiceSale && (
                               <Link
-                                href={`/invoices?q=${encodeURIComponent(movement.reference)}`}
+                                href={`/invoices/${invoiceSale.id}`}
                                 className="text-[11px] text-signal underline underline-offset-2"
                               >
                                 Void from its invoice

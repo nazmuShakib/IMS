@@ -379,7 +379,7 @@ model ProductUnit {
   movements             StockMovement[]
   warrantyClaims        WarrantyClaim[]
   cartItems             CartItem[]
-  usedAcquisition       UsedDeviceAcquisition?
+  usedAcquisitions      UsedDeviceAcquisition[]
   refurbishmentExpenses RefurbishmentExpense[]
 
   @@index([productId, status]) // on-hand counts
@@ -694,7 +694,7 @@ model SaleItem {
 model UsedDeviceAcquisition {
   id                   String              @id @default(uuid(7))
   idempotencyKey       String              @unique
-  unitId               String              @unique
+  unitId               String
   unit                 ProductUnit         @relation(fields: [unitId], references: [id], onDelete: Restrict)
   type                 UsedAcquisitionType
   sellerName           String
@@ -715,6 +715,7 @@ model UsedDeviceAcquisition {
   draft         CartDraft? @relation("DraftTradeIn")
 
   @@index([type, acquiredAt])
+  @@index([unitId, acquiredAt])
   @@index([sellerPhone])
   @@index([acceptedById, acquiredAt])
   @@map("used_device_acquisitions")

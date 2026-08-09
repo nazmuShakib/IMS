@@ -72,11 +72,7 @@ function inputFromForm(
     inspectionResults,
     knownDefects: str(data, 'knownDefects'),
     includedAccessories: str(data, 'includedAccessories'),
-    askingPrice: askingPriceText
-      ? parseBDT(askingPriceText)
-      : resolvedAcquisitionType === 'TRADE_IN'
-        ? acquisitionValue
-        : parseBDT(''),
+    askingPrice: askingPriceText ? parseBDT(askingPriceText) : parseBDT(''),
     warrantyMonths: warrantyUnit === 'MONTHS' ? warrantyDuration : null,
     warrantyDays: warrantyUnit === 'DAYS' ? warrantyDuration : null,
     location: str(data, 'location'),

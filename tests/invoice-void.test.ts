@@ -116,4 +116,11 @@ describe('invoice void safeguards', () => {
     expect(page).toContain('Managed by {linkedSale.invoiceNumber}');
     expect(page).not.toContain('RestoreTradeInButton');
   });
+
+  it('links sale movements directly to their invoice detail page', () => {
+    const page = source('src/app/(dashboard)/stock/movements/page.tsx');
+    expect(page).toContain('db.sales.findByInvoiceNumber(movement.reference)');
+    expect(page).toContain('href={`/invoices/${invoiceSale.id}`}');
+    expect(page).not.toContain('href={`/invoices?q=${encodeURIComponent(movement.reference)}`}');
+  });
 });

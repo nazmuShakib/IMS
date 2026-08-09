@@ -102,7 +102,7 @@ export function UsedDeviceIntakeForm({
     required('acquisitionValue');
     required('sellerName');
     required('sellerPhone');
-    if (!tradeInCartId) required('askingPrice');
+    required('askingPrice');
     if (!isBangladeshMobile(String(data.get('sellerPhone') ?? ''))) {
       nextErrors.sellerPhone = t('used.validPhoneRequired');
     }
@@ -152,8 +152,6 @@ export function UsedDeviceIntakeForm({
       } catch {
         nextErrors.askingPrice = t('used.validMoneyRequired');
       }
-    } else if (tradeInCartId && acquisition !== null) {
-      asking = acquisition;
     }
     if (Object.keys(nextErrors).length || acquisition === null || asking === null) {
       setClientErrors(nextErrors);
@@ -294,9 +292,7 @@ export function UsedDeviceIntakeForm({
               </Select>
             </Field>
             <Field label={t('used.identificationNumber')}><Input name="identificationNumber" maxLength={150} defaultValue={initialTradeInDraft?.identificationNumber ?? ''} placeholder={t('used.identificationNumberPlaceholder')} /></Field>
-            {!tradeInCartId && (
-              <Field label={t('used.askingPrice')} error={errors.askingPrice}><MonoInput name="askingPrice" inputMode="decimal" required placeholder={t('used.askingPricePlaceholder')} onChange={() => clearFieldError('askingPrice')} /></Field>
-            )}
+            <Field label={t('used.askingPrice')} error={errors.askingPrice}><MonoInput name="askingPrice" inputMode="decimal" required defaultValue={initialTradeInDraft ? String(toTaka(initialTradeInDraft.askingPrice)) : ''} placeholder={t('used.askingPricePlaceholder')} onChange={() => clearFieldError('askingPrice')} /></Field>
             <Field label={t('used.warrantyDuration')} error={errors.warrantyDuration ?? errors.warrantyDays ?? errors.warrantyMonths}>
               <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-2">
                 <MonoInput name="warrantyDuration" type="number" min={0} max={warrantyUnit === 'DAYS' ? 3650 : 120} inputMode="numeric" defaultValue={initialTradeInDraft?.warrantyDays ?? initialTradeInDraft?.warrantyMonths ?? ''} placeholder={t('used.warrantyPlaceholder')} onChange={() => clearFieldError('warrantyDuration')} />
@@ -363,7 +359,7 @@ export function UsedDeviceIntakeForm({
                   <div><dt className="eyebrow">{t('used.sellerPhone')}</dt><dd className="tnum mt-1">{review.sellerPhone}</dd></div>
                   <div><dt className="eyebrow">{t('used.identificationType')}</dt><dd className="mt-1">{review.identificationType === 'National Identification Number' ? t('used.nationalIdentification') : review.identificationType === 'Passport' ? t('used.passport') : review.identificationType === 'Birth Certificate Number' ? t('used.birthCertificate') : t('common.notRecorded')}</dd></div>
                   <div><dt className="eyebrow">{t('used.identificationNumber')}</dt><dd className="tnum mt-1">{review.identificationNumber || t('common.notRecorded')}</dd></div>
-                  {!tradeInCartId && <div><dt className="eyebrow">{t('used.askingPrice')}</dt><dd className="tnum mt-1">{formatBDT(review.asking)}</dd></div>}
+                  <div><dt className="eyebrow">{t('used.askingPrice')}</dt><dd className="tnum mt-1">{formatBDT(review.asking)}</dd></div>
                   <div><dt className="eyebrow">{t('used.warrantyDuration')}</dt><dd className="tnum mt-1">{review.warrantyDuration ? `${review.warrantyDuration} ${review.warrantyUnit === 'DAYS' ? (review.warrantyDuration === '1' ? t('used.warrantyDay') : t('used.warrantyDays')) : (review.warrantyDuration === '1' ? t('used.warrantyMonth') : t('used.warrantyMonths'))}` : t('common.notRecorded')}</dd></div>
                   <div><dt className="eyebrow">{t('common.location')}</dt><dd className="mt-1">{review.location || t('common.notRecorded')}</dd></div>
                   <div><dt className="eyebrow">{t('common.reference')}</dt><dd className="mt-1">{review.reference || t('common.notRecorded')}</dd></div>

@@ -795,7 +795,10 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return row ? usedDeviceAcquisition(row) : null;
       },
       async findByUnit(unitId) {
-        const row = await client.usedDeviceAcquisition.findUnique({ where: { unitId } });
+        const row = await client.usedDeviceAcquisition.findFirst({
+          where: { unitId },
+          orderBy: [{ acquiredAt: 'desc' }, { createdAt: 'desc' }],
+        });
         return row ? usedDeviceAcquisition(row) : null;
       },
       async findBySale(tradeInSaleId) {

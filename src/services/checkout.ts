@@ -264,8 +264,11 @@ export async function saveTradeInDraft(raw: AcceptUsedDeviceInput & {
       throw new Error('Choose an active serial-tracked phone product.');
     }
     const duplicate = await tx.units.findBySerial(input.serialNo);
-    if (duplicate) {
+    if (duplicate && duplicate.status !== 'VOID') {
       throw new Error(`Device number ${input.serialNo} already exists (${duplicate.status.replaceAll('_', ' ').toLowerCase()}).`);
+    }
+    if (duplicate && duplicate.productId !== input.productId) {
+      throw new Error(`Device number ${input.serialNo} belongs to a different product and cannot be revived here.`);
     }
     const draft: TradeInCartDraft = {
       productId: input.productId,
