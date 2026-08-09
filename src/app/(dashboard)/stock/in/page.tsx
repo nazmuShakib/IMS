@@ -10,12 +10,12 @@ export const dynamic = 'force-dynamic';
 export default async function StockInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ product?: string }>;
+  searchParams: Promise<{ product?: string; supplier?: string; reference?: string; supplierReturn?: string }>;
 }) {
   await requireRole('ADMIN', 'MANAGER', 'STAFF');
   const { role, locale } = await getSession();
   const t = createTranslator(locale);
-  const { product } = await searchParams;
+  const { product, supplier, reference, supplierReturn } = await searchParams;
 
   const [products, suppliers] = await Promise.all([
     db.products.findAll({ activeOnly: true }),
@@ -33,6 +33,9 @@ export default async function StockInPage({
         products={products.map((item) => toProductDTO(item, role))}
         suppliers={activeSuppliers}
         initialProductId={product}
+        initialSupplierId={supplier}
+        initialReference={reference}
+        lockInitialReference={Boolean(reference && supplierReturn)}
       />
     </>
   );

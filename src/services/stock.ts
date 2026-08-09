@@ -213,7 +213,18 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
 export async function recordStockOut(raw: StockOutInput): Promise<StockMovement> {
   const input = stockOutSchema.parse(raw);
 
-  return db.transaction(async (tx) => {
+  return db.transaction(async (tx) => recordStockOutInTransaction(input, tx));
+}
+
+/** Transaction-aware stock removal used by workflows that must link their own
+ * record to the movement atomically (for example supplier returns). */
+export async function recordStockOutInTransaction(
+  raw: StockOutInput,
+  tx: Repositories,
+): Promise<StockMovement> {
+  const input = stockOutSchema.parse(raw);
+
+  {
     const existing = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
     if (existing) return existing;
 
@@ -261,7 +272,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
         quantity: -1, // SIGNED
         unitCost: unit.costPrice, // exact cost — this unit's own. No FIFO needed.
         unitPrice: input.salePrice ?? null,
-        supplierId: null,
+        supplierId: input.supplierId ?? null,
         customerName: input.customerName ?? null,
         customerPhone: input.customerPhone ?? null,
         reference: input.reference ?? null,
@@ -289,7 +300,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
       quantity: -qty, // SIGNED
       unitCost: product.avgCostPrice,
       unitPrice: input.salePrice ?? null,
-      supplierId: null,
+      supplierId: input.supplierId ?? null,
       customerName: input.customerName ?? null,
       customerPhone: input.customerPhone ?? null,
       reference: input.reference ?? null,
@@ -299,7 +310,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
       reversesId: null,
       createdAt: now,
     });
-  });
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -309,7 +320,7 @@ export async function recordStockOut(raw: StockOutInput): Promise<StockMovement>
 export async function correctMovementInTransaction(
   input: CorrectionInput,
   tx: Repositories,
-  options: { allowSale?: boolean; allowAttachedTradeIn?: boolean } = {},
+  options: { allowSale?: boolean; allowAttachedTradeIn?: boolean; allowSupplierReturn?: boolean } = {},
 ): Promise<StockMovement> {
     const original = await tx.movements.findById(input.movementId);
     if (!original) throw new Error(`Movement not found: ${input.movementId}`);
@@ -328,6 +339,13 @@ export async function correctMovementInTransaction(
             + 'Void the complete invoice instead of reversing its trade-in movement.',
           );
         }
+      }
+    }
+
+    if (original.reason === 'RETURN_TO_SUPPLIER' && !options.allowSupplierReturn) {
+      const supplierReturn = await tx.supplierReturns.findByMovement(original.id);
+      if (supplierReturn) {
+        throw new Error('Cancel this return from Supplier Returns instead of reversing its movement directly.');
       }
     }
 

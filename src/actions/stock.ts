@@ -10,6 +10,7 @@ import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
 import { writeAudit } from '@/lib/audit';
 import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
+import { createSupplierReturn } from '@/services/supplier-returns';
 import type { MovementReason, UnitStatus } from '@/domain/types';
 
 /**
@@ -38,6 +39,14 @@ export interface StockActionState {
     reason: 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
     reference: string | null;
     location: string | null;
+  };
+  supplierReturn?: {
+    id: string;
+    returnNumber: string;
+    productName: string;
+    sku: string;
+    serialNo: string | null;
+    quantity: number;
   };
 }
 
@@ -242,9 +251,8 @@ export async function stockOutAction(
   const qtyRaw = str(fd, 'quantity');
 
   try {
-    const movement = await recordStockOut({
+    const common = {
       productId,
-      reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'RETURN_TO_SUPPLIER',
       serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? undefined) : undefined,
       quantity:
         product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
@@ -255,7 +263,19 @@ export async function stockOutAction(
       note: str(fd, 'note'),
       actorId: actor.id,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
-    });
+    };
+    const result = reason === 'RETURN_TO_SUPPLIER'
+      ? await createSupplierReturn({
+          ...common,
+          reason,
+          supplierId: str(fd, 'supplierId') ?? '',
+          returnReason: (str(fd, 'returnReason') ?? 'OTHER') as 'SLOW_MOVING' | 'EXCESS_STOCK' | 'WRONG_ITEM' | 'DEFECTIVE' | 'RECALL' | 'OTHER',
+        })
+      : { movement: await recordStockOut({
+          ...common,
+          reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE',
+        }), supplierReturn: undefined };
+    const { movement } = result;
     await writeAudit({
       actorId: actor.id,
       action: 'stock.out',
@@ -263,18 +283,37 @@ export async function stockOutAction(
       entityId: movement.id,
       after: movement,
     });
+    if (result.supplierReturn) {
+      await writeAudit({
+        actorId: actor.id,
+        action: 'supplier_return.create',
+        entity: 'SupplierReturn',
+        entityId: result.supplierReturn.id,
+        after: result.supplierReturn,
+      });
+    }
+    revalidatePath('/products');
+    revalidatePath(`/products/${productId}`);
+    revalidatePath('/stock/movements');
+    revalidatePath('/suppliers/returns');
+    const what = product.trackingType === 'SERIAL' ? str(fd, 'serialNo') : `${qtyRaw} × ${product.name}`;
+    return {
+      ok: `Removed ${what}.`,
+      supplierReturn: result.supplierReturn
+        ? {
+            id: result.supplierReturn.id,
+            returnNumber: result.supplierReturn.returnNumber,
+            productName: product.name,
+            sku: product.sku,
+            serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? null) : null,
+            quantity: product.trackingType === 'SERIAL' ? 1 : Number(qtyRaw),
+          }
+        : undefined,
+    };
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
     return { error: message(err) };
   }
-
-  revalidatePath('/products');
-  revalidatePath(`/products/${productId}`);
-  revalidatePath('/stock/movements');
-
-  const what =
-    product.trackingType === 'SERIAL' ? str(fd, 'serialNo') : `${qtyRaw} × ${product.name}`;
-  return { ok: `Removed ${what}.` };
 }
 
 /* --- Corrections ----------------------------------------------------------- */

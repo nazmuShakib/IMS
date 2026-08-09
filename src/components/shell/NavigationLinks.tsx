@@ -21,6 +21,7 @@ import {
   Smartphone,
   Tags,
   Truck,
+  Undo2,
   UserCog,
   UsersRound,
   type LucideIcon,
@@ -81,10 +82,11 @@ export function NavigationLinks({
 
       <p className="eyebrow mt-5 px-2 pb-1.5">{t('shell.catalog')}</p>
       {catalog.map((item) => (
-        <NavLink key={item.href} href={item.href} onClick={onNavigate} icon={icon(item.icon)}>
+        <NavLink key={item.href} href={item.href} exact={item.href === '/suppliers'} onClick={onNavigate} icon={icon(item.icon)}>
           {item.label}
         </NavLink>
       ))}
+      {role !== 'STAFF' && <NavLink href="/suppliers/returns" onClick={onNavigate} icon={icon(Undo2)}>{t('nav.supplierReturns')}</NavLink>}
 
       {role === 'ADMIN' && (
         <>

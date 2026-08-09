@@ -21,6 +21,7 @@ export const BUSINESS_DATA_TABLES = [
   'used_device_acquisitions',
   'refurbishment_expenses',
   'stock_movements',
+  'supplier_returns',
   'warranty_claims',
   'warranty_claim_events',
   'supplier_warranty_cases',

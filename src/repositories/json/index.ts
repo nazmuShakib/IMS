@@ -18,6 +18,7 @@ import type {
   InvoiceItem,
   UsedDeviceAcquisition,
   RefurbishmentExpense,
+  SupplierReturn,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -36,6 +37,7 @@ import type {
   SaleRepository,
   UsedDeviceAcquisitionRepository,
   RefurbishmentExpenseRepository,
+  SupplierReturnRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -683,6 +685,51 @@ const refurbishmentExpenses: RefurbishmentExpenseRepository = {
   },
 };
 
+const supplierReturns: SupplierReturnRepository = {
+  async nextReturnNumber(now) {
+    const year = dhakaYear(now);
+    const prefix = `SRT-${year}-`;
+    const next = (await readAll<SupplierReturn>('supplier-returns')).reduce((maximum, item) =>
+      item.returnNumber.startsWith(prefix)
+        ? Math.max(maximum, Number(item.returnNumber.slice(prefix.length)) || 0)
+        : maximum, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async findAll() {
+    return (await readAll<SupplierReturn>('supplier-returns'))
+      .sort((a, b) => b.sentAt.localeCompare(a.sentAt));
+  },
+  async findById(id) {
+    return (await readAll<SupplierReturn>('supplier-returns')).find((item) => item.id === id) ?? null;
+  },
+  async findByMovement(movementId) {
+    return (await readAll<SupplierReturn>('supplier-returns')).find((item) => item.movementId === movementId) ?? null;
+  },
+  async create(value) {
+    const rows = await readAll<SupplierReturn>('supplier-returns');
+    await writeAll('supplier-returns', [...rows, value]);
+    return value;
+  },
+  async settle(id, patch) {
+    const rows = await readAll<SupplierReturn>('supplier-returns');
+    const index = rows.findIndex((item) => item.id === id && item.status === 'PENDING');
+    if (index < 0) throw new Error('This supplier return has already been settled or is unavailable.');
+    const updated: SupplierReturn = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('supplier-returns', copy);
+    return updated;
+  },
+  async cancel(id, patch) {
+    const rows = await readAll<SupplierReturn>('supplier-returns');
+    const index = rows.findIndex((item) => item.id === id && item.status === 'PENDING');
+    if (index < 0) throw new Error('This supplier return is no longer pending.');
+    const updated: SupplierReturn = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('supplier-returns', copy);
+    return updated;
+  },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -697,6 +744,7 @@ export const jsonRepositories: Repositories = {
   sales,
   usedDeviceAcquisitions,
   refurbishmentExpenses,
+  supplierReturns,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

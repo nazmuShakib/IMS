@@ -24,6 +24,7 @@ import type {
   SaleStatus,
   UsedDeviceAcquisition,
   RefurbishmentExpense,
+  SupplierReturn,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -166,6 +167,24 @@ export interface RefurbishmentExpenseRepository {
   create(value: RefurbishmentExpense): Promise<RefurbishmentExpense>;
 }
 
+export interface SupplierReturnRepository {
+  nextReturnNumber(now: Date): Promise<string>;
+  findAll(): Promise<SupplierReturn[]>;
+  findById(id: string): Promise<SupplierReturn | null>;
+  findByMovement(movementId: string): Promise<SupplierReturn | null>;
+  create(value: SupplierReturn): Promise<SupplierReturn>;
+  settle(
+    id: string,
+    patch: Pick<SupplierReturn,
+      'status' | 'recoveredAmount' | 'recoveryMethod' | 'settlementReference' |
+      'settlementNote' | 'settledById' | 'settledAt' | 'updatedAt'>,
+  ): Promise<SupplierReturn>;
+  cancel(
+    id: string,
+    patch: Pick<SupplierReturn, 'status' | 'settlementNote' | 'settledById' | 'settledAt' | 'updatedAt'>,
+  ): Promise<SupplierReturn>;
+}
+
 export interface SaleRepository {
   nextInvoiceNumber(now: Date): Promise<string>;
   findAll(limit?: number): Promise<Sale[]>;
@@ -249,5 +268,6 @@ export interface Repositories {
   sales: SaleRepository;
   usedDeviceAcquisitions: UsedDeviceAcquisitionRepository;
   refurbishmentExpenses: RefurbishmentExpenseRepository;
+  supplierReturns: SupplierReturnRepository;
   transaction: Transactor;
 }

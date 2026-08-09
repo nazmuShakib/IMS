@@ -11,6 +11,7 @@ export function NavLink({
   onClick,
   tooltip,
   tooltipPlacement = 'bottom',
+  exact = false,
 }: {
   href: string;
   children: React.ReactNode;
@@ -18,10 +19,11 @@ export function NavLink({
   onClick?: () => void;
   tooltip?: string;
   tooltipPlacement?: 'top' | 'bottom';
+  exact?: boolean;
 }) {
   const pathname = usePathname();
   const tooltipId = useId();
-  const active = pathname === href || pathname.startsWith(`${href}/`);
+  const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
 
   return (
     <Link

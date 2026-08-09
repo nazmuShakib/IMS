@@ -8,6 +8,8 @@ import {
   RMA_CUSTODIES,
   RMA_COVERAGES,
   SUPPLIER_WARRANTY_STATUSES,
+  SUPPLIER_RECOVERY_METHODS,
+  SUPPLIER_RETURN_REASONS,
   PAYMENT_METHODS,
   PAYMENT_STATUSES,
   USED_DEVICE_GRADES,
@@ -212,8 +214,7 @@ export type UpdateUsedDeviceInput = z.infer<typeof updateUsedDeviceSchema>;
 /**
  * STOCK OUT. A "sale" is just this, with reason=SALE and a salePrice. PLAN.md §1.1.
  */
-export const stockOutSchema = z
-  .object({
+const stockOutBaseSchema = z.object({
     productId: z.string().uuid(),
     reason: z.enum(['SALE', 'DAMAGE', 'LOSS', 'INTERNAL_USE', 'RETURN_TO_SUPPLIER']),
 
@@ -223,11 +224,14 @@ export const stockOutSchema = z
     salePrice: paisa.optional(),
     customerName: z.string().max(150).optional().nullable(),
     customerPhone: z.string().max(30).optional().nullable(),
+    supplierId: z.string().uuid().optional().nullable(),
     reference: z.string().max(100).optional().nullable(),
     note: z.string().max(1000).optional().nullable(),
     actorId: z.string(),
     idempotencyKey: z.string().min(8),
-  })
+  });
+
+export const stockOutSchema = stockOutBaseSchema
   .refine((i) => Boolean(i.serialNo) !== Boolean(i.quantity), {
     message: 'Provide a device number/IMEI for an individually tracked product or a quantity for a bulk/count-based product.',
   })
@@ -236,6 +240,44 @@ export const stockOutSchema = z
     path: ['salePrice'],
   });
 export type StockOutInput = z.infer<typeof stockOutSchema>;
+
+export const supplierReturnFieldsSchema = z.object({
+  supplierId: z.string().uuid('Choose the supplier receiving these items.'),
+  returnReason: z.enum(SUPPLIER_RETURN_REASONS),
+});
+
+export const createSupplierReturnSchema = stockOutBaseSchema.extend({
+  reason: z.literal('RETURN_TO_SUPPLIER'),
+  ...supplierReturnFieldsSchema.shape,
+}).refine((i) => Boolean(i.serialNo) !== Boolean(i.quantity), {
+  message: 'Provide a device number/IMEI for an individually tracked product or a quantity for a bulk/count-based product.',
+});
+export type CreateSupplierReturnInput = z.infer<typeof createSupplierReturnSchema>;
+
+export const settleSupplierReturnSchema = z.object({
+  returnId: z.string().uuid(),
+  recoveredAmount: paisa,
+  recoveryMethod: z.enum(SUPPLIER_RECOVERY_METHODS),
+  settlementReference: z.string().trim().max(100).optional().nullable(),
+  settlementNote: z.string().trim().max(1000).optional().nullable(),
+  actorId: z.string().min(1),
+}).superRefine((input, context) => {
+  if (input.recoveryMethod === 'NO_RECOVERY' && input.recoveredAmount !== 0) {
+    context.addIssue({ code: 'custom', path: ['recoveredAmount'], message: 'No recovery must have a zero recovered amount.' });
+  }
+  if (input.recoveryMethod !== 'NO_RECOVERY' && input.recoveredAmount <= 0) {
+    context.addIssue({ code: 'custom', path: ['recoveredAmount'], message: 'Enter the amount recovered from the supplier.' });
+  }
+});
+export type SettleSupplierReturnInput = z.infer<typeof settleSupplierReturnSchema>;
+
+export const cancelSupplierReturnSchema = z.object({
+  returnId: z.string().uuid(),
+  reason: z.string().trim().min(5, 'Give a clear cancellation reason using at least 5 characters.').max(1000),
+  actorId: z.string().min(1),
+  idempotencyKey: z.string().min(8),
+});
+export type CancelSupplierReturnInput = z.infer<typeof cancelSupplierReturnSchema>;
 
 export const createCustomerSchema = z.object({
   name: z

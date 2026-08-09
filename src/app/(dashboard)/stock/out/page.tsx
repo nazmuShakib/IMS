@@ -17,7 +17,10 @@ export default async function StockOutPage({
   const t = createTranslator(locale);
   const { serial } = await searchParams;
 
-  const products = await db.products.findAll({ activeOnly: true });
+  const [products, suppliers] = await Promise.all([
+    db.products.findAll({ activeOnly: true }),
+    db.suppliers.findAll(),
+  ]);
   const bulk = products.filter((p) => p.trackingType === 'QUANTITY');
 
   return (
@@ -28,6 +31,7 @@ export default async function StockOutPage({
       />
       <StockOutForm
         bulkProducts={bulk.map((product) => toProductDTO(product, role))}
+        suppliers={suppliers.filter((supplier) => supplier.isActive)}
         initialSerial={serial}
       />
     </>

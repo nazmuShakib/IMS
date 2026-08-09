@@ -91,6 +91,13 @@ export type RmaCustody = (typeof RMA_CUSTODIES)[number];
 export const SUPPLIER_WARRANTY_STATUSES = ['DRAFT', 'SENT', 'ACCEPTED', 'REJECTED', 'REPAIRED', 'REPLACED', 'CREDITED', 'RETURNED', 'CLOSED'] as const;
 export type SupplierWarrantyStatus = (typeof SUPPLIER_WARRANTY_STATUSES)[number];
 
+export const SUPPLIER_RETURN_STATUSES = ['PENDING', 'SETTLED', 'CANCELLED'] as const;
+export type SupplierReturnStatus = (typeof SUPPLIER_RETURN_STATUSES)[number];
+export const SUPPLIER_RETURN_REASONS = ['SLOW_MOVING', 'EXCESS_STOCK', 'WRONG_ITEM', 'DEFECTIVE', 'RECALL', 'OTHER'] as const;
+export type SupplierReturnReason = (typeof SUPPLIER_RETURN_REASONS)[number];
+export const SUPPLIER_RECOVERY_METHODS = ['CASH', 'MOBILE_BANKING', 'BANK_TRANSFER', 'SUPPLIER_CREDIT', 'MIXED', 'OTHER', 'NO_RECOVERY'] as const;
+export type SupplierRecoveryMethod = (typeof SUPPLIER_RECOVERY_METHODS)[number];
+
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_BANKING', 'BANK_TRANSFER', 'MIXED', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
@@ -267,6 +274,25 @@ export interface SupplierWarrantyCase {
   resolution: string | null;
   sentAt: string | null;
   returnedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SupplierReturn {
+  id: string;
+  returnNumber: string;
+  movementId: string;
+  supplierId: string;
+  reason: SupplierReturnReason;
+  status: SupplierReturnStatus;
+  recoveredAmount: Paisa | null;
+  recoveryMethod: SupplierRecoveryMethod | null;
+  settlementReference: string | null;
+  settlementNote: string | null;
+  createdById: string;
+  settledById: string | null;
+  sentAt: string;
+  settledAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

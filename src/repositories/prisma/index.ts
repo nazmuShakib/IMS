@@ -22,6 +22,7 @@ import type {
   UsedDeviceInspection,
   TradeInCartDraft,
   TradeInSaleSnapshot,
+  SupplierReturn,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
@@ -90,6 +91,18 @@ function refurbishmentExpense(
   row: Awaited<ReturnType<Client['refurbishmentExpense']['findUniqueOrThrow']>>,
 ): RefurbishmentExpense {
   return { ...row, createdAt: iso(row.createdAt) };
+}
+
+function supplierReturn(
+  row: Awaited<ReturnType<Client['supplierReturn']['findUniqueOrThrow']>>,
+): SupplierReturn {
+  return {
+    ...row,
+    sentAt: iso(row.sentAt),
+    settledAt: row.settledAt ? iso(row.settledAt) : null,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
 }
 
 function movement(row: Awaited<ReturnType<Client['stockMovement']['findUniqueOrThrow']>>): StockMovement {
@@ -843,6 +856,59 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return refurbishmentExpense(await client.refurbishmentExpense.create({
           data: { ...value, createdAt: new Date(value.createdAt) },
         }));
+      },
+    },
+    supplierReturns: {
+      async nextReturnNumber(now) {
+        const year = dhakaYear(now);
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `SRT:${year}` },
+          create: { key: `SRT:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `SRT-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findAll() {
+        return (await client.supplierReturn.findMany({ orderBy: { sentAt: 'desc' } })).map(supplierReturn);
+      },
+      async findById(id) {
+        const row = await client.supplierReturn.findUnique({ where: { id } });
+        return row ? supplierReturn(row) : null;
+      },
+      async findByMovement(movementId) {
+        const row = await client.supplierReturn.findUnique({ where: { movementId } });
+        return row ? supplierReturn(row) : null;
+      },
+      async create(value) {
+        return supplierReturn(await client.supplierReturn.create({
+          data: {
+            ...value,
+            sentAt: new Date(value.sentAt),
+            settledAt: value.settledAt ? new Date(value.settledAt) : null,
+            createdAt: new Date(value.createdAt),
+            updatedAt: new Date(value.updatedAt),
+          },
+        }));
+      },
+      async settle(id, patch) {
+        const result = await client.supplierReturn.updateMany({
+          where: { id, status: 'PENDING' },
+          data: {
+            ...patch,
+            settledAt: patch.settledAt ? new Date(patch.settledAt) : null,
+            updatedAt: new Date(patch.updatedAt),
+          },
+        });
+        if (result.count !== 1) throw new Error('This supplier return has already been settled or is unavailable.');
+        return supplierReturn(await client.supplierReturn.findUniqueOrThrow({ where: { id } }));
+      },
+      async cancel(id, patch) {
+        const result = await client.supplierReturn.updateMany({
+          where: { id, status: 'PENDING' },
+          data: { ...patch, settledAt: patch.settledAt ? new Date(patch.settledAt) : null, updatedAt: new Date(patch.updatedAt) },
+        });
+        if (result.count !== 1) throw new Error('This supplier return is no longer pending.');
+        return supplierReturn(await client.supplierReturn.findUniqueOrThrow({ where: { id } }));
       },
     },
     transaction: transact ?? ((fn) => fn(repositories)),

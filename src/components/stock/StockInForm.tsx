@@ -38,10 +38,16 @@ export function StockInForm({
   products,
   suppliers,
   initialProductId,
+  initialSupplierId,
+  initialReference,
+  lockInitialReference = false,
 }: {
   products: ProductDTO[];
   suppliers: Supplier[];
   initialProductId?: string;
+  initialSupplierId?: string;
+  initialReference?: string;
+  lockInitialReference?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<StockActionState, FormData>(
     receiveStockAction,
@@ -609,7 +615,7 @@ export function StockInForm({
           </Field>
 
           <Field label={t('common.supplier')}>
-            <Select name="supplierId" defaultValue="">
+            <Select name="supplierId" defaultValue={initialSupplierId ?? ''}>
               <option value="">{t('common.notRecorded')}</option>
               {suppliers.map((s) => (
                 <option key={s.id} value={s.id}>
@@ -643,7 +649,7 @@ export function StockInForm({
           </Field>
 
           <Field label={t('common.reference')} hint={t('stock.referenceHint')}>
-            <MonoInput name="reference" placeholder="CHL-1001" />
+            <MonoInput name="reference" defaultValue={initialReference ?? ''} readOnly={lockInitialReference} placeholder="CHL-1001" />
           </Field>
 
           <Field label={t('stock.receiptNote')} hint={t('stock.receiptNoteHint')}>

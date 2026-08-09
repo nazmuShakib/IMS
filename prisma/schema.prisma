@@ -98,6 +98,31 @@ enum SupplierWarrantyStatus {
   CLOSED
 }
 
+enum SupplierReturnStatus {
+  PENDING
+  SETTLED
+  CANCELLED
+}
+
+enum SupplierReturnReason {
+  SLOW_MOVING
+  EXCESS_STOCK
+  WRONG_ITEM
+  DEFECTIVE
+  RECALL
+  OTHER
+}
+
+enum SupplierRecoveryMethod {
+  CASH
+  MOBILE_BANKING
+  BANK_TRANSFER
+  SUPPLIER_CREDIT
+  MIXED
+  OTHER
+  NO_RECOVERY
+}
+
 enum SaleStatus {
   COMPLETED
   VOIDED
@@ -162,6 +187,8 @@ model User {
   sales                  Sale[]
   acceptedUsedDevices    UsedDeviceAcquisition[] @relation("UsedDeviceAcceptedBy")
   refurbishmentExpenses  RefurbishmentExpense[]
+  createdSupplierReturns SupplierReturn[]        @relation("SupplierReturnCreatedBy")
+  settledSupplierReturns SupplierReturn[]        @relation("SupplierReturnSettledBy")
 
   @@index([role])
   @@map("users")
@@ -281,6 +308,7 @@ model Supplier {
   units         ProductUnit[]
   movements     StockMovement[]
   warrantyCases SupplierWarrantyCase[]
+  returns       SupplierReturn[]
 
   @@index([name])
   @@map("suppliers")
@@ -443,6 +471,7 @@ model StockMovement {
   warrantyClaim   WarrantyClaim?  @relation("WarrantyMovement", fields: [warrantyClaimId], references: [id], onDelete: Restrict)
   warrantySaleFor WarrantyClaim[] @relation("WarrantySale")
   saleItem        SaleItem?
+  supplierReturn  SupplierReturn?
 
   /// ⚠️ No updatedAt. This table is append-only by design.
   createdAt DateTime @default(now())
@@ -536,6 +565,33 @@ model SupplierWarrantyCase {
 
   @@index([supplierId, status])
   @@map("supplier_warranty_cases")
+}
+
+model SupplierReturn {
+  id                  String                  @id @default(uuid(7))
+  returnNumber        String                  @unique
+  movementId          String                  @unique
+  movement            StockMovement           @relation(fields: [movementId], references: [id], onDelete: Restrict)
+  supplierId          String
+  supplier            Supplier                @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  reason              SupplierReturnReason
+  status              SupplierReturnStatus    @default(PENDING)
+  recoveredAmount     Int?
+  recoveryMethod      SupplierRecoveryMethod?
+  settlementReference String?
+  settlementNote      String?
+  createdById         String
+  createdBy           User                    @relation("SupplierReturnCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  settledById         String?
+  settledBy           User?                   @relation("SupplierReturnSettledBy", fields: [settledById], references: [id], onDelete: Restrict)
+  sentAt              DateTime                @default(now())
+  settledAt           DateTime?
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([supplierId, status])
+  @@index([status, sentAt])
+  @@map("supplier_returns")
 }
 
 model DocumentSequence {
