@@ -22,7 +22,7 @@ export default async function CategoriesPage() {
   }
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader title={t('nav.categories')} count={t('catalog.categoryCount', { count: categories.length })} />
 
       {role !== 'STAFF' && <div className="mb-4">
@@ -45,6 +45,6 @@ export default async function CategoriesPage() {
           createdAt: category.createdAt,
         }))}
       />
-    </>
+    </div>
   );
 }

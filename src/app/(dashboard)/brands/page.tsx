@@ -22,7 +22,7 @@ export default async function BrandsPage() {
   }
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader title={t('nav.brands')} count={t('catalog.brandCount', { count: brands.length })} />
 
       {role !== 'STAFF' && <div className="mb-4">
@@ -45,6 +45,6 @@ export default async function BrandsPage() {
           createdAt: brand.createdAt,
         }))}
       />
-    </>
+    </div>
   );
 }

@@ -6,7 +6,6 @@ import { PageHeader } from '@/components/ui';
 import { getSession } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import Link from 'next/link';
-import { Button } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -16,11 +15,18 @@ export default async function SuppliersPage() {
   const suppliers = await db.suppliers.findAll();
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-5xl">
       <PageHeader
         title={t('nav.suppliers')}
         count={t('catalog.supplierCount', { count: suppliers.length })}
-        action={role !== 'STAFF' ? <Link href="/suppliers/returns"><Button variant="ghost">{t('nav.supplierReturns')}</Button></Link> : undefined}
+        action={role !== 'STAFF' ? (
+          <Link
+            href="/suppliers/returns"
+            className="inline-flex h-9 items-center justify-center rounded-[3px] border border-blue-700 bg-blue-700 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-blue-800 hover:bg-blue-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+          >
+            {t('nav.supplierReturns')}
+          </Link>
+        ) : undefined}
       />
 
       {role !== 'STAFF' && <div className="mb-4">
@@ -37,6 +43,6 @@ export default async function SuppliersPage() {
       </div>}
 
       <SupplierRegister suppliers={suppliers} canManage={role !== 'STAFF'} />
-    </>
+    </div>
   );
 }
