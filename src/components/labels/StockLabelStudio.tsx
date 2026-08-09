@@ -424,7 +424,8 @@ export function StockLabelStudio({
                     <option value="a4">{t('labels.a4')}</option>
                   </Select>
                 </Field>
-                <div className="flex items-end">
+                <div>
+                  <span aria-hidden="true" className="eyebrow invisible mb-1.5 block">&nbsp;</span>
                   <Button
                     className="w-full"
                     type="submit"

@@ -85,6 +85,7 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(studio).toContain('event.preventDefault()');
     expect(studio).toContain('<form onSubmit={submitPrint}>');
     expect(studio).not.toContain('<form action={formAction}>');
+    expect(studio).toContain('className="eyebrow invisible mb-1.5 block"');
   });
 
   it('synchronizes the label quantity and units when a stock receipt is opened', () => {
