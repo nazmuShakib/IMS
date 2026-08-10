@@ -87,6 +87,21 @@ describe('route loading feedback', () => {
 });
 
 describe('responsive navigation', () => {
+  it('uses semantic high-contrast sidebar tokens and a distinct active state', () => {
+    const css = source('src/app/globals.css');
+    const link = source('src/components/shell/NavLink.tsx');
+    const navigation = source('src/components/shell/NavigationLinks.tsx');
+    expect(css).toContain('--color-sidebar-active:');
+    expect(css).toContain('--color-sidebar-active-text:');
+    expect(css).toContain('--color-sidebar-hover:');
+    expect(css).toContain('.sidebar-section-label');
+    expect(link).toContain('border-sidebar-active-border');
+    expect(link).toContain('bg-sidebar-active');
+    expect(link).toContain('hover:bg-sidebar-hover');
+    expect(link).toContain('aria-current={active');
+    expect(navigation).toContain('sidebar-section-label');
+  });
+
   it('keeps the topbar search shrinkable on narrow mobile screens', () => {
     const layout = source('src/app/(dashboard)/layout.tsx');
     const palette = source('src/components/search/CommandPalette.tsx');

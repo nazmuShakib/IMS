@@ -211,9 +211,13 @@ describe('Phase 4 UI and API boundaries', () => {
 
   it('automatically retries one transient first-search server failure', () => {
     const palette = source('src/components/search/CommandPalette.tsx');
+    const route = source('src/app/api/search/route.ts');
     expect(palette).toContain('response.status >= 500');
     expect(palette).toContain('window.setTimeout(resolve, 300)');
     expect(palette.match(/response = await request\(\)/g)).toHaveLength(2);
+    expect(route).toContain('retryRead(');
+    expect(route).toContain('attempts: 3');
+    expect(route).toContain('delayMs: 250');
   });
 
   it('resolves movement actors from Better Auth instead of only legacy JSON users', () => {

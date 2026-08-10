@@ -12,12 +12,23 @@
 --------------------------------------------------------------------------- */
 
 @theme {
-  --color-ink: #14181d; /* etched text */
-  --color-graphite: #626c76; /* secondary text */
-  --color-plate: #e9ecee; /* anodized field */
+  --color-ink: #111820; /* primary text */
+  --color-graphite: #46535f; /* accessible secondary text */
+  --color-plate: #e5e9ec; /* application canvas */
   --color-card: #ffffff;
-  --color-rule: #d5dade;
-  --color-rule-soft: #e6e9eb;
+  --color-rule: #bfc7ce;
+  --color-rule-soft: #d9dee2;
+
+  /* Sidebar-specific semantic tokens. A future dark theme can replace these
+     values without changing navigation component classes. */
+  --color-sidebar: #fbfcfd;
+  --color-sidebar-text: #27333e;
+  --color-sidebar-muted: #44525f;
+  --color-sidebar-border: #b8c1c9;
+  --color-sidebar-hover: #e8edf1;
+  --color-sidebar-active: #e3e8ff;
+  --color-sidebar-active-text: #2039bd;
+  --color-sidebar-active-border: #8798ec;
 
   --color-signal: #2e4bd8; /* the one accent. primary actions only. */
   --color-signal-wash: #eef1fe;
@@ -86,23 +97,33 @@ html[lang='bn'] .eyebrow {
 
 /* Small-caps field labels, as on a regulatory sticker. */
 .eyebrow {
-  font-size: 10px;
-  font-weight: 600;
+  font-size: 11px;
+  font-weight: 700;
   letter-spacing: 0.09em;
   text-transform: uppercase;
   color: var(--color-graphite);
+}
+
+.sidebar-section-label {
+  color: var(--color-sidebar-muted);
+}
+
+.navigation-links .sidebar-section-label:not(:first-child) {
+  margin-top: 1rem;
+  border-top: 1px solid var(--color-sidebar-border);
+  padding-top: 1rem;
 }
 
 /* The fixed desktop sidebar is viewed at a greater distance than the mobile
    drawer, so give its navigation and account copy one extra size step. */
 @media screen and (min-width: 768px) {
   .desktop-navigation a {
-    font-size: 14px;
+    font-size: 15px;
     line-height: 1.4;
   }
 
   .desktop-navigation .eyebrow {
-    font-size: 11px;
+    font-size: 12px;
   }
 
   .desktop-sidebar > div:first-child > a > span:first-child {
@@ -121,6 +142,14 @@ html[lang='bn'] .eyebrow {
 :focus-visible {
   outline: 2px solid var(--color-signal);
   outline-offset: 2px;
+}
+
+/* The command search has a permanent high-contrast field boundary. Avoid
+   stacking the global focus outline on top of that border. */
+.command-search-input:focus,
+.command-search-input:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

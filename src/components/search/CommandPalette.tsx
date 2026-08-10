@@ -3,6 +3,7 @@
 import { Command } from 'cmdk';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
+import { LoaderCircle, RefreshCw, Search } from 'lucide-react';
 
 import { formatBDT } from '@/lib/money';
 import type { SearchResponse } from '@/lib/search';
@@ -102,6 +103,11 @@ export function CommandPalette() {
     router.push(href);
   };
 
+  const retry = () => {
+    immediateScan.current = true;
+    setScanRequest((value) => value + 1);
+  };
+
   return (
     <>
       <button
@@ -124,29 +130,44 @@ export function CommandPalette() {
           <Command
             shouldFilter={false}
             loop
-            className="min-w-0 w-full max-w-2xl overflow-hidden rounded-[3px] border border-rule bg-card shadow-2xl"
+            className="min-w-0 w-full max-w-2xl overflow-hidden rounded-[4px] border-2 border-sidebar-border bg-card shadow-2xl focus-visible:outline-none"
             onKeyDown={(event) => {
               if (event.key === 'Escape') setOpen(false);
             }}
           >
-            <div className="flex min-w-0 items-center border-b border-rule px-3 sm:px-4">
-              <span className="mr-2 shrink-0 text-graphite sm:mr-3">⌕</span>
-              <ScannerInput
-                ref={inputRef}
-                value={query}
-                onValueChange={setQuery}
-                onScan={() => { immediateScan.current = true; setScanRequest((value) => value + 1); }}
-                placeholder={t('search.placeholder')}
-                className="h-12 min-w-0 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/60"
-              />
-              {loading && <span className="text-[11px] text-graphite">{t('search.searchingShort')}</span>}
+            <div className="border-b border-rule bg-plate/60 p-3">
+              <div className="flex min-w-0 items-center rounded-[3px] border border-sidebar-border bg-card px-3">
+                <Search aria-hidden="true" className="mr-2 size-4 shrink-0 text-graphite sm:mr-3" strokeWidth={2} />
+                <ScannerInput
+                  ref={inputRef}
+                  value={query}
+                  onValueChange={setQuery}
+                  onScan={retry}
+                  placeholder={t('search.placeholder')}
+                  className="command-search-input h-11 min-w-0 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/80"
+                />
+                {loading && (
+                  <span role="status" className="ml-2 inline-flex shrink-0 items-center gap-1.5 rounded-[3px] bg-plate px-2 py-1 text-[11px] font-medium text-graphite">
+                    <LoaderCircle aria-hidden="true" className="size-3.5 animate-spin" />
+                    <span className="hidden sm:inline">{t('search.searchingShort')}</span>
+                  </span>
+                )}
+              </div>
             </div>
 
-            <Command.List className="max-h-[60vh] overflow-y-auto overscroll-contain p-2">
+            <Command.List className="min-h-36 max-h-[60vh] overflow-y-auto overscroll-contain p-2 focus-visible:outline-none">
               {query.trim().length < 2 && (
                 <div className="px-3 py-10 text-center text-[12px] text-graphite">{t('search.minimum')}</div>
               )}
-              {error && <div className="px-3 py-8 text-center text-[12px] text-out">{error}</div>}
+              {error && (
+                <div className="flex flex-col items-center px-3 py-8 text-center text-[12px] text-out">
+                  <p>{error}</p>
+                  <button type="button" onClick={retry} className="mt-3 inline-flex items-center gap-1.5 rounded-[3px] border border-rule bg-card px-3 py-1.5 font-medium text-ink transition-colors hover:bg-plate">
+                    <RefreshCw aria-hidden="true" className="size-3.5" />
+                    {t('search.tryAgain')}
+                  </button>
+                </div>
+              )}
               {!loading && !error && query.trim().length >= 2 && results.units.length === 0 && results.products.length === 0 && (
                 <Command.Empty className="px-3 py-10 text-center text-[12px] text-graphite">{t('search.noMatching')}</Command.Empty>
               )}

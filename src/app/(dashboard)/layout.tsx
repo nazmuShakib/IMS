@@ -19,8 +19,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <I18nProvider locale={locale}>
     <div className="flex min-h-screen">
       {/* --- Sidebar ---------------------------------------------------- */}
-      <aside className="desktop-sidebar hidden w-52 shrink-0 flex-col overflow-hidden border-r border-rule bg-card print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
-        <div className="border-b border-rule px-4 py-4">
+      <aside className="desktop-sidebar hidden w-56 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
+        <div className="border-b border-sidebar-border px-4 py-4">
           <Link href="/" className="block">
             <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
             <span className="eyebrow mt-0.5 block">{t('shell.shop')}</span>
@@ -31,11 +31,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
           <NavigationLinks role={role} desktop />
         </nav>
 
-        <div className="border-t border-rule px-4 py-3">
+        <div className="border-t border-sidebar-border px-4 py-3">
           <p className="truncate text-[12px] font-medium">{user.name}</p>
           <div className="mt-1 flex items-center gap-1.5">
             <Badge tone="signal">{role}</Badge>
-            <span className="text-[10px] text-graphite">{t('shell.authenticated')}</span>
+            <span className="text-[11px] font-medium text-sidebar-muted">{t('shell.authenticated')}</span>
           </div>
           <SignOutControl />
         </div>

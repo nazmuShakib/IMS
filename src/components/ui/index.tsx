@@ -95,7 +95,7 @@ export function HelpTerm({
 }
 
 const inputBase =
-  'h-9 w-full rounded-[3px] border border-rule bg-card px-2.5 text-[13px] text-ink placeholder:text-graphite/60 focus:border-signal focus:outline-none';
+  'h-9 w-full rounded-[3px] border border-rule bg-card px-2.5 text-[13px] text-ink placeholder:text-graphite/80 focus:border-signal focus:outline-none';
 
 export function Input({ className = '', ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={`${inputBase} ${className}`} />;

@@ -70,9 +70,9 @@ export function MobileNavigation({
             role="dialog"
             aria-modal="true"
             aria-label={t('nav.menu')}
-            className="absolute inset-y-0 left-0 flex w-[min(85vw,20rem)] flex-col bg-card shadow-2xl"
+            className="absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col bg-sidebar shadow-2xl"
           >
-            <div className="flex items-center justify-between border-b border-rule px-4 py-4">
+            <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-4">
               <Link href="/" onClick={() => setOpen(false)} className="block">
                 <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
                 <span className="eyebrow mt-0.5 block">{t('shell.shop')}</span>
@@ -92,11 +92,11 @@ export function MobileNavigation({
               <NavigationLinks role={role} onNavigate={() => setOpen(false)} />
             </nav>
 
-            <div className="border-t border-rule px-4 py-3">
+            <div className="border-t border-sidebar-border px-4 py-3">
               <p className="truncate text-[12px] font-medium">{userName}</p>
               <div className="mt-1 flex items-center gap-1.5">
                 <Badge tone="signal">{role}</Badge>
-                <span className="text-[10px] text-graphite">{t('shell.authenticated')}</span>
+                <span className="text-[11px] font-medium text-sidebar-muted">{t('shell.authenticated')}</span>
               </div>
               <SignOutControl />
             </div>

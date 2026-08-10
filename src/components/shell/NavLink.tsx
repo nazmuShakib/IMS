@@ -31,12 +31,14 @@ export function NavLink({
       onClick={onClick}
       aria-current={active ? 'page' : undefined}
       aria-describedby={tooltip ? tooltipId : undefined}
-      className={`group relative flex items-center gap-2 rounded-[3px] px-2 py-1.5 text-[13px] transition-colors ${
-        active ? 'bg-plate font-medium text-ink' : 'text-graphite hover:bg-plate/60 hover:text-ink'
+      className={`group relative mb-0.5 flex items-center gap-1 rounded-[3px] border px-1.5 py-1 text-[14px] transition-[background-color,border-color,color,box-shadow] ${
+        active
+          ? 'border-sidebar-active-border bg-sidebar-active font-semibold text-sidebar-active-text shadow-[inset_0_0_0_1px_rgba(46,75,216,0.08)]'
+          : 'border-transparent text-sidebar-text hover:border-sidebar-border hover:bg-sidebar-hover hover:text-ink'
       }`}
     >
       {active && (
-        <span className="absolute top-1.5 bottom-1.5 -left-2 w-[2px] rounded-full bg-signal" />
+        <span className="absolute top-1 bottom-1 left-0 w-[3px] rounded-r-full bg-signal" />
       )}
       {icon}
       <span className="min-w-0">{children}</span>
