@@ -17,6 +17,7 @@ import {
   INSPECTION_RESULTS,
 } from '@/domain/types';
 import { isBangladeshMobile } from '@/lib/phone';
+import { parseBDT } from '@/lib/money';
 
 /**
  * ONE schema per input, shared by the client form (react-hook-form) and the
@@ -27,6 +28,22 @@ const paisa = z
   .number()
   .int('Money must be an integer number of paisa — never a float')
   .nonnegative();
+
+const optionalFormText = (maximum: number) => z.union([
+  z.string().trim().max(maximum).transform((value) => value || null),
+  z.null(),
+]);
+const expenseAmountInput = z.union([
+  z.string().trim()
+    .min(1, 'Enter the expense amount.')
+    .refine((value) => {
+      if (!/^(?:৳\s*)?\d[\d,]*(?:\.\d{1,2})?$/.test(value)) return false;
+      try { return parseBDT(value) > 0; } catch { return false; }
+    }, 'Enter a valid amount greater than zero.')
+    .transform((value) => parseBDT(value)),
+  paisa.positive('Enter an amount greater than zero.'),
+]);
+const expenseDateInput = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid expense date.');
 
 export const createProductSchema = z
   .object({
@@ -352,6 +369,45 @@ export const searchSchema = z.object({
 
 export const unitStatusSchema = z.enum(UNIT_STATUSES);
 export const movementReasonSchema = z.enum(MOVEMENT_REASONS);
+
+export const expenseFieldsSchema = z.object({
+  expenseDate: expenseDateInput,
+  categoryId: z.string().min(1, 'Choose an expense category.'),
+  description: z.string().trim()
+    .min(3, 'Describe the expense using at least 3 characters.')
+    .max(300, 'Description must not exceed 300 characters.'),
+  amount: expenseAmountInput,
+  paidTo: optionalFormText(150),
+  paymentMethod: z.enum(PAYMENT_METHODS, { message: 'Choose a payment method.' }),
+  reference: optionalFormText(120),
+  note: optionalFormText(1000),
+});
+export type ExpenseFieldsInput = z.input<typeof expenseFieldsSchema>;
+export type ExpenseFields = z.output<typeof expenseFieldsSchema>;
+
+export const createExpenseSchema = expenseFieldsSchema.extend({
+  actorId: z.string().min(1),
+});
+
+export const updateExpenseSchema = expenseFieldsSchema.extend({
+  expenseId: z.string().min(1),
+  actorId: z.string().min(1),
+});
+
+export const voidExpenseFieldsSchema = z.object({
+  reason: z.string().trim()
+    .min(5, 'Give a clear reason using at least 5 characters.')
+    .max(1000, 'The reason must not exceed 1000 characters.'),
+  confirmed: z.boolean().refine((value) => value, {
+    message: 'Confirm that this expense should be voided.',
+  }),
+});
+
+export const createExpenseCategorySchema = z.object({
+  name: z.string().trim()
+    .min(2, 'Category name must contain at least 2 characters.')
+    .max(100, 'Category name must not exceed 100 characters.'),
+});
 
 export const createWarrantyClaimSchema = z.object({
   serialNo: z.string().min(1).max(120).trim(),

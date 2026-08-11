@@ -35,7 +35,9 @@ export type Collection =
   | 'sale-items'
   | 'used-device-acquisitions'
   | 'refurbishment-expenses'
-  | 'supplier-returns';
+  | 'supplier-returns'
+  | 'expense-categories'
+  | 'operating-expenses';
 
 /** Tiny in-memory cache so a single request doesn't re-read the same file 20 times. */
 const cache = new Map<Collection, unknown[]>();

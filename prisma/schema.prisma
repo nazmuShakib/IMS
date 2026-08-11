@@ -142,6 +142,11 @@ enum PaymentMethod {
   OTHER
 }
 
+enum OperatingExpenseStatus {
+  ACTIVE
+  VOIDED
+}
+
 enum UsedDeviceGrade {
   GRADE_A
   GRADE_B
@@ -189,6 +194,9 @@ model User {
   refurbishmentExpenses  RefurbishmentExpense[]
   createdSupplierReturns SupplierReturn[]        @relation("SupplierReturnCreatedBy")
   settledSupplierReturns SupplierReturn[]        @relation("SupplierReturnSettledBy")
+  recordedExpenses        OperatingExpense[]      @relation("ExpenseRecordedBy")
+  updatedExpenses         OperatingExpense[]      @relation("ExpenseUpdatedBy")
+  voidedExpenses          OperatingExpense[]      @relation("ExpenseVoidedBy")
 
   @@index([role])
   @@map("users")
@@ -790,4 +798,54 @@ model RefurbishmentExpense {
   @@index([unitId, createdAt])
   @@index([actorId, createdAt])
   @@map("refurbishment_expenses")
+}
+
+// ===========================================================================
+//  PHASE 10.1 — operating expenses (separate from inventory cost and COGS)
+// ===========================================================================
+
+model ExpenseCategory {
+  id        String   @id @default(uuid(7))
+  name      String   @unique
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  expenses OperatingExpense[]
+
+  @@index([isActive, name])
+  @@map("expense_categories")
+}
+
+model OperatingExpense {
+  id            String                 @id @default(uuid(7))
+  expenseNumber String                 @unique
+  expenseDate   DateTime
+  categoryId    String
+  category      ExpenseCategory        @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  description   String
+  amount        Int
+  paidTo        String?
+  paymentMethod PaymentMethod
+  reference     String?
+  note          String?
+  status        OperatingExpenseStatus @default(ACTIVE)
+
+  recordedById String
+  recordedBy   User   @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  updatedById  String
+  updatedBy    User   @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  voidedById   String?
+  voidedBy     User?  @relation("ExpenseVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+  voidedAt     DateTime?
+  voidReason   String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@index([expenseDate])
+  @@index([categoryId, expenseDate])
+  @@index([paymentMethod, expenseDate])
+  @@index([status, expenseDate])
+  @@index([recordedById, expenseDate])
+  @@map("operating_expenses")
 }

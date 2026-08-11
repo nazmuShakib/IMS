@@ -24,6 +24,7 @@ import {
   Undo2,
   UserCog,
   UsersRound,
+  WalletCards,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -86,6 +87,7 @@ export function NavigationLinks({
       {role !== 'STAFF' && (
         <>
           <p className="sidebar-section-label eyebrow px-2 pb-1.5">{t('shell.analysis')}</p>
+          <NavLink href="/expenses" onClick={onNavigate} icon={icon(WalletCards)}>{t('nav.expenses')}</NavLink>
           <NavLink href="/reports" onClick={onNavigate} icon={icon(BarChart3)} tooltip={desktop ? t('navHelp.reports') : undefined}>{t('nav.reports')}</NavLink>
         </>
       )}

@@ -103,6 +103,13 @@ export default async function DashboardPage() {
               value={formatBDT(dashboard.monthGrossProfit)}
               note={dashboard.monthGrossProfit < 0 ? t('dashboard.lossMonth') : dashboard.monthGrossProfit === 0 ? t('dashboard.breakEven') : undefined}
             />
+            <Kpi tone="cogs" label={t('dashboard.operatingExpensesMonth')} value={formatBDT(dashboard.monthOperatingExpenses)} />
+            <Kpi
+              tone={dashboard.monthOperatingProfit < 0 ? 'profitLoss' : dashboard.monthOperatingProfit === 0 ? 'neutral' : 'profit'}
+              label={t('dashboard.operatingProfitMonth')}
+              value={formatBDT(dashboard.monthOperatingProfit)}
+              note={t('dashboard.operatingProfitHelp')}
+            />
           </>
         ) : (
           <Kpi tone="units" label={t('dashboard.access')} value={t('dashboard.operational')} note={t('dashboard.financialRestricted')} />

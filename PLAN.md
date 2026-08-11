@@ -1297,7 +1297,48 @@ remain deferred and may become Phase 10 if revisited.
 
 ---
 
-## 21. Still deferred after Phase 9
+## 21. Phase 10 — Finance and controlled selling
+
+Phase 10 is split into independently deployable increments. Its priorities are
+operating expenses, EMI sales, staff discount limits, and dashboard improvements.
+
+### 21.1 Operating expenses
+
+**Implementation status: complete (11 August 2026).**
+
+- Store every operating-expense record permanently. The register opens on the
+  current Asia/Dhaka month, while an unrestricted from/to range supports older
+  analysis. Month-end archiving, scheduled jobs, and automatic email are not
+  required because records remain queryable in the database.
+- Keep operating expenses separate from inventory purchases, COGS, used-device
+  acquisitions, trade-ins, refurbishment costs, customer refunds, supplier
+  returns/recoveries, and shrinkage. Recording an expense never changes stock or
+  writes a stock movement.
+- Each record has a stable expense number, expense date, configurable category,
+  description, integer-paisa amount, optional payee/reference/note, payment
+  method, status, and recorded/updated/voided actor metadata.
+- ADMIN and MANAGER can view, create, and edit active expenses and manage
+  reversible category archiving. Only ADMIN can void an expense. Voiding retains
+  the original record and audit history while excluding it from totals. STAFF
+  cannot access the expense register.
+- Provide search, date/category/payment/user/status/amount filters, ordering,
+  scrollable results, current selection preservation, result-only loading, and
+  on-demand CSV/PDF exports. Shared Zod schemas validate controlled forms in the
+  browser and again at the server boundary.
+- Dashboard financial users see current-month operating expenses and net
+  operating profit. Net operating profit is sales profit minus active operating
+  expenses and effective DAMAGE/LOSS shrinkage; supplier returns are not treated
+  as shrinkage.
+
+### 21.2 Remaining Phase 10 increments
+
+- EMI sales and settlement tracking.
+- ADMIN-configured staff discount floors enforced by Checkout.
+- Further dashboard finance and EMI indicators.
+
+---
+
+## 22. Still deferred after Phase 9
 
 - **Purchase orders & supplier ledger** — payables, partial deliveries, PO → receipt matching.
 - **VAT / tax invoices** — the `taxRate` field (basis points) exists, but legal and numbering requirements must be defined first.

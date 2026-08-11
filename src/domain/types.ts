@@ -104,6 +104,9 @@ export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type SaleStatus = 'COMPLETED' | 'VOIDED';
 
+export const OPERATING_EXPENSE_STATUSES = ['ACTIVE', 'VOIDED'] as const;
+export type OperatingExpenseStatus = (typeof OPERATING_EXPENSE_STATUSES)[number];
+
 export const USED_DEVICE_GRADES = ['GRADE_A', 'GRADE_B', 'GRADE_C', 'REFURBISHED'] as const;
 export type UsedDeviceGrade = (typeof USED_DEVICE_GRADES)[number];
 export const USED_ACQUISITION_TYPES = ['DIRECT_PURCHASE', 'TRADE_IN'] as const;
@@ -457,4 +460,33 @@ export interface RefurbishmentExpense {
   amount: Paisa;
   actorId: string;
   createdAt: string;
+}
+
+export interface ExpenseCategory {
+  id: string;
+  name: string;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface OperatingExpense {
+  id: string;
+  expenseNumber: string;
+  expenseDate: string;
+  categoryId: string;
+  description: string;
+  amount: Paisa;
+  paidTo: string | null;
+  paymentMethod: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  status: OperatingExpenseStatus;
+  recordedById: string;
+  updatedById: string;
+  voidedById: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

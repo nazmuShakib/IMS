@@ -93,6 +93,25 @@ const bnMessages: Record<string, string> = {
   'A mobile number is required.': 'মোবাইল নম্বর লিখুন।',
   'Confirm that the seller owns the device.': 'বিক্রেতা যে ডিভাইসটির মালিক তা নিশ্চিত করুন।',
   'Choose either days or months for the warranty.': 'ওয়ারেন্টির জন্য দিন অথবা মাস—যেকোনো একটি বেছে নিন।',
+  'Expense category added.': 'ব্যয়ের ক্যাটাগরি যোগ হয়েছে।',
+  'Expense category updated.': 'ব্যয়ের ক্যাটাগরি হালনাগাদ হয়েছে।',
+  'An expense category with this name already exists.': 'এই নামে একটি ব্যয়ের ক্যাটাগরি ইতিমধ্যে আছে।',
+  'Choose an active expense category.': 'একটি সক্রিয় ব্যয়ের ক্যাটাগরি নির্বাচন করুন।',
+  'Expense not found.': 'ব্যয়ের রেকর্ড পাওয়া যায়নি।',
+  'A voided expense cannot be edited.': 'বাতিল করা ব্যয় সংশোধন করা যাবে না।',
+  'This expense is already voided.': 'এই ব্যয়টি ইতিমধ্যে বাতিল করা হয়েছে।',
+  'Enter the expense amount.': 'ব্যয়ের পরিমাণ লিখুন।',
+  'Enter a valid amount greater than zero.': 'শূন্যের বেশি সঠিক পরিমাণ লিখুন।',
+  'Enter an amount greater than zero.': 'শূন্যের বেশি পরিমাণ লিখুন।',
+  'Choose a valid expense date.': 'সঠিক ব্যয়ের তারিখ নির্বাচন করুন।',
+  'Choose an expense category.': 'ব্যয়ের ক্যাটাগরি নির্বাচন করুন।',
+  'Describe the expense using at least 3 characters.': 'কমপক্ষে ৩টি অক্ষরে ব্যয়ের বিবরণ লিখুন।',
+  'Description must not exceed 300 characters.': 'বিবরণ ৩০০ অক্ষরের বেশি হতে পারবে না।',
+  'Choose a payment method.': 'পরিশোধের মাধ্যম নির্বাচন করুন।',
+  'Give a clear reason using at least 5 characters.': 'কমপক্ষে ৫টি অক্ষরে স্পষ্ট কারণ লিখুন।',
+  'Confirm that this expense should be voided.': 'এই ব্যয়টি বাতিল করতে নিশ্চিত করুন।',
+  'Category name must contain at least 2 characters.': 'ক্যাটাগরির নামে কমপক্ষে ২টি অক্ষর থাকতে হবে।',
+  'Category name must not exceed 100 characters.': 'ক্যাটাগরির নাম ১০০ অক্ষরের বেশি হতে পারবে না।',
 };
 
 export function translateActionMessage(locale: Locale, value: string): string {
@@ -119,6 +138,12 @@ export function translateActionMessage(locale: Locale, value: string): string {
   if (match) return `ডিভাইস নম্বর ${match[1]} অন্য একটি পণ্যের এবং এখানে পুনরায় সক্রিয় করা যাবে না।`;
   match = value.match(/^Accepted (.+) into used-phone inventory\.$/);
   if (match) return `${match[1]} পুরোনো ফোনের স্টকে গ্রহণ করা হয়েছে।`;
+  match = value.match(/^Recorded (EXP-.+)\.$/);
+  if (match) return `${match[1]} ব্যয় রেকর্ড করা হয়েছে।`;
+  match = value.match(/^Updated (EXP-.+)\.$/);
+  if (match) return `${match[1]} ব্যয় হালনাগাদ হয়েছে।`;
+  match = value.match(/^Voided (EXP-.+)\.$/);
+  if (match) return `${match[1]} ব্যয় বাতিল করা হয়েছে।`;
 
   return value;
 }

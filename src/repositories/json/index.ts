@@ -19,6 +19,8 @@ import type {
   UsedDeviceAcquisition,
   RefurbishmentExpense,
   SupplierReturn,
+  ExpenseCategory,
+  OperatingExpense,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -38,6 +40,8 @@ import type {
   UsedDeviceAcquisitionRepository,
   RefurbishmentExpenseRepository,
   SupplierReturnRepository,
+  ExpenseCategoryRepository,
+  OperatingExpenseRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -730,6 +734,95 @@ const supplierReturns: SupplierReturnRepository = {
   },
 };
 
+const expenseCategories: ExpenseCategoryRepository = {
+  async findAll() {
+    return (await readAll<ExpenseCategory>('expense-categories'))
+      .sort((a, b) => Number(b.isActive) - Number(a.isActive) || a.name.localeCompare(b.name));
+  },
+  async findById(id) {
+    return (await readAll<ExpenseCategory>('expense-categories')).find((item) => item.id === id) ?? null;
+  },
+  async create(value) {
+    const rows = await readAll<ExpenseCategory>('expense-categories');
+    if (rows.some((item) => item.name.toLowerCase() === value.name.toLowerCase())) {
+      throw new Error('An expense category with this name already exists.');
+    }
+    await writeAll('expense-categories', [...rows, value]);
+    return value;
+  },
+  async update(id, patch) {
+    const rows = await readAll<ExpenseCategory>('expense-categories');
+    const index = rows.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Expense category not found.');
+    if (rows.some((item) => item.id !== id && item.name.toLowerCase() === patch.name.toLowerCase())) {
+      throw new Error('An expense category with this name already exists.');
+    }
+    const updated = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('expense-categories', copy);
+    return updated;
+  },
+};
+
+const operatingExpenses: OperatingExpenseRepository = {
+  async nextExpenseNumber(now) {
+    const year = dhakaYear(now);
+    const prefix = `EXP-${year}-`;
+    const next = (await readAll<OperatingExpense>('operating-expenses')).reduce((max, item) =>
+      item.expenseNumber.startsWith(prefix)
+        ? Math.max(max, Number(item.expenseNumber.slice(prefix.length)) || 0)
+        : max, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async findAll(filters, limit = 500) {
+    const query = filters?.query?.trim().toLowerCase();
+    const rows = (await readAll<OperatingExpense>('operating-expenses')).filter((item) => (
+      (!filters?.from || new Date(item.expenseDate) >= filters.from)
+      && (!filters?.to || new Date(item.expenseDate) <= filters.to)
+      && (!filters?.categoryId || item.categoryId === filters.categoryId)
+      && (!filters?.paymentMethod || item.paymentMethod === filters.paymentMethod)
+      && (!filters?.recordedById || item.recordedById === filters.recordedById)
+      && (!filters?.status || item.status === filters.status)
+      && (filters?.minAmount === undefined || item.amount >= filters.minAmount)
+      && (filters?.maxAmount === undefined || item.amount <= filters.maxAmount)
+      && (!query || [item.expenseNumber, item.description, item.paidTo, item.reference]
+        .some((value) => value?.toLowerCase().includes(query)))
+    ));
+    rows.sort((a, b) => {
+      if (filters?.order === 'oldest') return a.expenseDate.localeCompare(b.expenseDate);
+      if (filters?.order === 'amount-desc') return b.amount - a.amount;
+      if (filters?.order === 'amount-asc') return a.amount - b.amount;
+      return b.expenseDate.localeCompare(a.expenseDate) || b.createdAt.localeCompare(a.createdAt);
+    });
+    return rows.slice(0, Math.max(1, Math.min(limit, 2_000)));
+  },
+  async findById(id) {
+    return (await readAll<OperatingExpense>('operating-expenses')).find((item) => item.id === id) ?? null;
+  },
+  async create(value) {
+    await writeAll('operating-expenses', [...await readAll<OperatingExpense>('operating-expenses'), value]);
+    return value;
+  },
+  async update(id, patch) {
+    const rows = await readAll<OperatingExpense>('operating-expenses');
+    const index = rows.findIndex((item) => item.id === id && item.status === 'ACTIVE');
+    if (index < 0) throw new Error('Only an active expense can be edited.');
+    const updated = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('operating-expenses', copy);
+    return updated;
+  },
+  async void(id, patch) {
+    const rows = await readAll<OperatingExpense>('operating-expenses');
+    const index = rows.findIndex((item) => item.id === id && item.status === 'ACTIVE');
+    if (index < 0) throw new Error('This expense is already voided or unavailable.');
+    const updated = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('operating-expenses', copy);
+    return updated;
+  },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -745,6 +838,8 @@ export const jsonRepositories: Repositories = {
   usedDeviceAcquisitions,
   refurbishmentExpenses,
   supplierReturns,
+  expenseCategories,
+  operatingExpenses,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

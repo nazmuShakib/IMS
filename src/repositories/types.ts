@@ -25,6 +25,9 @@ import type {
   UsedDeviceAcquisition,
   RefurbishmentExpense,
   SupplierReturn,
+  ExpenseCategory,
+  OperatingExpense,
+  OperatingExpenseStatus,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -185,6 +188,39 @@ export interface SupplierReturnRepository {
   ): Promise<SupplierReturn>;
 }
 
+export interface ExpenseCategoryRepository {
+  findAll(): Promise<ExpenseCategory[]>;
+  findById(id: string): Promise<ExpenseCategory | null>;
+  create(value: ExpenseCategory): Promise<ExpenseCategory>;
+  update(id: string, patch: Pick<ExpenseCategory, 'name' | 'isActive' | 'updatedAt'>): Promise<ExpenseCategory>;
+}
+
+export type ExpenseOrder = 'newest' | 'oldest' | 'amount-desc' | 'amount-asc';
+export interface OperatingExpenseFilters {
+  query?: string;
+  from?: Date;
+  to?: Date;
+  categoryId?: string;
+  paymentMethod?: PaymentMethod;
+  recordedById?: string;
+  status?: OperatingExpenseStatus;
+  minAmount?: Paisa;
+  maxAmount?: Paisa;
+  order?: ExpenseOrder;
+}
+
+export interface OperatingExpenseRepository {
+  nextExpenseNumber(now: Date): Promise<string>;
+  findAll(filters?: OperatingExpenseFilters, limit?: number): Promise<OperatingExpense[]>;
+  findById(id: string): Promise<OperatingExpense | null>;
+  create(value: OperatingExpense): Promise<OperatingExpense>;
+  update(id: string, patch: Pick<OperatingExpense,
+    'expenseDate' | 'categoryId' | 'description' | 'amount' | 'paidTo' |
+    'paymentMethod' | 'reference' | 'note' | 'updatedById' | 'updatedAt'>): Promise<OperatingExpense>;
+  void(id: string, patch: Pick<OperatingExpense,
+    'status' | 'voidedById' | 'voidedAt' | 'voidReason' | 'updatedById' | 'updatedAt'>): Promise<OperatingExpense>;
+}
+
 export interface SaleRepository {
   nextInvoiceNumber(now: Date): Promise<string>;
   findAll(limit?: number): Promise<Sale[]>;
@@ -269,5 +305,7 @@ export interface Repositories {
   usedDeviceAcquisitions: UsedDeviceAcquisitionRepository;
   refurbishmentExpenses: RefurbishmentExpenseRepository;
   supplierReturns: SupplierReturnRepository;
+  expenseCategories: ExpenseCategoryRepository;
+  operatingExpenses: OperatingExpenseRepository;
   transaction: Transactor;
 }

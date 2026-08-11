@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Product, ProductUnit, StockMovement, Supplier, User } from '@/domain/types';
+import type { OperatingExpense, Product, ProductUnit, StockMovement, Supplier, User } from '@/domain/types';
 import { searchInventory } from '@/lib/search';
 import type { Repositories } from '@/repositories';
 import { getDashboard } from '@/services/dashboard';
@@ -69,6 +69,14 @@ const user: User = {
   role: 'ADMIN', isActive: true, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z',
 };
 
+const operatingExpense: OperatingExpense = {
+  id: 'expense-1', expenseNumber: 'EXP-2026-000001', expenseDate: '2026-07-10T18:00:00.000Z',
+  categoryId: 'rent', description: 'Shop rent', amount: 100, paidTo: null, paymentMethod: 'CASH',
+  reference: null, note: null, status: 'ACTIVE', recordedById: user.id, updatedById: user.id,
+  voidedById: null, voidedAt: null, voidReason: null, createdAt: '2026-07-10T18:00:00.000Z',
+  updatedAt: '2026-07-10T18:00:00.000Z',
+};
+
 function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])): Repositories {
   return {
     products: {
@@ -86,6 +94,7 @@ function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])):
     suppliers: { findById: vi.fn(async () => supplier) },
     users: { findAll: vi.fn(async () => [user]) },
     movements: { findByDateRange: vi.fn(async () => movements) },
+    operatingExpenses: { findAll: vi.fn(async () => [operatingExpense]) },
   } as unknown as Repositories;
 }
 
@@ -103,6 +112,8 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.monthRevenue).toBe(800);
     expect(dashboard.monthCogs).toBe(500);
     expect(dashboard.monthGrossProfit).toBe(300);
+    expect(dashboard.monthOperatingExpenses).toBe(100);
+    expect(dashboard.monthOperatingProfit).toBe(200);
     expect(dashboard.recentActivity.some((item) => item.reason === 'CORRECTION')).toBe(true);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockIn, 0)).toBe(0);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockOut, 0)).toBe(1);

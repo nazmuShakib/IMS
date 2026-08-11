@@ -23,6 +23,8 @@ import type {
   TradeInCartDraft,
   TradeInSaleSnapshot,
   SupplierReturn,
+  ExpenseCategory,
+  OperatingExpense,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
@@ -100,6 +102,24 @@ function supplierReturn(
     ...row,
     sentAt: iso(row.sentAt),
     settledAt: row.settledAt ? iso(row.settledAt) : null,
+    createdAt: iso(row.createdAt),
+    updatedAt: iso(row.updatedAt),
+  };
+}
+
+function expenseCategory(
+  row: Awaited<ReturnType<Client['expenseCategory']['findUniqueOrThrow']>>,
+): ExpenseCategory {
+  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
+}
+
+function operatingExpense(
+  row: Awaited<ReturnType<Client['operatingExpense']['findUniqueOrThrow']>>,
+): OperatingExpense {
+  return {
+    ...row,
+    expenseDate: iso(row.expenseDate),
+    voidedAt: row.voidedAt ? iso(row.voidedAt) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
@@ -909,6 +929,123 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         });
         if (result.count !== 1) throw new Error('This supplier return is no longer pending.');
         return supplierReturn(await client.supplierReturn.findUniqueOrThrow({ where: { id } }));
+      },
+    },
+    expenseCategories: {
+      async findAll() {
+        return (await client.expenseCategory.findMany({
+          orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+        })).map(expenseCategory);
+      },
+      async findById(id) {
+        const row = await client.expenseCategory.findUnique({ where: { id } });
+        return row ? expenseCategory(row) : null;
+      },
+      async create(value) {
+        try {
+          return expenseCategory(await client.expenseCategory.create({
+            data: {
+              ...value,
+              createdAt: new Date(value.createdAt),
+              updatedAt: new Date(value.updatedAt),
+            },
+          }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async update(id, patch) {
+        try {
+          return expenseCategory(await client.expenseCategory.update({
+            where: { id },
+            data: { ...patch, updatedAt: new Date(patch.updatedAt) },
+          }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+    },
+    operatingExpenses: {
+      async nextExpenseNumber(now) {
+        const year = dhakaYear(now);
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `EXP:${year}` },
+          create: { key: `EXP:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `EXP-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findAll(filters, limit = 500) {
+        const query = filters?.query?.trim();
+        const amount = filters?.minAmount !== undefined || filters?.maxAmount !== undefined
+          ? { gte: filters?.minAmount, lte: filters?.maxAmount }
+          : undefined;
+        const orderBy = filters?.order === 'oldest'
+          ? [{ expenseDate: 'asc' as const }, { createdAt: 'asc' as const }]
+          : filters?.order === 'amount-desc'
+            ? [{ amount: 'desc' as const }, { expenseDate: 'desc' as const }]
+            : filters?.order === 'amount-asc'
+              ? [{ amount: 'asc' as const }, { expenseDate: 'desc' as const }]
+              : [{ expenseDate: 'desc' as const }, { createdAt: 'desc' as const }];
+        return (await client.operatingExpense.findMany({
+          where: {
+            expenseDate: filters?.from || filters?.to
+              ? { gte: filters?.from, lte: filters?.to }
+              : undefined,
+            categoryId: filters?.categoryId,
+            paymentMethod: filters?.paymentMethod,
+            recordedById: filters?.recordedById,
+            status: filters?.status,
+            amount,
+            ...(query ? {
+              OR: [
+                { expenseNumber: { contains: query, mode: 'insensitive' } },
+                { description: { contains: query, mode: 'insensitive' } },
+                { paidTo: { contains: query, mode: 'insensitive' } },
+                { reference: { contains: query, mode: 'insensitive' } },
+              ],
+            } : {}),
+          },
+          orderBy,
+          take: Math.max(1, Math.min(limit, 2_000)),
+        })).map(operatingExpense);
+      },
+      async findById(id) {
+        const row = await client.operatingExpense.findUnique({ where: { id } });
+        return row ? operatingExpense(row) : null;
+      },
+      async create(value) {
+        try {
+          return operatingExpense(await client.operatingExpense.create({
+            data: {
+              ...value,
+              expenseDate: new Date(value.expenseDate),
+              voidedAt: value.voidedAt ? new Date(value.voidedAt) : null,
+              createdAt: new Date(value.createdAt),
+              updatedAt: new Date(value.updatedAt),
+            },
+          }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
+      async update(id, patch) {
+        const result = await client.operatingExpense.updateMany({
+          where: { id, status: 'ACTIVE' },
+          data: {
+            ...patch,
+            expenseDate: new Date(patch.expenseDate),
+            updatedAt: new Date(patch.updatedAt),
+          },
+        });
+        if (result.count !== 1) throw new Error('Only an active expense can be edited.');
+        return operatingExpense(await client.operatingExpense.findUniqueOrThrow({ where: { id } }));
+      },
+      async void(id, patch) {
+        const result = await client.operatingExpense.updateMany({
+          where: { id, status: 'ACTIVE' },
+          data: {
+            ...patch,
+            voidedAt: patch.voidedAt ? new Date(patch.voidedAt) : null,
+            updatedAt: new Date(patch.updatedAt),
+          },
+        });
+        if (result.count !== 1) throw new Error('This expense is already voided or unavailable.');
+        return operatingExpense(await client.operatingExpense.findUniqueOrThrow({ where: { id } }));
       },
     },
     transaction: transact ?? ((fn) => fn(repositories)),

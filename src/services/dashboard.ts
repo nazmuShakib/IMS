@@ -80,6 +80,9 @@ export interface FinancialDashboardDTO extends DashboardCommon {
   monthRevenue: Paisa;
   monthCogs: Paisa;
   monthGrossProfit: Paisa;
+  monthOperatingExpenses: Paisa;
+  monthShrinkage: Paisa;
+  monthOperatingProfit: Paisa;
   dailyFinancials: DailyFinancialPoint[];
 }
 
@@ -336,6 +339,18 @@ export async function getDashboard(
     monthRevenue += values.revenue;
     monthCogs += values.cogs;
   }
+  const monthExpenses = await repositories.operatingExpenses.findAll({
+    from: monthStart,
+    to: now,
+    status: 'ACTIVE',
+  });
+  const monthOperatingExpenses = monthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const monthShrinkage = movements
+    .filter((movement) => new Date(movement.createdAt) >= monthStart
+      && isEffectiveOperation(movement)
+      && (movement.reason === 'DAMAGE' || movement.reason === 'LOSS'))
+    .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
+  const monthGrossProfit = monthRevenue - monthCogs;
 
   const rangeStart = new Date(`${dayKeys[0]}T00:00:00+06:00`);
   const stockValueDeltaByDay = new Map(dayKeys.map((date) => [date, 0]));
@@ -365,7 +380,10 @@ export async function getDashboard(
     potentialMargin: stockValueAtRetail - stockValueAtCost,
     monthRevenue,
     monthCogs,
-    monthGrossProfit: monthRevenue - monthCogs,
+    monthGrossProfit,
+    monthOperatingExpenses,
+    monthShrinkage,
+    monthOperatingProfit: monthGrossProfit - monthOperatingExpenses - monthShrinkage,
     dailyFinancials,
   };
 }
