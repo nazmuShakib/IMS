@@ -8,6 +8,8 @@ import type {
 import { forwardRef } from 'react';
 import { formatBDT, type Paisa } from '@/lib/money';
 
+export { TableViewport } from './TableViewport';
+
 /* -------------------------------------------------------------------------- */
 
 export function Button({
@@ -129,26 +131,6 @@ export function Textarea({
 export function Card({ children, className = '' }: { children: ReactNode; className?: string }) {
   return (
     <div className={`rounded-[3px] border border-rule bg-card ${className}`}>{children}</div>
-  );
-}
-
-/** Keeps long data sets inside the card instead of growing the entire page. */
-export function TableViewport({
-  children,
-  className = '',
-}: {
-  children: ReactNode;
-  className?: string;
-}) {
-  return (
-    <div
-      tabIndex={0}
-      role="region"
-      aria-label="Scrollable table"
-      className={`max-h-[min(65vh,42rem)] overflow-auto overscroll-contain focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-signal ${className}`}
-    >
-      {children}
-    </div>
   );
 }
 

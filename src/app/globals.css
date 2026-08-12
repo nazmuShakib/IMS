@@ -1,4 +1,4 @@
-@import 'tailwindcss';
+@import "tailwindcss";
 
 /* ---------------------------------------------------------------------------
    Design tokens.
@@ -30,6 +30,8 @@
   --color-sidebar-active-text: #2039bd;
   --color-sidebar-active-border: #8798ec;
   --color-sidebar-section-text: #17212a;
+  --color-scrollbar-thumb: rgba(70, 83, 95, 0.2);
+  --color-scrollbar-thumb-active: rgba(39, 51, 62, 0.72);
 
   --color-signal: #2e4bd8; /* the one accent. primary actions only. */
   --color-signal-wash: #eef1fe;
@@ -64,14 +66,43 @@
   --color-metric-neutral: #626c76;
   --color-metric-neutral-wash: #f1f3f4;
 
-  --font-sans: 'IBM Plex Sans', 'Noto Sans Bengali', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'SFMono-Regular', monospace;
+  --font-sans:
+    "IBM Plex Sans", "Noto Sans Bengali", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --radius-plate: 3px; /* hardware, not marshmallow */
 }
 
 html {
   background: var(--color-plate);
+  scrollbar-gutter: stable;
+}
+
+html::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+html::-webkit-scrollbar-track,
+html::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-thumb {
+  min-height: 32px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+html:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+html::-webkit-scrollbar-thumb:hover {
+  border-width: 0 1px 1px 0;
+  background-color: var(--color-scrollbar-thumb-active);
 }
 
 body {
@@ -80,11 +111,12 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-html[lang='bn'] body {
-  font-family: 'Noto Sans Bengali', 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+html[lang="bn"] body {
+  font-family:
+    "Noto Sans Bengali", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
 }
 
-html[lang='bn'] .eyebrow {
+html[lang="bn"] .eyebrow {
   letter-spacing: 0.04em;
   text-transform: none;
 }
@@ -114,6 +146,130 @@ html[lang='bn'] .eyebrow {
   margin-top: 0.4rem;
   border-top: 1px solid var(--color-sidebar-border);
   padding-top: 0.4rem;
+}
+
+/* Like YouTube, internal scrollbars reserve a stable 4px hit area without
+   moving content. They are hidden outside the container, draw a 2px thumb while
+   the container is hovered/focused, and draw a 3px thumb on direct hover. */
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport
+) {
+  scrollbar-gutter: stable;
+}
+
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport
+)::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport
+)::-webkit-scrollbar-track,
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport
+)::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport
+)::-webkit-scrollbar-thumb {
+  min-height: 28px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  background-clip: padding-box;
+}
+
+:where(
+    .overflow-auto,
+    .overflow-y-auto,
+    .overflow-x-auto,
+    .overflow-y-scroll,
+    .overflow-x-scroll,
+    .invoice-preview-viewport
+  ):is(:hover, :focus-visible)::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+:where(
+    .overflow-auto,
+    .overflow-y-auto,
+    .overflow-x-auto,
+    .overflow-y-scroll,
+    .overflow-x-scroll,
+    .invoice-preview-viewport
+  )::-webkit-scrollbar-thumb:hover {
+  border-width: 0 1px 1px 0;
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+/* The sidebar's scroll owner is its inner nav. Reveal its thumb when the
+   pointer is anywhere inside the complete sidebar, including its fixed header
+   and account footer. */
+.desktop-sidebar:hover > nav::-webkit-scrollbar-thumb,
+.desktop-sidebar:has(:focus-visible) > nav::-webkit-scrollbar-thumb,
+.mobile-navigation-panel:hover > nav::-webkit-scrollbar-thumb,
+.mobile-navigation-panel:has(:focus-visible) > nav::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+/* Shared table viewports must react to pointer hover without first receiving
+   keyboard focus. Keep this explicit because their surrounding card header is
+   not the element that owns the scrollbar. */
+.contextual-scroll-area.scrollbar-active::-webkit-scrollbar-thumb,
+.contextual-scroll-area:focus-visible::-webkit-scrollbar-thumb {
+  border-width: 1px;
+  background-color: var(--color-scrollbar-thumb-active);
+}
+
+.contextual-scroll-area.scrollbar-active::-webkit-scrollbar-thumb:hover,
+.contextual-scroll-area:focus-visible::-webkit-scrollbar-thumb:hover {
+  border-width: 0 1px 1px 0;
+}
+
+/* Firefox does not expose WebKit scrollbar pseudo-elements. Its only reliable
+   fallback is the browser-provided thin scrollbar. */
+@supports not selector(::-webkit-scrollbar) {
+  :where(
+    html,
+    .overflow-auto,
+    .overflow-y-auto,
+    .overflow-x-auto,
+    .overflow-y-scroll,
+    .overflow-x-scroll,
+    .invoice-preview-viewport
+  ) {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-scrollbar-thumb-active) transparent;
+  }
 }
 
 /* The fixed desktop sidebar is viewed at a greater distance than the mobile
@@ -167,47 +323,47 @@ html[lang='bn'] .eyebrow {
    copy without scaling layout dimensions or physically sized print output. */
 @media screen and (min-width: 1440px) {
   .dashboard-content .eyebrow,
-  .dashboard-content [class~='text-[10px]'] {
+  .dashboard-content [class~="text-[10px]"] {
     font-size: 11px;
     line-height: 1.45;
   }
 
-  .dashboard-content [class~='text-[11px]'] {
+  .dashboard-content [class~="text-[11px]"] {
     font-size: 12px;
     line-height: 1.45;
   }
 
-  .dashboard-content [class~='text-[12px]'] {
+  .dashboard-content [class~="text-[12px]"] {
     font-size: 13px;
     line-height: 1.45;
   }
 
-  .dashboard-content [class~='text-[13px]'] {
+  .dashboard-content [class~="text-[13px]"] {
     font-size: 14px;
     line-height: 1.4;
   }
 
-  .dashboard-content [class~='text-[14px]'] {
+  .dashboard-content [class~="text-[14px]"] {
     font-size: 15px;
   }
 
-  .dashboard-content [class~='text-[16px]'] {
+  .dashboard-content [class~="text-[16px]"] {
     font-size: 17px;
   }
 
-  .dashboard-content [class~='text-[17px]'] {
+  .dashboard-content [class~="text-[17px]"] {
     font-size: 18px;
   }
 
-  .dashboard-content [class~='text-[18px]'] {
+  .dashboard-content [class~="text-[18px]"] {
     font-size: 20px;
   }
 
-  .dashboard-content [class~='text-[20px]'] {
+  .dashboard-content [class~="text-[20px]"] {
     font-size: 22px;
   }
 
-  .dashboard-content [class~='text-[22px]'] {
+  .dashboard-content [class~="text-[22px]"] {
     font-size: 24px;
   }
 
@@ -331,28 +487,28 @@ html[lang='bn'] .eyebrow {
     display: block;
   }
 
-  .stock-label-print-root[data-layout='thermal'] .label-print-grid {
+  .stock-label-print-root[data-layout="thermal"] .label-print-grid {
     display: block;
   }
 
-  .stock-label-print-root[data-layout='thermal'] .stock-label {
+  .stock-label-print-root[data-layout="thermal"] .stock-label {
     page: label-thermal;
     break-after: page;
     border: 0;
   }
 
-  .stock-label-print-root[data-layout='thermal'] .stock-label:last-child {
+  .stock-label-print-root[data-layout="thermal"] .stock-label:last-child {
     break-after: auto;
   }
 
-  .stock-label-print-root[data-layout='a4'] .label-print-grid {
+  .stock-label-print-root[data-layout="a4"] .label-print-grid {
     display: grid;
     grid-template-columns: repeat(4, 50mm);
     width: 200mm;
     page: label-a4;
   }
 
-  .stock-label-print-root[data-layout='a4'] .stock-label {
+  .stock-label-print-root[data-layout="a4"] .stock-label {
     break-inside: avoid;
   }
 }
@@ -383,7 +539,7 @@ html[lang='bn'] .eyebrow {
   font-size: 10pt;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-document {
+.invoice-root[data-layout="thermal"] .invoice-document {
   width: min(80mm, 100%);
   min-height: 0;
   aspect-ratio: auto;
@@ -560,61 +716,61 @@ html[lang='bn'] .eyebrow {
   margin-top: 2mm;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-header {
+.invoice-root[data-layout="thermal"] .invoice-header {
   display: block;
   text-align: center;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-header h1 {
+.invoice-root[data-layout="thermal"] .invoice-header h1 {
   font-size: 14pt;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-title {
+.invoice-root[data-layout="thermal"] .invoice-title {
   justify-items: center;
   margin-top: 3mm;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-title strong {
+.invoice-root[data-layout="thermal"] .invoice-title strong {
   font-size: 11pt;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-meta {
+.invoice-root[data-layout="thermal"] .invoice-meta {
   display: block;
   padding: 3mm 0;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-meta > div {
+.invoice-root[data-layout="thermal"] .invoice-meta > div {
   width: 100%;
   margin-bottom: 3mm;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-items th,
-.invoice-root[data-layout='thermal'] .invoice-items td {
+.invoice-root[data-layout="thermal"] .invoice-items th,
+.invoice-root[data-layout="thermal"] .invoice-items td {
   padding: 1.5mm 0.8mm;
   font-size: 6.5pt;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-items th:nth-child(3),
-.invoice-root[data-layout='thermal'] .invoice-items td:nth-child(3) {
+.invoice-root[data-layout="thermal"] .invoice-items th:nth-child(3),
+.invoice-root[data-layout="thermal"] .invoice-items td:nth-child(3) {
   display: none;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-items td:first-child span {
+.invoice-root[data-layout="thermal"] .invoice-items td:first-child span {
   font-size: 6.2pt;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-summary dl {
+.invoice-root[data-layout="thermal"] .invoice-summary dl {
   width: 100%;
 }
 
-.invoice-root[data-layout='thermal'] .invoice-summary .invoice-total {
+.invoice-root[data-layout="thermal"] .invoice-summary .invoice-total {
   font-size: 11pt;
 }
 
 @media screen {
   @container invoice-preview (max-width: 767px) {
     .invoice-document,
-    .invoice-root[data-layout='thermal'] .invoice-document {
+    .invoice-root[data-layout="thermal"] .invoice-document {
       aspect-ratio: auto;
       padding: 16px;
     }
@@ -714,7 +870,7 @@ html[lang='bn'] .eyebrow {
     overflow: visible;
   }
 
-  .invoice-root[data-layout='a4'] .invoice-document {
+  .invoice-root[data-layout="a4"] .invoice-document {
     width: 210mm;
     min-height: 297mm;
     aspect-ratio: auto;
@@ -723,7 +879,7 @@ html[lang='bn'] .eyebrow {
     border: 0;
   }
 
-  .invoice-root[data-layout='thermal'] .invoice-document {
+  .invoice-root[data-layout="thermal"] .invoice-document {
     width: 80mm;
     min-height: 0;
     aspect-ratio: auto;

@@ -6,10 +6,12 @@ const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf
 
 describe('bounded data tables', () => {
   it('provides a keyboard-focusable, internally scrolling table viewport', () => {
-    const ui = source('src/components/ui/index.tsx');
+    const ui = source('src/components/ui/TableViewport.tsx');
     expect(ui).toContain('max-h-[min(65vh,42rem)]');
     expect(ui).toContain('overflow-auto');
     expect(ui).toContain('tabIndex={0}');
+    expect(ui).toContain('onPointerEnter={showScrollbar}');
+    expect(ui).toContain('onPointerLeave={hideScrollbar}');
   });
 
   it.each([
@@ -61,7 +63,7 @@ describe('sign-out confirmation', () => {
     expect(control).toContain('z-[100]');
     expect(control).toContain('window.innerWidth - document.documentElement.clientWidth');
     expect(control).toContain('document.body.style.paddingRight');
-    expect(source('src/app/globals.css')).not.toContain('scrollbar-gutter: stable');
+    expect(source('src/app/globals.css')).toContain('scrollbar-gutter: stable');
   });
 });
 

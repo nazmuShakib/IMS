@@ -70,7 +70,7 @@ export function MobileNavigation({
             role="dialog"
             aria-modal="true"
             aria-label={t('nav.menu')}
-            className="absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col bg-sidebar shadow-2xl"
+            className="mobile-navigation-panel absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col bg-sidebar shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-4">
               <Link href="/" onClick={() => setOpen(false)} className="block">

@@ -149,8 +149,8 @@ describe('Phase 5 security boundaries', () => {
     expect(source('src/components/dashboard/DashboardCharts.tsx')).not.toContain('2xl:grid-cols-3');
     const css = source('src/app/globals.css');
     expect(css).toContain('@media screen and (min-width: 1440px)');
-    expect(css).toContain(".dashboard-content [class~='text-[11px]']");
-    expect(css).toContain(".dashboard-content [class~='text-[22px]']");
+    expect(css).toContain('.dashboard-content [class~="text-[11px]"]');
+    expect(css).toContain('.dashboard-content [class~="text-[22px]"]');
     expect(ui).toContain('flex flex-col items-start gap-3 sm:flex-row');
     expect(ui).toContain('w-full sm:w-auto');
   });
