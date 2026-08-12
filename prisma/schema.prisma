@@ -490,6 +490,7 @@ model StockMovement {
   @@index([unitId])
   @@index([actorId])
   @@index([supplierId])
+  @@index([supplierId, createdAt])
   @@index([warrantyClaimId])
   @@map("stock_movements")
 }
@@ -598,6 +599,8 @@ model SupplierReturn {
   updatedAt           DateTime                @updatedAt
 
   @@index([supplierId, status])
+  @@index([supplierId, sentAt])
+  @@index([supplierId, settledAt])
   @@index([status, sentAt])
   @@map("supplier_returns")
 }

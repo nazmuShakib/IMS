@@ -493,6 +493,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           where: {
             createdAt: { gte: from, lte: to },
             productId: filters?.productId,
+            supplierId: filters?.supplierId,
             type: filters?.type,
             reason: filters?.reason,
             actorId: filters?.actorId,

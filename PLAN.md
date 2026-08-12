@@ -1330,7 +1330,31 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
   expenses and effective DAMAGE/LOSS shrinkage; supplier returns are not treated
   as shrinkage.
 
-### 21.2 Remaining Phase 10 increments
+### 21.2 Supplier financial analytics
+
+**Implementation status: complete (12 August 2026).**
+
+- Supplier metrics are derived from the append-only stock ledger and supplier
+  return settlements; no duplicate supplier-total table is maintained. Composite
+  supplier/date indexes support the reporting queries.
+- The register defaults to all recorded time. Optional from/to, supplier,
+  product, category, brand, supplier-status, activity, purchase-presence, and
+  return-presence filters are applied only when the user requests them; Reset
+  returns to all-time results.
+- Show gross purchase cost, received units, distinct supplied products, average
+  acquisition cost, returned units/cost, confirmed recovery, recovery
+  surplus/deficit, net retained purchase cost, return rate, and last purchase.
+  Corrections cancel their original purchase effect, cancelled returns are
+  excluded, and supplier credit is recovered only after replacement/exchanged
+  stock is received.
+- Supplier detail pages provide product-level purchase/return breakdowns and a
+  chronological purchase, return, and settlement history. CSV and PDF exports
+  use the same filters and calculations as the screen.
+- ADMIN and MANAGER may view/export these cost analytics. STAFF cannot access
+  them. This remains analytics rather than a payable ledger: purchase orders,
+  invoices, partial payments, and outstanding balances remain deferred.
+
+### 21.3 Remaining Phase 10 increments
 
 - EMI sales and settlement tracking.
 - ADMIN-configured staff discount floors enforced by Checkout.

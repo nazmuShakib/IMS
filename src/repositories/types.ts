@@ -252,6 +252,7 @@ export interface SaleFilters {
 
 export interface MovementFilters {
   productId?: string;
+  supplierId?: string;
   type?: MovementType;
   reason?: MovementReason;
   actorId?: string;

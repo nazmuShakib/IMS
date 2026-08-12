@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import Link from 'next/link';
 
 import { SupplierEditor } from '@/components/suppliers/SupplierEditor';
 import { useI18n } from '@/components/i18n/I18nProvider';
@@ -94,7 +95,7 @@ export function SupplierRegister({
                   className={`flex items-center justify-between gap-3 border-b border-rule-soft px-3 py-2 transition-colors last:border-0 hover:bg-signal-wash ${supplier.isActive ? '' : 'bg-plate/40'}`}
                 >
                   <div className="min-w-0">
-                    <p className="text-[13px] font-medium">{supplier.name}</p>
+                    <p className="text-[13px] font-medium">{canManage ? <Link className="text-signal hover:underline" href={`/suppliers/analytics/${supplier.id}`}>{supplier.name}</Link> : supplier.name}</p>
                     <p className="mt-0.5 break-words text-[12px] text-graphite">
                       <span className="tnum">{supplier.phone ?? '—'}</span>
                       {supplier.email && <> · {supplier.email}</>}

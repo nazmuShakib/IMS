@@ -19,6 +19,7 @@ import {
   ShieldCheck,
   ShoppingCart,
   Smartphone,
+  TrendingUp,
   Tags,
   Truck,
   Undo2,
@@ -83,6 +84,7 @@ export function NavigationLinks({
         </NavLink>
       ))}
       {role !== 'STAFF' && <NavLink href="/suppliers/returns" onClick={onNavigate} icon={icon(Undo2)}>{t('nav.supplierReturns')}</NavLink>}
+      {role !== 'STAFF' && <NavLink href="/suppliers/analytics" onClick={onNavigate} icon={icon(TrendingUp)}>{t('nav.supplierAnalytics')}</NavLink>}
 
       {role !== 'STAFF' && (
         <>

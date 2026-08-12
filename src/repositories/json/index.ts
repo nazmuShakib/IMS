@@ -366,6 +366,7 @@ const movements: StockMovementRepository = {
         m.createdAt >= fromIso &&
         m.createdAt <= toIso &&
         (!filters?.productId || m.productId === filters.productId) &&
+        (!filters?.supplierId || m.supplierId === filters.supplierId) &&
         (!filters?.type || m.type === filters.type) &&
         (!filters?.reason || m.reason === filters.reason) &&
         (!filters?.actorId || m.actorId === filters.actorId),
