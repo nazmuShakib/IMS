@@ -82,8 +82,10 @@ export function parseReportFilters(raw: Record<string, string | string[] | undef
     ? (reportValue as ReportKind)
     : 'valuation';
   const groupValue = one('groupBy');
-  const sortValue = one('sort');
-  const directionValue = one('direction');
+  const orderValue = one('order');
+  const [orderedSort, orderedDirection] = orderValue?.split('-') ?? [];
+  const sortValue = orderedSort ?? one('sort');
+  const directionValue = orderedDirection ?? one('direction');
   const typeValue = one('type');
   const reasonValue = one('reason');
   return {

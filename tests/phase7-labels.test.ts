@@ -77,7 +77,7 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(source('src/services/stock.ts')).toContain('existing.productId !== product.id');
     expect(source('src/actions/stock.ts')).toContain('totalCost: unitCost * count');
     expect(source('src/components/labels/StockLabelStudio.tsx')).toContain('ScannerInput');
-    expect(source('src/components/shell/NavigationLinks.tsx')).toContain("href: '/stock/labels'");
+    expect(source('src/components/shell/NavigationLinks.tsx')).toContain('href="/stock/labels"');
   });
 
   it('keeps controlled print settings synchronized after printing', () => {
