@@ -37,7 +37,25 @@ export interface WarrantyAlert {
 }
 
 export interface MoverRow extends DashboardProductRow {
-  movedLast30Days: number;
+  movedUnits: number;
+}
+
+export type DashboardPeriod = 'day' | 'week' | 'month';
+export type DashboardPeriodKey = DashboardPeriod;
+
+export interface DashboardPeriodMetrics {
+  revenue: Paisa;
+  cogs: Paisa;
+  grossProfit: Paisa;
+  operatingExpenses: Paisa;
+  shrinkage: Paisa;
+  internalUseCost: Paisa;
+  operatingProfit: Paisa;
+}
+
+export interface DashboardPeriodComparison {
+  current: DashboardPeriodMetrics;
+  previous: DashboardPeriodMetrics;
 }
 
 export interface DailyOperationsPoint {
@@ -62,10 +80,14 @@ interface DashboardCommon {
   lowStock: DashboardProductRow[];
   deadStock: Array<DashboardProductRow & { lastOutAt: string | null; inactiveDays: number | null }>;
   recentActivity: DashboardActivity[];
+  recentActivityByPeriod: Record<DashboardPeriodKey, DashboardActivity[]>;
   expiringWarranties: WarrantyAlert[];
   topMovers: MoverRow[];
   slowMovers: MoverRow[];
+  topMoversByPeriod: Record<DashboardPeriodKey, MoverRow[]>;
+  slowMoversByPeriod: Record<DashboardPeriodKey, MoverRow[]>;
   dailyOperations: DailyOperationsPoint[];
+  periodStarts: Record<DashboardPeriodKey, string>;
 }
 
 export interface StaffDashboardDTO extends DashboardCommon {
@@ -85,6 +107,7 @@ export interface FinancialDashboardDTO extends DashboardCommon {
   monthInternalUseCost: Paisa;
   monthOperatingProfit: Paisa;
   dailyFinancials: DailyFinancialPoint[];
+  periodMetrics: Record<DashboardPeriodKey, DashboardPeriodComparison>;
 }
 
 export type DashboardDTO = StaffDashboardDTO | FinancialDashboardDTO;
@@ -115,6 +138,32 @@ function monthStartDhaka(now: Date): Date {
   const day = startOfDhakaDay(now);
   const [year, month] = dhakaDateKey(day).split('-').map(Number);
   return new Date(`${year}-${String(month).padStart(2, '0')}-01T00:00:00+06:00`);
+}
+
+const PERIODS: DashboardPeriod[] = ['day', 'week', 'month'];
+
+function previousMonthStart(currentMonthStart: Date): Date {
+  const [year = currentMonthStart.getUTCFullYear(), month = currentMonthStart.getUTCMonth() + 1] = dhakaDateKey(currentMonthStart).split('-').map(Number);
+  const previous = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
+  return new Date(`${previous.year}-${String(previous.month).padStart(2, '0')}-01T00:00:00+06:00`);
+}
+
+function periodBounds(now: Date, period: DashboardPeriod) {
+  const today = startOfDhakaDay(now);
+  if (period === 'day') {
+    const previousStart = new Date(today.getTime() - DAY_MS);
+    return { currentStart: today, previousStart, previousEnd: today };
+  }
+  if (period === 'week') {
+    const dayOfWeek = new Date(`${dhakaDateKey(today)}T00:00:00Z`).getUTCDay();
+    const daysSinceFriday = (dayOfWeek - 5 + 7) % 7;
+    const currentStart = new Date(today.getTime() - daysSinceFriday * DAY_MS);
+    const previousStart = new Date(currentStart.getTime() - 7 * DAY_MS);
+    return { currentStart, previousStart, previousEnd: currentStart };
+  }
+  const currentStart = monthStartDhaka(now);
+  const previousStart = previousMonthStart(currentStart);
+  return { currentStart, previousStart, previousEnd: currentStart };
 }
 
 function movementFinancials(
@@ -188,7 +237,6 @@ export async function getDashboard(
     .sort((a, b) => a.onHand - b.onHand);
   const outOfStock = activeProducts.filter((product) => (onHand.get(product.id) ?? 0) === 0);
 
-  const cutoff30 = new Date(now.getTime() - 30 * DAY_MS);
   const cutoff60 = new Date(now.getTime() - 60 * DAY_MS);
   const recentOutboundByProduct = new Map<string, StockMovement[]>();
   for (const movement of movements) {
@@ -214,9 +262,8 @@ export async function getDashboard(
     .filter((item) => item.lastOutAt === null || new Date(item.lastOutAt) <= cutoff60)
     .sort((a, b) => (b.inactiveDays ?? Number.MAX_SAFE_INTEGER) - (a.inactiveDays ?? Number.MAX_SAFE_INTEGER));
 
-  const recentActivity = [...movements]
+  const activityRows = [...movements]
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, 20)
     .map((movement): DashboardActivity => {
       const product = productById.get(movement.productId);
       return {
@@ -231,6 +278,11 @@ export async function getDashboard(
         createdAt: movement.createdAt,
       };
     });
+  const recentActivity = activityRows.slice(0, 20);
+  const recentActivityByPeriod = Object.fromEntries(PERIODS.map((period) => {
+    const { currentStart } = periodBounds(now, period);
+    return [period, activityRows.filter((item) => new Date(item.createdAt) >= currentStart).slice(0, 20)];
+  })) as Record<DashboardPeriodKey, DashboardActivity[]>;
 
   const warrantyEnd = new Date(now.getTime() + 30 * DAY_MS);
   const expiringWarranties = products
@@ -253,30 +305,38 @@ export async function getDashboard(
     }))
     .sort((a, b) => a.warrantyExpiresAt.localeCompare(b.warrantyExpiresAt));
 
-  const movementCount30 = new Map<string, number>();
-  for (const movement of movements) {
-    if (new Date(movement.createdAt) < cutoff30 || movement.quantity >= 0 || !isEffectiveOperation(movement)) continue;
-    movementCount30.set(
-      movement.productId,
-      (movementCount30.get(movement.productId) ?? 0) + Math.abs(movement.quantity),
-    );
-  }
-  const movers = activeProducts
-    .filter((product) => (onHand.get(product.id) ?? 0) > 0 || (movementCount30.get(product.id) ?? 0) > 0)
-    .map((product): MoverRow => ({ ...row(product), movedLast30Days: movementCount30.get(product.id) ?? 0 }));
-  const topMovers = [...movers].sort((a, b) => b.movedLast30Days - a.movedLast30Days).slice(0, 5);
-  const slowMovers = [...movers]
-    .filter((item) => item.onHand > 0)
-    .sort((a, b) => a.movedLast30Days - b.movedLast30Days || b.onHand - a.onHand)
-    .slice(0, 5);
+  const moverSets = Object.fromEntries(PERIODS.map((period) => {
+    const { currentStart } = periodBounds(now, period);
+    const counts = new Map<string, number>();
+    for (const movement of movements) {
+      if (new Date(movement.createdAt) < currentStart || movement.quantity >= 0 || !isEffectiveOperation(movement)) continue;
+      counts.set(movement.productId, (counts.get(movement.productId) ?? 0) + Math.abs(movement.quantity));
+    }
+    const rows = activeProducts
+      .filter((product) => (onHand.get(product.id) ?? 0) > 0 || (counts.get(product.id) ?? 0) > 0)
+      .map((product): MoverRow => ({ ...row(product), movedUnits: counts.get(product.id) ?? 0 }));
+    return [period, {
+      top: [...rows].sort((a, b) => b.movedUnits - a.movedUnits).slice(0, 5),
+      slow: [...rows].filter((item) => item.onHand > 0)
+        .sort((a, b) => a.movedUnits - b.movedUnits || b.onHand - a.onHand).slice(0, 5),
+    }];
+  })) as Record<DashboardPeriodKey, { top: MoverRow[]; slow: MoverRow[] }>;
+  const topMoversByPeriod = Object.fromEntries(PERIODS.map((period) => [period, moverSets[period].top])) as Record<DashboardPeriodKey, MoverRow[]>;
+  const slowMoversByPeriod = Object.fromEntries(PERIODS.map((period) => [period, moverSets[period].slow])) as Record<DashboardPeriodKey, MoverRow[]>;
+  const topMovers = topMoversByPeriod.month;
+  const slowMovers = slowMoversByPeriod.month;
 
   const dayStart = startOfDhakaDay(now);
-  const dayKeys = Array.from({ length: 30 }, (_, index) => {
-    const date = new Date(dayStart.getTime() - (29 - index) * DAY_MS);
+  const dayKeys = Array.from({ length: 31 }, (_, index) => {
+    const date = new Date(dayStart.getTime() - (30 - index) * DAY_MS);
+    return dhakaDateKey(date);
+  });
+  const financialDayKeys = Array.from({ length: 62 }, (_, index) => {
+    const date = new Date(dayStart.getTime() - (61 - index) * DAY_MS);
     return dhakaDateKey(date);
   });
   const operations = new Map(dayKeys.map((date) => [date, { stockIn: 0, stockOut: 0 }]));
-  const financials = new Map(dayKeys.map((date) => [date, { revenue: 0, margin: 0 }]));
+  const financials = new Map(financialDayKeys.map((date) => [date, { revenue: 0, margin: 0 }]));
 
   for (const movement of movements) {
     const key = dhakaDateKey(new Date(movement.createdAt));
@@ -302,10 +362,14 @@ export async function getDashboard(
     lowStock: [...lowStock, ...outOfStock.map(row)].slice(0, 10),
     deadStock: deadStock.slice(0, 10),
     recentActivity,
+    recentActivityByPeriod,
     expiringWarranties: expiringWarranties.slice(0, 10),
     topMovers,
     slowMovers,
+    topMoversByPeriod,
+    slowMoversByPeriod,
     dailyOperations: dayKeys.map((date) => ({ date, ...operations.get(date)! })),
+    periodStarts: Object.fromEntries(PERIODS.map((period) => [period, dhakaDateKey(periodBounds(now, period).currentStart)])) as Record<DashboardPeriodKey, string>,
   };
 
   if (!canSeeCosts(role)) return { ...common, canSeeFinancials: false };
@@ -340,11 +404,14 @@ export async function getDashboard(
     monthRevenue += values.revenue;
     monthCogs += values.cogs;
   }
-  const monthExpenses = await repositories.operatingExpenses.findAll({
-    from: monthStart,
+  const sixtyDayStart = periodBounds(now, 'month').previousStart;
+  const expenseQueryStart = monthStart < sixtyDayStart ? monthStart : sixtyDayStart;
+  const periodExpenses = await repositories.operatingExpenses.findAll({
+    from: expenseQueryStart,
     to: now,
     status: 'ACTIVE',
   });
+  const monthExpenses = periodExpenses.filter((expense) => new Date(expense.expenseDate) >= monthStart);
   const monthOperatingExpenses = monthExpenses.reduce((sum, expense) => sum + expense.amount, 0);
   const monthShrinkage = movements
     .filter((movement) => new Date(movement.createdAt) >= monthStart
@@ -360,8 +427,53 @@ export async function getDashboard(
     .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
   const monthGrossProfit = monthRevenue - monthCogs;
 
-  const rangeStart = new Date(`${dayKeys[0]}T00:00:00+06:00`);
-  const stockValueDeltaByDay = new Map(dayKeys.map((date) => [date, 0]));
+  const metricsFor = (from: Date, to: Date): DashboardPeriodMetrics => {
+    let revenue = 0;
+    let cogs = 0;
+    for (const movement of movements) {
+      const occurredAt = new Date(movement.createdAt);
+      if (occurredAt < from || occurredAt >= to) continue;
+      const values = movementFinancials(movement, movementById);
+      revenue += values.revenue;
+      cogs += values.cogs;
+    }
+    const operatingExpenses = periodExpenses
+      .filter((expense) => {
+        const occurredAt = new Date(expense.expenseDate);
+        return occurredAt >= from && occurredAt < to;
+      })
+      .reduce((sum, expense) => sum + expense.amount, 0);
+    const effectiveMovements = movements.filter((movement) => {
+      const occurredAt = new Date(movement.createdAt);
+      return occurredAt >= from && occurredAt < to && isEffectiveOperation(movement);
+    });
+    const shrinkage = effectiveMovements
+      .filter((movement) => movement.reason === 'DAMAGE' || movement.reason === 'LOSS')
+      .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
+    const internalUseCost = effectiveMovements
+      .filter((movement) => movement.reason === 'INTERNAL_USE' || movement.reason === 'SHOP_USE' || movement.reason === 'GIFT')
+      .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
+    const grossProfit = revenue - cogs;
+    return {
+      revenue,
+      cogs,
+      grossProfit,
+      operatingExpenses,
+      shrinkage,
+      internalUseCost,
+      operatingProfit: grossProfit - operatingExpenses - shrinkage - internalUseCost,
+    };
+  };
+  const periodMetrics = Object.fromEntries(PERIODS.map((period) => {
+    const { currentStart, previousStart, previousEnd } = periodBounds(now, period);
+    return [period, {
+      current: metricsFor(currentStart, new Date(now.getTime() + 1)),
+      previous: metricsFor(previousStart, previousEnd),
+    }];
+  })) as Record<DashboardPeriodKey, DashboardPeriodComparison>;
+
+  const rangeStart = new Date(`${financialDayKeys[0]}T00:00:00+06:00`);
+  const stockValueDeltaByDay = new Map(financialDayKeys.map((date) => [date, 0]));
   let runningStockValue = movements
     .filter((movement) => new Date(movement.createdAt) < rangeStart)
     .reduce((sum, movement) => sum + movement.quantity * movement.unitCost, 0);
@@ -374,7 +486,7 @@ export async function getDashboard(
       );
     }
   }
-  const dailyFinancials = dayKeys.map((date): DailyFinancialPoint => {
+  const dailyFinancials = financialDayKeys.map((date): DailyFinancialPoint => {
     runningStockValue += stockValueDeltaByDay.get(date)!;
     const values = financials.get(date)!;
     return { date, stockValue: runningStockValue, revenue: values.revenue, margin: values.margin };
@@ -394,5 +506,6 @@ export async function getDashboard(
     monthInternalUseCost,
     monthOperatingProfit: monthGrossProfit - monthOperatingExpenses - monthShrinkage - monthInternalUseCost,
     dailyFinancials,
+    periodMetrics,
   };
 }

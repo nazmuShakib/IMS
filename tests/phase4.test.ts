@@ -119,8 +119,8 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.recentActivity.some((item) => item.reason === 'CORRECTION')).toBe(true);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockIn, 0)).toBe(0);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockOut, 0)).toBe(1);
-    expect(dashboard.topMovers.find((item) => item.productId === bulkProduct.id)?.movedLast30Days).toBe(0);
-    expect(dashboard.topMovers.find((item) => item.productId === serialProduct.id)?.movedLast30Days).toBe(1);
+    expect(dashboard.topMovers.find((item) => item.productId === bulkProduct.id)?.movedUnits).toBe(0);
+    expect(dashboard.topMovers.find((item) => item.productId === serialProduct.id)?.movedUnits).toBe(1);
   });
 
   it('deducts damage/loss and effective shop-use or gift cost from net operating profit', async () => {
@@ -156,20 +156,26 @@ describe('Phase 4 dashboard', () => {
 
   it('gives each dashboard KPI a distinct semantic card tone', () => {
     const page = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/page.tsx'), 'utf8');
+    const kpis = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardKpis.tsx'), 'utf8');
     const css = readFileSync(resolve(process.cwd(), 'src/app/globals.css'), 'utf8');
     for (const tone of ['units', 'low', 'stock', 'revenue', 'cogs']) {
-      expect(page).toContain(`tone="${tone}"`);
+      expect(kpis).toContain(`tone="${tone}"`);
     }
-    expect(page).toContain("dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'");
-    expect(page).toContain("dashboard.monthGrossProfit === 0 ? 'neutral' : 'profit'");
-    expect(page).toContain("t('dashboard.breakEven')");
+    expect(kpis).toContain("dashboard.potentialMargin < 0 ? 'marginLoss' : 'margin'");
+    expect(kpis).toContain("metrics.grossProfit === 0 ? 'neutral' : 'profit'");
+    expect(kpis).toContain("t('dashboard.breakEvenPeriod')");
     expect(css).toContain('--color-metric-margin-loss: #9f1239');
     expect(css).toContain('--color-metric-profit-loss: #b3261e');
     expect(css).toContain('--color-metric-internal-use: #be185d');
     expect(css).toContain('.dashboard-kpi-internal-use-wash');
-    expect(page).toContain('tone="internalUse"');
-    expect(page).toContain('relative overflow-visible border-t-[3px]');
-    expect(page).not.toContain('overflow-hidden border-t-[3px]');
+    expect(kpis).toContain('tone="internalUse"');
+    expect(kpis).toContain('relative overflow-visible border-t-[3px]');
+    expect(kpis).toContain('sm:grid-cols-[repeat(auto-fit,minmax(18rem,1fr))]');
+    expect(kpis).toContain('flex min-h-7 items-start');
+    expect(kpis).toContain("note={t('dashboard.revenueHelp')}");
+    expect(kpis).toContain("note={t('dashboard.cogsHelp')}");
+    expect(kpis).toContain("note={t('dashboard.operatingExpensesHelp')}");
+    expect(kpis).not.toContain('overflow-hidden border-t-[3px]');
   });
 
   it('renders daily stock movement as signed bars with a net line', () => {
@@ -194,6 +200,29 @@ describe('Phase 4 dashboard', () => {
     expect(page.indexOf('<DashboardCharts')).toBeLessThan(page.indexOf("t('dashboard.deadStock')"));
     expect(charts).toContain('className="grid gap-4 lg:grid-cols-2"');
     expect(charts).not.toContain('2xl:grid-cols-3');
+  });
+
+  it('uses one calendar period for cards, charts, movers and recent activity', () => {
+    const service = readFileSync(resolve(process.cwd(), 'src/services/dashboard.ts'), 'utf8');
+    const charts = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardCharts.tsx'), 'utf8');
+    const context = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardPeriodContext.tsx'), 'utf8');
+    const kpis = readFileSync(resolve(process.cwd(), 'src/components/dashboard/DashboardKpis.tsx'), 'utf8');
+    expect(service).toContain('Array.from({ length: 62 }');
+    expect(context).toContain("{ value: 'day'");
+    expect(context).toContain("{ value: 'week'");
+    expect(context).toContain("{ value: 'month'");
+    expect(charts).toContain('operations.filter((point) => point.date >= periodStart)');
+    expect(charts).toContain('moneyData?.filter((point) => point.date >= periodStart)');
+    expect(kpis).toContain('dashboard.periodMetrics[key]');
+    expect(kpis).toContain('flex items-center justify-between gap-3');
+    expect(kpis).toContain("'dashboard.vsYesterday'");
+    expect(charts).not.toContain('revenueChange');
+  });
+
+  it('starts the dashboard week on Friday in Asia/Dhaka', () => {
+    const service = readFileSync(resolve(process.cwd(), 'src/services/dashboard.ts'), 'utf8');
+    expect(service).toContain('const daysSinceFriday = (dayOfWeek - 5 + 7) % 7');
+    expect(service).toContain('today.getTime() - daysSinceFriday * DAY_MS');
   });
 });
 

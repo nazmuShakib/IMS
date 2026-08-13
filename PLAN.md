@@ -1362,7 +1362,26 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
 
 - EMI sales and settlement tracking.
 - ADMIN-configured staff discount floors enforced by Checkout.
-- Further dashboard finance and EMI indicators.
+- Further EMI indicators.
+
+### 21.4 Dashboard period comparison
+
+**Implementation status: complete (13 August 2026).**
+
+- A single dashboard-wide current-day, current-week, or current-month selector controls all
+  period-based financial cards, daily charts, mover rankings, and recent stock
+  activity without reloading the page.
+- Calendar periods never mix arbitrary days across weeks or months. For this
+  shop, the dashboard week begins Friday and ends Thursday in Asia/Dhaka.
+  Financial cards compare the selected calendar
+  window with its preceding calendar period. When the earlier window is zero, the UI states
+  that there was no previous activity instead of displaying an invalid or
+  misleading percentage.
+- Live inventory snapshots—units on hand, low stock, stock value, potential
+  margin, dead stock, and expiring warranties—remain current-state indicators
+  and therefore do not pretend to be historical snapshots.
+- The range selector changes already-derived dashboard data in the browser;
+  switching ranges does not issue another database query.
 
 ---
 
