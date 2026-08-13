@@ -37,6 +37,8 @@ export const MOVEMENT_REASONS = [
   'DAMAGE',
   'LOSS',
   'INTERNAL_USE',
+  'SHOP_USE',
+  'GIFT',
   'WARRANTY_REPLACEMENT',
   'CORRECTION',
   'STOCK_COUNT',
@@ -56,6 +58,8 @@ export const OUTBOUND_REASONS: readonly MovementReason[] = [
   'DAMAGE',
   'LOSS',
   'INTERNAL_USE',
+  'SHOP_USE',
+  'GIFT',
   'WARRANTY_REPLACEMENT',
 ];
 
@@ -66,6 +70,8 @@ export const OUTBOUND_UNIT_STATUS: Record<string, UnitStatus> = {
   LOSS: 'LOST',
   RETURN_TO_SUPPLIER: 'RETURNED',
   INTERNAL_USE: 'SOLD',
+  SHOP_USE: 'SOLD',
+  GIFT: 'SOLD',
   WARRANTY_REPLACEMENT: 'SOLD',
 };
 

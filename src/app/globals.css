@@ -59,6 +59,8 @@
   --color-metric-revenue-wash: #eaf5fb;
   --color-metric-cogs: #c2410c;
   --color-metric-cogs-wash: #fff0e8;
+  --color-metric-internal-use: #be185d;
+  --color-metric-internal-use-wash: #fce7f3;
   --color-metric-profit: #15803d;
   --color-metric-profit-wash: #eaf7ee;
   --color-metric-profit-loss: #b3261e;
@@ -71,6 +73,21 @@
   --font-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", monospace;
 
   --radius-plate: 3px; /* hardware, not marshmallow */
+}
+
+/* Explicit semantic rules keep this newly introduced KPI visible immediately
+   in development as well as production. Tailwind's dev scanner can otherwise
+   retain an older utility set until the dev process is restarted. */
+.dashboard-kpi-internal-use-border {
+  border-top-color: var(--color-metric-internal-use);
+}
+
+.dashboard-kpi-internal-use-wash {
+  background-color: var(--color-metric-internal-use-wash);
+}
+
+.dashboard-kpi-internal-use-text {
+  color: var(--color-metric-internal-use);
 }
 
 html {

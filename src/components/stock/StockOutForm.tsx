@@ -19,7 +19,8 @@ import { supplierReturnFieldsSchema } from '@/schemas';
 const REASONS = [
   ['DAMAGE', 'stock.damaged'],
   ['LOSS', 'stock.lost'],
-  ['INTERNAL_USE', 'stock.internalUse'],
+  ['SHOP_USE', 'stock.shopUse'],
+  ['GIFT', 'stock.gift'],
   ['RETURN_TO_SUPPLIER', 'stock.returnSupplier'],
 ] as const;
 
@@ -83,7 +84,6 @@ function SerialFlow({ initialSerial, suppliers }: { initialSerial?: string; supp
     {},
   );
   const [key, setKey] = useState('');
-  const [dismissedReturnId, setDismissedReturnId] = useState<string | null>(null);
 
   useEffect(() => setKey(crypto.randomUUID()), []);
   useEffect(() => {
@@ -119,35 +119,12 @@ function SerialFlow({ initialSerial, suppliers }: { initialSerial?: string; supp
       </Card>
 
       {/* Step 2 — confirm and record */}
-      {found && !done && <ConfirmUnit found={found} suppliers={suppliers} action={outAction} pending={submitting} idemKey={key} error={out.error} fieldErrors={out.fieldErrors} />}
+      {found && !done && <ConfirmUnit found={found} suppliers={suppliers} action={outAction} pending={submitting} idemKey={key} fieldErrors={out.fieldErrors} />}
 
-      {out.ok && !out.supplierReturn && (
-        <Card className="border-ok/30 bg-ok-wash p-5">
-          <p className="text-[13px] font-medium text-ok">{message(out.ok)}</p>
-          <p className="mt-3 flex gap-2">
-            <Button variant="ghost" type="button" onClick={() => window.location.reload()}>
-              {t('stock.nextDevice')}
-            </Button>
-            <Link href="/stock/movements">
-              <Button variant="ghost" type="button">
-                {t('stock.seeLedger')}
-              </Button>
-            </Link>
-            {out.supplierReturn && (
-              <Link href="/suppliers/returns">
-                <Button variant="ghost" type="button">{t('supplierReturns.viewReturn')}</Button>
-              </Link>
-            )}
-          </p>
-        </Card>
-      )}
-      {out.ok && out.supplierReturn && dismissedReturnId !== out.supplierReturn.id && (
-        <SupplierReturnSuccessModal
-          message={message(out.ok)}
-          supplierReturn={out.supplierReturn}
-          onClose={() => setDismissedReturnId(out.supplierReturn!.id)}
-        />
-      )}
+      <StockRemovalResultModal
+        state={out}
+        onContinue={out.ok && !out.supplierReturn ? () => window.location.reload() : undefined}
+      />
     </>
   );
 }
@@ -158,7 +135,6 @@ function ConfirmUnit({
   action,
   pending,
   idemKey,
-  error,
   fieldErrors,
 }: {
   found: SerialLookup;
@@ -166,24 +142,17 @@ function ConfirmUnit({
   action: (fd: FormData) => void;
   pending: boolean;
   idemKey: string;
-  error?: string;
   fieldErrors?: Record<string, string>;
 }) {
   const [reason, setReason] = useState<string>('DAMAGE');
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
-  const { t, message } = useI18n();
+  const { t } = useI18n();
 
   return (
     <form action={action} onSubmit={(event) => validateSupplierReturn(event, reason, setClientErrors)}>
       <input type="hidden" name="idempotencyKey" value={idemKey} />
       <input type="hidden" name="productId" value={found.productId} />
       <input type="hidden" name="serialNo" value={found.unit.serialNo} />
-
-      {error && (
-        <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {message(error)}
-        </div>
-      )}
 
       <Card className="mb-4">
         <div className="flex items-start justify-between gap-4 border-b border-rule p-4">
@@ -230,7 +199,7 @@ function ConfirmUnit({
 /* -------------------------------------------------------------------------- */
 
 function BulkFlow({ products, suppliers }: { products: ProductDTO[]; suppliers: Supplier[] }) {
-  const { t, message } = useI18n();
+  const { t } = useI18n();
   const [state, formAction, pending] = useActionState<StockActionState, FormData>(
     stockOutAction,
     {},
@@ -239,7 +208,6 @@ function BulkFlow({ products, suppliers }: { products: ProductDTO[]; suppliers: 
   const [reason, setReason] = useState('DAMAGE');
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const [key, setKey] = useState('');
-  const [dismissedReturnId, setDismissedReturnId] = useState<string | null>(null);
 
   useEffect(() => setKey(crypto.randomUUID()), []);
   useEffect(() => {
@@ -261,17 +229,6 @@ function BulkFlow({ products, suppliers }: { products: ProductDTO[]; suppliers: 
   return (
     <form action={formAction} onSubmit={(event) => validateSupplierReturn(event, reason, setClientErrors)}>
       <input type="hidden" name="idempotencyKey" value={key} />
-
-      {state.error && (
-        <div className="mb-4 rounded-[3px] border border-out/20 bg-out-wash px-3 py-2 text-[13px] text-out">
-          {message(state.error)}
-        </div>
-      )}
-      {state.ok && !state.supplierReturn && (
-        <div className="mb-4 rounded-[3px] border border-ok/20 bg-ok-wash px-3 py-2 text-[13px] text-ok">
-          {message(state.ok)}
-        </div>
-      )}
 
       <Card className="mb-4 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
@@ -332,49 +289,57 @@ function BulkFlow({ products, suppliers }: { products: ProductDTO[]; suppliers: 
       <Button type="submit" disabled={pending || !product}>
         {pending ? t('stock.recording') : t('stock.remove')}
       </Button>
-      {state.ok && state.supplierReturn && dismissedReturnId !== state.supplierReturn.id && (
-        <SupplierReturnSuccessModal
-          message={message(state.ok)}
-          supplierReturn={state.supplierReturn}
-          onClose={() => setDismissedReturnId(state.supplierReturn!.id)}
-        />
-      )}
+      <StockRemovalResultModal state={state} />
     </form>
   );
 }
 
-function SupplierReturnSuccessModal({
-  message,
-  supplierReturn,
-  onClose,
+function StockRemovalResultModal({
+  state,
+  onContinue,
 }: {
-  message: string;
-  supplierReturn: NonNullable<StockActionState['supplierReturn']>;
-  onClose: () => void;
+  state: StockActionState;
+  onContinue?: () => void;
 }) {
-  const { t } = useI18n();
+  const { t, message } = useI18n();
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => setOpen(Boolean(state.ok || state.error)), [state]);
+  if (!open || (!state.ok && !state.error)) return null;
+
+  const succeeded = Boolean(state.ok);
+  const supplierReturn = state.supplierReturn;
+  const close = () => setOpen(false);
+
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <Card className="w-full max-w-lg shadow-xl" >
-        <div className="border-b border-rule p-5">
-          <div className="mb-3 flex size-9 items-center justify-center rounded-full bg-ok-wash text-[20px] font-semibold text-ok" aria-hidden="true">✓</div>
-          <h2 className="text-[18px] font-semibold">{t('supplierReturns.createdTitle')}</h2>
-          <p className="mt-1 text-[13px] text-graphite">{t('supplierReturns.createdHelp')}</p>
-        </div>
-        <div className="p-5">
-          <p className="text-[14px] text-ok">{message}</p>
-          <dl className="mt-3 grid gap-3 rounded-[3px] bg-plate p-3 sm:grid-cols-2">
-            <div className="sm:col-span-2"><dt className="eyebrow">{t('common.product')}</dt><dd className="mt-1 text-[14px] font-medium">{supplierReturn.productName}</dd></div>
-            <div><dt className="eyebrow">{t('stock.productCode')}</dt><dd className="tnum mt-1 text-[13px]">{supplierReturn.sku}</dd></div>
-            <div><dt className="eyebrow">{supplierReturn.serialNo ? t('stock.deviceNumbers') : t('common.quantity')}</dt><dd className="tnum mt-1 text-[13px]">{supplierReturn.serialNo ?? supplierReturn.quantity}</dd></div>
-            <div className="sm:col-span-2"><dt className="eyebrow">{t('supplierReturns.returnNumber')}</dt><dd className="tnum mt-1 text-[13px] font-medium">{supplierReturn.returnNumber}</dd></div>
-          </dl>
-        </div>
-        <div className="flex justify-end gap-2 border-t border-rule p-4">
-          <Button type="button" variant="ghost" onClick={onClose}>{t('common.close')}</Button>
-          <Link href="/suppliers/returns"><Button type="button">{t('supplierReturns.viewReturn')}</Button></Link>
-        </div>
-      </Card>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3 sm:p-5" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+      <div className="w-full max-w-lg" role="alertdialog" aria-modal="true">
+        <Card className="shadow-xl">
+          <div className="border-b border-rule p-5">
+            <div className={`mb-3 flex size-9 items-center justify-center rounded-full text-[20px] font-semibold ${succeeded ? 'bg-ok-wash text-ok' : 'bg-out-wash text-out'}`} aria-hidden="true">{succeeded ? '✓' : '!'}</div>
+            <h2 className={`text-[18px] font-semibold ${succeeded ? '' : 'text-out'}`}>
+              {supplierReturn ? t('supplierReturns.createdTitle') : succeeded ? t('stock.removalSuccessTitle') : t('stock.removalFailedTitle')}
+            </h2>
+            <p className="mt-1 text-[13px] text-graphite">
+              {supplierReturn ? t('supplierReturns.createdHelp') : succeeded ? t('stock.removalSuccessHelp') : t('stock.removalFailedHelp')}
+            </p>
+          </div>
+          <div className="p-5">
+            <p className={`text-[14px] ${succeeded ? 'text-ok' : 'text-out'}`}>{message(state.ok ?? state.error ?? '')}</p>
+            {supplierReturn && <dl className="mt-3 grid gap-3 rounded-[3px] bg-plate p-3 sm:grid-cols-2">
+              <div className="sm:col-span-2"><dt className="eyebrow">{t('common.product')}</dt><dd className="mt-1 text-[14px] font-medium">{supplierReturn.productName}</dd></div>
+              <div><dt className="eyebrow">{t('stock.productCode')}</dt><dd className="tnum mt-1 text-[13px]">{supplierReturn.sku}</dd></div>
+              <div><dt className="eyebrow">{supplierReturn.serialNo ? t('stock.deviceNumbers') : t('common.quantity')}</dt><dd className="tnum mt-1 text-[13px]">{supplierReturn.serialNo ?? supplierReturn.quantity}</dd></div>
+              <div className="sm:col-span-2"><dt className="eyebrow">{t('supplierReturns.returnNumber')}</dt><dd className="tnum mt-1 text-[13px] font-medium">{supplierReturn.returnNumber}</dd></div>
+            </dl>}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-rule p-4">
+            <Button type="button" variant="ghost" onClick={onContinue ?? close}>{onContinue ? t('stock.nextDevice') : t('common.close')}</Button>
+            {succeeded && <Link href="/stock/movements"><Button type="button" variant="ghost">{t('stock.seeLedger')}</Button></Link>}
+            {supplierReturn && <Link href="/suppliers/returns"><Button type="button">{t('supplierReturns.viewReturn')}</Button></Link>}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

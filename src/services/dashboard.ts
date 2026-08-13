@@ -82,6 +82,7 @@ export interface FinancialDashboardDTO extends DashboardCommon {
   monthGrossProfit: Paisa;
   monthOperatingExpenses: Paisa;
   monthShrinkage: Paisa;
+  monthInternalUseCost: Paisa;
   monthOperatingProfit: Paisa;
   dailyFinancials: DailyFinancialPoint[];
 }
@@ -350,6 +351,13 @@ export async function getDashboard(
       && isEffectiveOperation(movement)
       && (movement.reason === 'DAMAGE' || movement.reason === 'LOSS'))
     .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
+  const monthInternalUseCost = movements
+    .filter((movement) => new Date(movement.createdAt) >= monthStart
+      && isEffectiveOperation(movement)
+      && (movement.reason === 'INTERNAL_USE'
+        || movement.reason === 'SHOP_USE'
+        || movement.reason === 'GIFT'))
+    .reduce((sum, movement) => sum + Math.abs(movement.quantity) * movement.unitCost, 0);
   const monthGrossProfit = monthRevenue - monthCogs;
 
   const rangeStart = new Date(`${dayKeys[0]}T00:00:00+06:00`);
@@ -383,7 +391,8 @@ export async function getDashboard(
     monthGrossProfit,
     monthOperatingExpenses,
     monthShrinkage,
-    monthOperatingProfit: monthGrossProfit - monthOperatingExpenses - monthShrinkage,
+    monthInternalUseCost,
+    monthOperatingProfit: monthGrossProfit - monthOperatingExpenses - monthShrinkage - monthInternalUseCost,
     dailyFinancials,
   };
 }

@@ -1326,9 +1326,13 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
   on-demand CSV/PDF exports. Shared Zod schemas validate controlled forms in the
   browser and again at the server boundary.
 - Dashboard financial users see current-month operating expenses and net
-  operating profit. Net operating profit is sales profit minus active operating
-  expenses and effective DAMAGE/LOSS shrinkage; supplier returns are not treated
-  as shrinkage.
+  operating profit. Separate cards expose operating expenses, effective
+  DAMAGE/LOSS inventory loss, and permanent shop-use/gift cost. Net operating
+  profit deducts all three from sales profit; supplier returns are not treated as
+  shrinkage. New permanent removals distinguish SHOP_USE from GIFT, while legacy
+  INTERNAL_USE records remain supported and included in the same cost total.
+  Temporary demo stock is not removed through this workflow because it remains
+  shop-owned inventory; a future availability/status workflow may model demos.
 
 ### 21.2 Supplier financial analytics
 

@@ -273,7 +273,7 @@ export async function stockOutAction(
         })
       : { movement: await recordStockOut({
           ...common,
-          reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE',
+          reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'SHOP_USE' | 'GIFT',
         }), supplierReturn: undefined };
     const { movement } = result;
     await writeAudit({
@@ -312,6 +312,14 @@ export async function stockOutAction(
     };
   } catch (err) {
     if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
+    if (err instanceof Error && (
+      err.message.includes('Invalid `client.')
+      || err.message.includes('Error occurred during query execution')
+      || err.message.includes('ConnectorError')
+    )) {
+      console.error('Stock removal database error:', err);
+      return { error: 'The stock removal could not be completed. Please try again or contact an administrator.' };
+    }
     return { error: message(err) };
   }
 }

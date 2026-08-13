@@ -233,7 +233,7 @@ export type UpdateUsedDeviceInput = z.infer<typeof updateUsedDeviceSchema>;
  */
 const stockOutBaseSchema = z.object({
     productId: z.string().uuid(),
-    reason: z.enum(['SALE', 'DAMAGE', 'LOSS', 'INTERNAL_USE', 'RETURN_TO_SUPPLIER']),
+    reason: z.enum(['SALE', 'DAMAGE', 'LOSS', 'INTERNAL_USE', 'SHOP_USE', 'GIFT', 'RETURN_TO_SUPPLIER']),
 
     serialNo: z.string().min(1).optional(), // SERIAL products
     quantity: z.number().int().positive().optional(), // QUANTITY products

@@ -28,6 +28,7 @@ type KpiTone =
   | 'marginLoss'
   | 'revenue'
   | 'cogs'
+  | 'internalUse'
   | 'profit'
   | 'profitLoss'
   | 'neutral';
@@ -40,6 +41,7 @@ const KPI_TONES: Record<KpiTone, { border: string; wash: string; value: string; 
   marginLoss: { border: 'border-t-metric-margin-loss', wash: 'bg-metric-margin-loss-wash', value: 'text-metric-margin-loss', note: 'text-metric-margin-loss' },
   revenue: { border: 'border-t-metric-revenue', wash: 'bg-metric-revenue-wash', value: 'text-metric-revenue', note: 'text-metric-revenue' },
   cogs: { border: 'border-t-metric-cogs', wash: 'bg-metric-cogs-wash', value: 'text-metric-cogs', note: 'text-metric-cogs' },
+  internalUse: { border: 'dashboard-kpi-internal-use-border', wash: 'dashboard-kpi-internal-use-wash', value: 'dashboard-kpi-internal-use-text', note: 'dashboard-kpi-internal-use-text' },
   profit: { border: 'border-t-metric-profit', wash: 'bg-metric-profit-wash', value: 'text-metric-profit', note: 'text-metric-profit' },
   profitLoss: { border: 'border-t-metric-profit-loss', wash: 'bg-metric-profit-loss-wash', value: 'text-metric-profit-loss', note: 'text-metric-profit-loss' },
   neutral: { border: 'border-t-metric-neutral', wash: 'bg-metric-neutral-wash', value: 'text-metric-neutral', note: 'text-metric-neutral' },
@@ -104,6 +106,18 @@ export default async function DashboardPage() {
               note={dashboard.monthGrossProfit < 0 ? t('dashboard.lossMonth') : dashboard.monthGrossProfit === 0 ? t('dashboard.breakEven') : undefined}
             />
             <Kpi tone="cogs" label={t('dashboard.operatingExpensesMonth')} value={formatBDT(dashboard.monthOperatingExpenses)} />
+            <Kpi
+              tone="profitLoss"
+              label={t('dashboard.inventoryLossMonth')}
+              value={formatBDT(dashboard.monthShrinkage)}
+              note={t('dashboard.inventoryLossHelp')}
+            />
+            <Kpi
+              tone="internalUse"
+              label={t('dashboard.internalUseMonth')}
+              value={formatBDT(dashboard.monthInternalUseCost)}
+              note={t('dashboard.internalUseHelp')}
+            />
             <Kpi
               tone={dashboard.monthOperatingProfit < 0 ? 'profitLoss' : dashboard.monthOperatingProfit === 0 ? 'neutral' : 'profit'}
               label={t('dashboard.operatingProfitMonth')}

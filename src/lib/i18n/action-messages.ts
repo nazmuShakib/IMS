@@ -23,6 +23,7 @@ const bnMessages: Record<string, string> = {
   'Reversed. The original entry is still in the ledger, with the correction beneath it.': 'রিভার্স করা হয়েছে। মূল এন্ট্রিটি লেজারে আছে এবং তার নিচে সংশোধনী এন্ট্রি যোগ হয়েছে।',
   'Invalid input.': 'দেওয়া তথ্য সঠিক নয়।',
   'Something went wrong.': 'কোনো সমস্যা হয়েছে।',
+  'The stock removal could not be completed. Please try again or contact an administrator.': 'স্টক অপসারণ সম্পন্ন করা যায়নি। আবার চেষ্টা করুন অথবা অ্যাডমিনের সঙ্গে যোগাযোগ করুন।',
   'Product not found.': 'পণ্য পাওয়া যায়নি।',
   'Product not found': 'পণ্য পাওয়া যায়নি।',
   'Supplier not found': 'সরবরাহকারী পাওয়া যায়নি।',

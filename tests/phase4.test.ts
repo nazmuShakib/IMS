@@ -113,12 +113,36 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.monthCogs).toBe(500);
     expect(dashboard.monthGrossProfit).toBe(300);
     expect(dashboard.monthOperatingExpenses).toBe(100);
+    expect(dashboard.monthShrinkage).toBe(0);
+    expect(dashboard.monthInternalUseCost).toBe(0);
     expect(dashboard.monthOperatingProfit).toBe(200);
     expect(dashboard.recentActivity.some((item) => item.reason === 'CORRECTION')).toBe(true);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockIn, 0)).toBe(0);
     expect(dashboard.dailyOperations.reduce((total, day) => total + day.stockOut, 0)).toBe(1);
     expect(dashboard.topMovers.find((item) => item.productId === bulkProduct.id)?.movedLast30Days).toBe(0);
     expect(dashboard.topMovers.find((item) => item.productId === serialProduct.id)?.movedLast30Days).toBe(1);
+  });
+
+  it('deducts damage/loss and effective shop-use or gift cost from net operating profit', async () => {
+    const extraMovements: StockMovement[] = [
+      movement({ id: 'damage', reason: 'DAMAGE', productId: bulkProduct.id, unitCost: 20 }),
+      movement({ id: 'shop-use', reason: 'SHOP_USE', productId: bulkProduct.id, unitCost: 30 }),
+      movement({ id: 'gift', reason: 'GIFT', productId: bulkProduct.id, unitCost: 40 }),
+      movement({ id: 'legacy-use', reason: 'INTERNAL_USE', productId: bulkProduct.id, unitCost: 50 }),
+      movement({
+        id: 'legacy-use-correction', type: 'ADJUST', reason: 'CORRECTION', productId: bulkProduct.id,
+        quantity: 1, unitCost: 50, unitPrice: null, reversesId: 'legacy-use',
+      }),
+    ];
+    const testRepositories = repositories();
+    testRepositories.movements.findByDateRange = vi.fn(async () => [...movements, ...extraMovements]);
+
+    const dashboard = await getDashboard('ADMIN', now, testRepositories);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+
+    expect(dashboard.monthShrinkage).toBe(20);
+    expect(dashboard.monthInternalUseCost).toBe(70);
+    expect(dashboard.monthOperatingProfit).toBe(110);
   });
 
   it('never serializes financial or cost fields for STAFF', async () => {
@@ -141,6 +165,9 @@ describe('Phase 4 dashboard', () => {
     expect(page).toContain("t('dashboard.breakEven')");
     expect(css).toContain('--color-metric-margin-loss: #9f1239');
     expect(css).toContain('--color-metric-profit-loss: #b3261e');
+    expect(css).toContain('--color-metric-internal-use: #be185d');
+    expect(css).toContain('.dashboard-kpi-internal-use-wash');
+    expect(page).toContain('tone="internalUse"');
     expect(page).toContain('relative overflow-visible border-t-[3px]');
     expect(page).not.toContain('overflow-hidden border-t-[3px]');
   });

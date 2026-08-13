@@ -28,6 +28,16 @@ describe('Phase 7 scanner workflow', () => {
     expect(stockIn).toContain("t('stock.imeiHint')");
     expect(stockIn).not.toContain('fetch(');
   });
+
+  it('shows every stock-removal result in a shared modal', () => {
+    const stockOut = source('src/components/stock/StockOutForm.tsx');
+    expect(stockOut.match(/<StockRemovalResultModal/g)).toHaveLength(2);
+    expect(stockOut).toContain('role="alertdialog"');
+    expect(stockOut).toContain("t('stock.removalSuccessTitle')");
+    expect(stockOut).toContain("t('stock.removalFailedTitle')");
+    expect(stockOut).toContain("href=\"/stock/movements\"");
+    expect(stockOut).toContain("href=\"/suppliers/returns\"");
+  });
 });
 
 describe('Phase 7 warranty invariants', () => {

@@ -40,6 +40,8 @@ const REASON_LABEL: Record<MovementReason, MessageKey> = {
   DAMAGE: 'reason.damage',
   LOSS: 'reason.loss',
   INTERNAL_USE: 'reason.internalUse',
+  SHOP_USE: 'reason.shopUse',
+  GIFT: 'reason.gift',
   WARRANTY_REPLACEMENT: 'reason.warrantyReplacement',
   CORRECTION: 'reason.correction',
   STOCK_COUNT: 'reason.stockCount',
@@ -156,6 +158,8 @@ export default async function MovementsPage({
     { reason: 'SALE', label: t('ledger.sales') },
     { reason: 'DAMAGE', label: t('ledger.damage') },
     { reason: 'LOSS', label: t('ledger.loss') },
+    { reason: 'SHOP_USE', label: t('reason.shopUse') },
+    { reason: 'GIFT', label: t('reason.gift') },
     { reason: 'CORRECTION', label: t('ledger.corrections') },
   ];
 
