@@ -15,6 +15,7 @@ import {
   StockCount,
 } from '@/components/ui';
 import { createTranslator } from '@/lib/i18n/messages';
+import { formatBDT } from '@/lib/money';
 
 export const dynamic = 'force-dynamic';
 
@@ -168,6 +169,15 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
                 <Badge tone={raw.trackingType === 'SERIAL' ? 'signal' : 'neutral'}>
                   {raw.trackingType === 'SERIAL' ? t('term.serial') : t('term.bulkCount')}
                 </Badge>
+              </dd>
+            </div>
+            <div className="flex justify-between gap-4 border-t border-rule-soft pt-2">
+              <dt className="text-graphite">{t('products.staffMaxDiscount')}</dt>
+              <dd className="text-right">
+                <Money value={raw.staffMaxDiscount} />
+                <span className="mt-0.5 block text-[11px] text-graphite">
+                  {t('products.staffMinimumPrice')}: {formatBDT(Math.max(0, raw.defaultSalePrice - raw.staffMaxDiscount))}
+                </span>
               </dd>
             </div>
           </dl>
