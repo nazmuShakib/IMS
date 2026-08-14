@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { domainLabel } from '@/lib/i18n/domain';
 import { inspectWarrantySerial } from '@/services/warranty';
@@ -8,7 +8,7 @@ import { WarrantyIntakeForm, WarrantyLookup } from '@/components/warranty/Warran
 
 export const dynamic = 'force-dynamic';
 export default async function NewWarrantyPage({ searchParams }: { searchParams: Promise<{ serial?: string }> }) {
-  await requireCapability('CREATE_RMA'); const { locale } = await getSession(); const t = createTranslator(locale); const { serial = '' } = await searchParams;
+  await requirePageCapability('CREATE_RMA'); const { locale } = await getSession(); const t = createTranslator(locale); const { serial = '' } = await searchParams;
   let inspected: Awaited<ReturnType<typeof inspectWarrantySerial>> | null = null; let error = '';
   if (serial) { try { inspected = await inspectWarrantySerial(serial); } catch (e) { error = e instanceof Error ? e.message : 'Could not inspect serial.'; } }
   return <><PageHeader title={t('warranty.openTitle')} count={t('warranty.openHelp')} /><Card className="p-5"><WarrantyLookup initialSerial={serial} />{error && <p className="mt-3 text-[12px] text-out">{error}</p>}</Card>

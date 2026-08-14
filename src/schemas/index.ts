@@ -57,6 +57,7 @@ export const createProductSchema = z
     brandId: z.string().uuid().optional().nullable(),
     defaultCostPrice: paisa.default(0),
     defaultSalePrice: paisa.default(0),
+    staffMaxDiscount: paisa.nonnegative().default(0),
     taxRate: z.number().int().min(0).max(10_000).default(0), // basis points
     reorderPoint: z.number().int().nonnegative().default(5),
     imageUrl: z.string().url().optional().nullable(),
@@ -64,6 +65,10 @@ export const createProductSchema = z
   .refine((p) => p.defaultSalePrice === 0 || p.defaultSalePrice >= p.defaultCostPrice, {
     message: 'Selling price is below cost price — is that intentional?',
     path: ['defaultSalePrice'],
+  })
+  .refine((p) => p.staffMaxDiscount <= p.defaultSalePrice, {
+    message: 'The STAFF discount cannot exceed this product’s selling price.',
+    path: ['staffMaxDiscount'],
   });
 export type CreateProductInput = z.input<typeof createProductSchema>;
 
@@ -333,6 +338,17 @@ export const checkoutSchema = z.object({
   actorId: z.string().min(1),
   idempotencyKey: z.string().min(8).max(200),
 });
+
+export const productStaffDiscountFieldsSchema = z.object({
+  staffMaxDiscount: z.string().trim()
+    .min(1, 'Enter the maximum discount STAFF may apply to this product.')
+    .refine((value) => {
+      if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return false;
+      try { return parseBDT(value) >= 0; } catch { return false; }
+    }, 'Enter a valid amount of zero or more.')
+    .transform((value) => parseBDT(value)),
+});
+export type ProductStaffDiscountFields = z.input<typeof productStaffDiscountFieldsSchema>;
 
 /** Corrections: never edit a movement, write an opposing one. PLAN.md §8.3. */
 export const correctionSchema = z.object({

@@ -12,7 +12,7 @@ import {
   type PaymentStatus,
   type SaleStatus,
 } from '@/domain/types';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import type { SaleFilters } from '@/repositories/types';
@@ -43,7 +43,7 @@ export default async function InvoicesPage({
 }: {
   searchParams: Promise<RawParams>;
 }) {
-  await requireCapability('VIEW_INVOICES');
+  await requirePageCapability('VIEW_INVOICES');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const raw = await searchParams;
@@ -52,6 +52,7 @@ export default async function InvoicesPage({
   const from = one(raw, 'from');
   const to = one(raw, 'to');
   const customerType = one(raw, 'customerType');
+  const sellerId = one(raw, 'sellerId');
   const paymentStatus = one(raw, 'paymentStatus');
   const paymentMethod = one(raw, 'paymentMethod');
   const minTotal = one(raw, 'minTotal');
@@ -62,6 +63,7 @@ export default async function InvoicesPage({
     from,
     to,
     customerType,
+    sellerId,
     paymentStatus,
     paymentMethod,
     minTotal,
@@ -77,6 +79,7 @@ export default async function InvoicesPage({
     customerType: customerType === 'WALK_IN' || customerType === 'REGISTERED'
       ? customerType
       : undefined,
+    actorId: sellerId || undefined,
     paymentStatus: PAYMENT_STATUSES.includes(paymentStatus as PaymentStatus)
       ? paymentStatus as PaymentStatus
       : undefined,
@@ -91,9 +94,11 @@ export default async function InvoicesPage({
     && filters.maxTotal !== undefined
     && filters.minTotal > filters.maxTotal;
   const invalidDateRange = filters.from && filters.to && filters.from > filters.to;
+  const usersPromise = db.users.findAll();
   const sales = invalidPriceRange || invalidDateRange
     ? []
     : await db.sales.search(filters, 500);
+  const users = await usersPromise;
 
   return (
     <>
@@ -107,6 +112,7 @@ export default async function InvoicesPage({
       />
       <InvoiceRegister
         confirmedFilters={confirmedFilters}
+        sellers={users.map(({ id, name }) => ({ id, name }))}
         sales={sales}
         hasFilters={hasFilters}
         invalidDateRange={Boolean(invalidDateRange)}

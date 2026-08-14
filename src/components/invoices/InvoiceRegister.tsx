@@ -17,6 +17,7 @@ export interface InvoiceFilterValues {
   from: string;
   to: string;
   customerType: string;
+  sellerId: string;
   paymentStatus: string;
   paymentMethod: string;
   minTotal: string;
@@ -29,6 +30,7 @@ const EMPTY_FILTERS: InvoiceFilterValues = {
   from: '',
   to: '',
   customerType: '',
+  sellerId: '',
   paymentStatus: '',
   paymentMethod: '',
   minTotal: '',
@@ -46,6 +48,7 @@ function filterUrl(values: InvoiceFilterValues): string {
 
 export function InvoiceRegister({
   confirmedFilters,
+  sellers,
   sales,
   hasFilters,
   invalidDateRange,
@@ -53,6 +56,7 @@ export function InvoiceRegister({
   resultVersion,
 }: {
   confirmedFilters: InvoiceFilterValues;
+  sellers: Array<{ id: string; name: string }>;
   sales: Sale[];
   hasFilters: boolean;
   invalidDateRange: boolean;
@@ -151,6 +155,20 @@ export function InvoiceRegister({
             </Select>
           </label>
           <label>
+            <span className="eyebrow mb-1.5 block">{t('invoices.seller')}</span>
+            <Select
+              name="sellerId"
+              value={values.sellerId}
+              onChange={(event) => update('sellerId', event.target.value)}
+              disabled={pending}
+            >
+              <option value="">{t('invoices.allSellers')}</option>
+              {sellers.map((seller) => (
+                <option key={seller.id} value={seller.id}>{seller.name}</option>
+              ))}
+            </Select>
+          </label>
+          <label>
             <span className="eyebrow mb-1.5 block">{t('checkout.paymentStatus')}</span>
             <Select
               name="paymentStatus"
@@ -241,12 +259,13 @@ export function InvoiceRegister({
             <EmptyState title={hasFilters ? t('invoices.noMatch') : t('invoices.empty')} />
           ) : (
             <TableViewport>
-              <table className="w-full border-collapse text-[12px]">
+              <table className="min-w-[850px] w-full border-collapse text-[12px]">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-rule text-left">
                     <th className="eyebrow px-4 py-2.5">{t('invoices.invoice')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('common.date')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('common.customer')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('invoices.seller')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('invoices.payment')}</th>
                     <th className="eyebrow px-4 py-2.5 text-right">{t('common.total')}</th>
                   </tr>
@@ -260,6 +279,7 @@ export function InvoiceRegister({
                       </td>
                       <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
                       <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
+                      <td className="px-4 py-3">{sale.actorName}</td>
                       <td className="px-4 py-3">{domainLabel(t, sale.paymentMethod)} · {domainLabel(t, sale.paymentStatus)}</td>
                       <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>
                     </tr>

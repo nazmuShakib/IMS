@@ -61,7 +61,7 @@ export function NavigationLinks({
       <NavLink href="/stock/in" onClick={onNavigate} icon={icon(PackagePlus)}>{t('nav.receiveStock')}</NavLink>
       {role !== 'STAFF' && <NavLink href="/stock/used-intake" onClick={onNavigate} icon={icon(Smartphone)}>{t('nav.usedPhoneIntake')}</NavLink>}
       <NavLink href="/stock/labels" onClick={onNavigate} icon={icon(Tags)}>{t('nav.printLabels')}</NavLink>
-      <NavLink href="/stock/out" onClick={onNavigate} icon={icon(PackageMinus)}>{t('nav.removeStock')}</NavLink>
+      {role === 'ADMIN' && <NavLink href="/stock/out" onClick={onNavigate} icon={icon(PackageMinus)}>{t('nav.removeStock')}</NavLink>}
 
       <p className="sidebar-section-label eyebrow px-2 pb-1">{t('shell.catalog')}</p>
       {catalog.map((item) => (

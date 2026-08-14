@@ -1,12 +1,13 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import Link from 'next/link';
 import type { Brand, Category, Product } from '@/domain/types';
-import { toTaka } from '@/lib/money';
+import { parseBDT, toTaka } from '@/lib/money';
 import type { ActionState } from '@/actions/catalog';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { productStaffDiscountFieldsSchema } from '@/schemas';
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -15,19 +16,54 @@ export function ProductForm({
   categories,
   brands,
   product,
+  canManageStaffDiscount = false,
 }: {
   action: Action;
   categories: Category[];
   brands: Brand[];
   product?: Product;
+  canManageStaffDiscount?: boolean;
 }) {
   const [state, formAction, pending] = useActionState<ActionState, FormData>(action, {});
   const { t, message } = useI18n();
   const err = (k: string) => state.fieldErrors?.[k];
   const editing = Boolean(product);
+  const [staffDiscountError, setStaffDiscountError] = useState<string>();
+
+  const validateStaffDiscount = (value: string, salePrice?: string): boolean => {
+    if (!canManageStaffDiscount) return true;
+    const result = productStaffDiscountFieldsSchema.safeParse({ staffMaxDiscount: value });
+    let nextError = result.success ? undefined : result.error.issues[0]?.message;
+    if (result.success && salePrice !== undefined) {
+      try {
+        if (result.data.staffMaxDiscount > parseBDT(salePrice || '0')) {
+          nextError = 'The STAFF discount cannot exceed this product’s selling price.';
+        }
+      } catch {
+        // The selling-price field reports its own validation error.
+      }
+    }
+    setStaffDiscountError(nextError);
+    return !nextError;
+  };
 
   return (
-    <form action={formAction}>
+    <form
+      action={formAction}
+      noValidate
+      onSubmit={(event) => {
+        if (!canManageStaffDiscount) return;
+        const form = event.currentTarget;
+        const input = form.elements.namedItem('staffMaxDiscount');
+        const salePrice = form.elements.namedItem('defaultSalePrice');
+        if (input instanceof HTMLInputElement && !validateStaffDiscount(
+          input.value,
+          salePrice instanceof HTMLInputElement ? salePrice.value : undefined,
+        )) {
+          event.preventDefault();
+        }
+      }}
+    >
       {product && <input type="hidden" name="id" value={product.id} />}
 
       {state.error && (
@@ -186,6 +222,31 @@ export function ProductForm({
               defaultValue={product?.reorderPoint ?? 5}
             />
           </Field>
+
+          {canManageStaffDiscount && (
+            <Field
+              label={t('products.staffMaxDiscount')}
+              error={staffDiscountError ?? (err('staffMaxDiscount') ? message(err('staffMaxDiscount')!) : undefined)}
+              hint={t('products.staffMaxDiscountHelp')}
+            >
+              <MonoInput
+                name="staffMaxDiscount"
+                inputMode="decimal"
+                defaultValue={product ? toTaka(product.staffMaxDiscount) : '0'}
+                placeholder="0"
+                onChange={(event) => {
+                  if (staffDiscountError || err('staffMaxDiscount')) {
+                    validateStaffDiscount(event.target.value, event.currentTarget.form?.defaultSalePrice?.value);
+                  }
+                }}
+                onBlur={(event) => validateStaffDiscount(
+                  event.target.value,
+                  event.currentTarget.form?.defaultSalePrice?.value,
+                )}
+                aria-invalid={Boolean(staffDiscountError ?? err('staffMaxDiscount'))}
+              />
+            </Field>
+          )}
         </div>
       </Card>
 

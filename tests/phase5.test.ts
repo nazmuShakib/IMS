@@ -119,7 +119,7 @@ describe('Phase 5 security boundaries', () => {
   const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
   it('protects both the page and export route and keeps exports uncached', () => {
-    expect(source('src/app/(dashboard)/reports/page.tsx')).toContain("requireCapability('VIEW_REPORTS')");
+    expect(source('src/app/(dashboard)/reports/page.tsx')).toContain("requirePageCapability('VIEW_REPORTS')");
     const route = source('src/app/api/reports/export/route.ts');
     expect(route).toContain("hasPermission(session.role, 'VIEW_REPORTS')");
     expect(route).toContain("status: 403");

@@ -244,6 +244,7 @@ export interface SaleFilters {
   from?: Date;
   to?: Date;
   customerType?: 'WALK_IN' | 'REGISTERED';
+  actorId?: string;
   paymentStatus?: PaymentStatus;
   paymentMethod?: PaymentMethod;
   minTotal?: Paisa;

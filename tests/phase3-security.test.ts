@@ -56,6 +56,7 @@ describe('Phase 3 role matrix', () => {
     ADMIN: [
       'VIEW_STOCK',
       'MOVE_STOCK',
+      'REMOVE_STOCK',
       'VIEW_COSTS',
       'VIEW_REPORTS',
       'MANAGE_CATALOG',
@@ -131,6 +132,7 @@ describe('Server Action authorization boundaries', () => {
   it('uses capability checks for stock mutations', () => {
     const text = source('src/actions/stock.ts');
     expect(text).toContain("requireCapability('MOVE_STOCK')");
+    expect(text).toContain("requireCapability('REMOVE_STOCK')");
     expect(text).toContain("requireCapability('CORRECT_STOCK')");
     expect(text).not.toContain('requireRole(');
   });

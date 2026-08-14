@@ -1,6 +1,6 @@
 import { db } from '@/repositories';
 import { toProductDTO } from '@/lib/dto';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { StockOutForm } from '@/components/stock/StockOutForm';
 import { PageHeader } from '@/components/ui';
@@ -12,7 +12,7 @@ export default async function StockOutPage({
 }: {
   searchParams: Promise<{ serial?: string }>;
 }) {
-  const { role } = await requireRole('ADMIN', 'MANAGER', 'STAFF');
+  const { role } = await requirePageCapability('REMOVE_STOCK');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const { serial } = await searchParams;

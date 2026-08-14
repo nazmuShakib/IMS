@@ -3,6 +3,7 @@ import type { Role } from '@/domain/types';
 export const CAPABILITIES = [
   'VIEW_STOCK',
   'MOVE_STOCK',
+  'REMOVE_STOCK',
   'VIEW_COSTS',
   'VIEW_REPORTS',
   'MANAGE_CATALOG',
@@ -29,6 +30,7 @@ export type Capability = (typeof CAPABILITIES)[number];
 export const CAPABILITY_ROLES: Record<Capability, readonly Role[]> = {
   VIEW_STOCK: ['ADMIN', 'MANAGER', 'STAFF'],
   MOVE_STOCK: ['ADMIN', 'MANAGER', 'STAFF'],
+  REMOVE_STOCK: ['ADMIN'],
   VIEW_COSTS: ['ADMIN', 'MANAGER'],
   VIEW_REPORTS: ['ADMIN', 'MANAGER'],
   MANAGE_CATALOG: ['ADMIN', 'MANAGER'],

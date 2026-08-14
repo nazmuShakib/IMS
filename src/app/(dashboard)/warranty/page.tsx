@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import { db } from '@/repositories';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { Badge, Button, Card, EmptyState, PageHeader, SerialChip, TableViewport } from '@/components/ui';
 import { RMA_STATUSES, type RmaStatus } from '@/domain/types';
 import { createTranslator } from '@/lib/i18n/messages';
@@ -8,7 +8,7 @@ import { domainLabel } from '@/lib/i18n/domain';
 
 export const dynamic = 'force-dynamic';
 export default async function WarrantyPage({ searchParams }: { searchParams: Promise<{ status?: string; assigned?: string }> }) {
-  await requireCapability('VIEW_RMA'); const { user, locale } = await getSession(); const t = createTranslator(locale); const { status, assigned } = await searchParams;
+  await requirePageCapability('VIEW_RMA'); const { user, locale } = await getSession(); const t = createTranslator(locale); const { status, assigned } = await searchParams;
   const filter = RMA_STATUSES.includes(status as RmaStatus) ? status as RmaStatus : undefined;
   const claims = await db.warranties.findAll({ ...(filter ? { status: filter } : {}), ...(assigned === 'me' ? { assignedToId: user.id } : {}) });
   const rows = await Promise.all(claims.sort((a,b) => b.openedAt.localeCompare(a.openedAt)).map(async (claim) => {

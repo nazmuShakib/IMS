@@ -1,6 +1,6 @@
 import { UsedDeviceIntakeForm } from '@/components/stock/UsedDeviceIntakeForm';
 import { PageHeader } from '@/components/ui';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 
@@ -11,7 +11,7 @@ export default async function UsedDeviceIntakePage({
 }: {
   searchParams: Promise<{ cart?: string }>;
 }) {
-  const actor = await requireCapability('MANAGE_USED_DEVICES');
+  const actor = await requirePageCapability('MANAGE_USED_DEVICES');
   const { cart: requestedCartId } = await searchParams;
   const requestedCart = requestedCartId ? await db.carts.findById(requestedCartId) : null;
   const tradeInCartId = requestedCart?.actorId === actor.id ? requestedCart.id : undefined;

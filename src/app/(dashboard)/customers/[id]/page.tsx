@@ -3,14 +3,14 @@ import { notFound } from 'next/navigation';
 
 import { Badge, Card, EmptyState, PageHeader, TableViewport } from '@/components/ui';
 import { formatBDT } from '@/lib/money';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 
 export const dynamic = 'force-dynamic';
 
 export default async function CustomerPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCapability('MANAGE_CUSTOMERS');
+  await requirePageCapability('MANAGE_CUSTOMERS');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const { id } = await params;

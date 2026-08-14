@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageRole } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { reconcile } from '@/services/stock';
 import { Card, PageHeader, TableViewport } from '@/components/ui';
@@ -14,7 +14,7 @@ export const dynamic = 'force-dynamic';
  * something you hope is true.
  */
 export default async function ReconcilePage() {
-  await requireRole('ADMIN', 'MANAGER');
+  await requirePageRole('ADMIN', 'MANAGER');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const drifts = await reconcile();

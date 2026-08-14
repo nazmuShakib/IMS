@@ -3,13 +3,13 @@ import { CreateUserForm } from '@/components/auth/CreateUserForm';
 import { AdminPasswordReset, UserPhoneEditor } from '@/components/auth/UserSecurityControls';
 import { Badge, Button, Card, PageHeader, Select, TableViewport } from '@/components/ui';
 import { prisma } from '@/lib/prisma';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageRole } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 
 export const dynamic = 'force-dynamic';
 
 export default async function UsersPage() {
-  const current = await requireRole('ADMIN');
+  const current = await requirePageRole('ADMIN');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const users = await prisma.user.findMany({ orderBy: [{ isActive: 'desc' }, { name: 'asc' }] });

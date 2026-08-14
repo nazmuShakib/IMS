@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import { CircleCheck, TriangleAlert } from 'lucide-react';
 
 import { recordInvoicePrintAction, voidInvoiceAction } from '@/actions/checkout';
 import { Button } from '@/components/ui';
@@ -50,7 +51,8 @@ export function InvoiceView({
   });
   const [clientVoidErrors, setClientVoidErrors] = useState<Partial<Record<keyof VoidInvoiceFields, string>>>({});
   const [hideServerVoidErrors, setHideServerVoidErrors] = useState(true);
-  const { message } = useI18n();
+  const [voidResult, setVoidResult] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
+  const { message, t } = useI18n();
 
   useEffect(() => {
     if (state.printNonce) window.print();
@@ -59,9 +61,13 @@ export function InvoiceView({
   useEffect(() => {
     if (voidState.ok) {
       setShowVoid(false);
+      setVoidResult({ tone: 'success', message: voidState.ok });
       router.refresh();
+    } else if (voidState.error && !voidState.fieldErrors) {
+      setShowVoid(false);
+      setVoidResult({ tone: 'error', message: voidState.error });
     }
-  }, [router, voidState.ok]);
+  }, [router, voidState.error, voidState.fieldErrors, voidState.ok]);
   useEffect(() => {
     if (voidState.error || voidState.fieldErrors) setHideServerVoidErrors(false);
   }, [voidState]);
@@ -136,7 +142,6 @@ export function InvoiceView({
           </div>
         </div>
         {state.error && <p className="mb-3 text-[12px] text-out">{message(state.error)}</p>}
-        {voidState.ok && <p className="mb-3 text-[12px] text-ok">{voidState.ok}</p>}
       </div>
 
       <div className="invoice-preview-viewport" tabIndex={0} aria-label="Scrollable invoice preview">
@@ -325,6 +330,39 @@ export function InvoiceView({
               </Button>
             </div>
           </form>
+        </div>
+      )}
+
+      {voidResult && (
+        <div
+          className="fixed inset-0 z-[110] grid place-items-center overflow-y-auto bg-black/55 p-3 print:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="void-result-title"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setVoidResult(null);
+          }}
+        >
+          <div className="w-full max-w-md rounded-[4px] border border-rule bg-card shadow-2xl">
+            <div className="p-5">
+              <div
+                className={`mb-4 inline-flex size-11 items-center justify-center rounded-full ${
+                  voidResult.tone === 'success' ? 'bg-ok/10 text-ok' : 'bg-out/10 text-out'
+                }`}
+              >
+                {voidResult.tone === 'success'
+                  ? <CircleCheck aria-hidden="true" className="size-6" />
+                  : <TriangleAlert aria-hidden="true" className="size-6" />}
+              </div>
+              <h2 id="void-result-title" className={`text-[18px] font-semibold ${voidResult.tone === 'error' ? 'text-out' : ''}`}>
+                {voidResult.tone === 'success' ? t('invoices.voidSuccessTitle') : t('invoices.voidErrorTitle')}
+              </h2>
+              <p className="mt-2 text-[13px] leading-relaxed text-graphite">{message(voidResult.message)}</p>
+            </div>
+            <div className="flex justify-end border-t border-rule p-4">
+              <Button type="button" variant="ghost" onClick={() => setVoidResult(null)}>{t('common.close')}</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

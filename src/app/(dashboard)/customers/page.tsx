@@ -1,7 +1,7 @@
 import { CreateCustomerForm } from '@/components/customers/CreateCustomerForm';
 import { CustomerRegister } from '@/components/customers/CustomerRegister';
 import { Card, PageHeader } from '@/components/ui';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 
@@ -12,7 +12,7 @@ export default async function CustomersPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requireCapability('MANAGE_CUSTOMERS');
+  await requirePageCapability('MANAGE_CUSTOMERS');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const { q = '' } = await searchParams;

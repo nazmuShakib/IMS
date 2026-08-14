@@ -114,6 +114,7 @@ export async function updateCartItemAction(
       cartId: str(fd, 'cartId') ?? '',
       itemId: str(fd, 'itemId') ?? '',
       actorId: actor.id,
+      actorRole: actor.role,
       quantity: Number(str(fd, 'quantity') ?? '0'),
       actualUnitPrice: parseBDT(str(fd, 'actualUnitPrice') ?? ''),
     });
@@ -329,6 +330,7 @@ export async function checkoutAction(
       cartId,
       actorId: actor.id,
       actorName: actor.name,
+      actorRole: actor.role,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
     });
     saleId = sale.id;

@@ -1,5 +1,5 @@
 import { ExpenseWorkspace } from '@/components/expenses/ExpenseWorkspace';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import { listExpenses, parseExpenseQuery, summarizeExpenses } from '@/services/expenses';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 type RawParams = Record<string, string | string[] | undefined>;
 
 export default async function ExpensesPage({ searchParams }: { searchParams: Promise<RawParams> }) {
-  await requireCapability('VIEW_EXPENSES');
+  await requirePageCapability('VIEW_EXPENSES');
   const { role } = await getSession();
   const query = parseExpenseQuery(await searchParams);
   const [categories, expenses, users] = await Promise.all([

@@ -106,6 +106,7 @@ export async function createProduct(
       brandId: str(fd, 'brandId'),
       defaultCostPrice: money(fd, 'defaultCostPrice'),
       defaultSalePrice: money(fd, 'defaultSalePrice'),
+      staffMaxDiscount: actor.role === 'ADMIN' ? money(fd, 'staffMaxDiscount') : 0,
       taxRate: 0,
       reorderPoint: int(fd, 'reorderPoint', 5),
       imageUrl: null,
@@ -132,6 +133,7 @@ export async function createProduct(
       brandId: input.brandId ?? null,
       defaultCostPrice: input.defaultCostPrice,
       defaultSalePrice: input.defaultSalePrice,
+      staffMaxDiscount: input.staffMaxDiscount,
       taxRate: input.taxRate,
       reorderPoint: input.reorderPoint,
       // Stock starts at zero, always. It can only be moved by the ledger (§5.1).
@@ -184,6 +186,9 @@ export async function updateProduct(
       brandId: str(fd, 'brandId'),
       defaultCostPrice: money(fd, 'defaultCostPrice'),
       defaultSalePrice: money(fd, 'defaultSalePrice'),
+      staffMaxDiscount: actor.role === 'ADMIN'
+        ? money(fd, 'staffMaxDiscount')
+        : existing.staffMaxDiscount,
       taxRate: existing.taxRate,
       reorderPoint: int(fd, 'reorderPoint', existing.reorderPoint),
       imageUrl: existing.imageUrl,
@@ -210,6 +215,7 @@ export async function updateProduct(
       brandId: input.brandId ?? null,
       defaultCostPrice: input.defaultCostPrice,
       defaultSalePrice: input.defaultSalePrice,
+      staffMaxDiscount: input.staffMaxDiscount,
       reorderPoint: input.reorderPoint,
       // NOTE: quantityOnHand and avgCostPrice are absent on purpose. Editing a
       // product must never be able to change stock. Stock moves via the ledger.

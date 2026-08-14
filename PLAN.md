@@ -1361,7 +1361,6 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
 ### 21.3 Remaining Phase 10 increments
 
 - EMI sales and settlement tracking.
-- ADMIN-configured staff discount floors enforced by Checkout.
 - Further EMI indicators.
 
 ### 21.4 Dashboard period comparison
@@ -1382,6 +1381,25 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
   and therefore do not pretend to be historical snapshots.
 - The range selector changes already-derived dashboard data in the browser;
   switching ranges does not issue another database query.
+
+### 21.5 Controlled selling and inventory removal
+
+**Implementation status: complete (14 August 2026).**
+
+- Each product stores its own ADMIN-configured maximum fixed discount that a
+  STAFF user may apply per unit. This allows a higher allowance on a ৳15,000
+  phone and a lower or zero allowance on a ৳5,000 phone. Checkout derives the
+  STAFF minimum from the line's captured list price; ADMIN and MANAGER selling
+  prices remain unrestricted.
+- The product form validates the allowance in the browser and again at the
+  Server Action boundary. Managers may edit ordinary product details but cannot
+  change this ADMIN-only field, including through crafted requests. Checkout
+  enforces the product's current allowance both when a draft line is saved and
+  inside the final atomic sale transaction, so stale drafts cannot bypass a
+  newly tightened limit. Changes remain part of the audited product snapshot.
+- Permanent inventory removal is ADMIN-only. Receiving stock remains available
+  to operational roles, while the removal navigation, page, serial lookup, and
+  mutation all use the separate `REMOVE_STOCK` capability.
 
 ---
 

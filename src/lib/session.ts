@@ -88,3 +88,15 @@ export async function requireRole(...allowed: Role[]): Promise<User> {
 export async function requireCapability(capability: Capability): Promise<User> {
   return requireRole(...CAPABILITY_ROLES[capability]);
 }
+
+/** Page guard: show a friendly screen instead of surfacing an authorization exception. */
+export async function requirePageRole(...allowed: Role[]): Promise<User> {
+  const { user, role } = await getSession();
+  if (!allowed.includes(role)) redirect('/access-denied');
+  return user;
+}
+
+/** Page equivalent of requireCapability. Mutations must keep using the throwing guard above. */
+export async function requirePageCapability(capability: Capability): Promise<User> {
+  return requirePageRole(...CAPABILITY_ROLES[capability]);
+}

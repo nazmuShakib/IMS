@@ -4,7 +4,7 @@ import { notFound } from 'next/navigation';
 import { Badge, Card, EmptyState, TableViewport } from '@/components/ui';
 import { createTranslator } from '@/lib/i18n/messages';
 import { formatBDT } from '@/lib/money';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import { getSupplierAnalytics, parseSupplierAnalyticsFilters, UNKNOWN_SUPPLIER_ID } from '@/services/supplier-analytics';
 
@@ -12,7 +12,7 @@ export const dynamic = 'force-dynamic';
 type RawParams = Record<string, string | string[] | undefined>;
 
 export default async function SupplierAnalyticsDetailPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<RawParams> }) {
-  await requireCapability('VIEW_REPORTS');
+  await requirePageCapability('VIEW_REPORTS');
   const [{ id }, raw, { locale }] = await Promise.all([params, searchParams, getSession()]);
   const isUnattributed = id === UNKNOWN_SUPPLIER_ID;
   const supplier = isUnattributed ? null : await db.suppliers.findById(id);

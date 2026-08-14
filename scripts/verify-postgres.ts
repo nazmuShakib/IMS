@@ -43,7 +43,7 @@ async function main() {
         id: bulkProductId, sku: `VERIFY-BULK-${bulkProductId}`, barcode: null,
         name: `Verification bulk ${bulkProductId}`, description: null, model: null,
         trackingType: 'QUANTITY', categoryId, brandId, defaultCostPrice: 1_000,
-        defaultSalePrice: 1_500, taxRate: 0, reorderPoint: 1, quantityOnHand: 0,
+        defaultSalePrice: 1_500, staffMaxDiscount: 0, taxRate: 0, reorderPoint: 1, quantityOnHand: 0,
         avgCostPrice: 0, imageUrl: null, isActive: true, createdAt: now, updatedAt: now,
       });
       await tx.products._applyQuantityDelta(bulkProductId, 5, 1_000);
@@ -60,7 +60,7 @@ async function main() {
         id: serialProductId, sku: `VERIFY-SERIAL-${serialProductId}`, barcode: null,
         name: `Verification serial ${serialProductId}`, description: null, model: null,
         trackingType: 'SERIAL', categoryId, brandId, defaultCostPrice: 50_000,
-        defaultSalePrice: 60_000, taxRate: 0, reorderPoint: 1, quantityOnHand: 0,
+        defaultSalePrice: 60_000, staffMaxDiscount: 0, taxRate: 0, reorderPoint: 1, quantityOnHand: 0,
         avgCostPrice: 0, imageUrl: null, isActive: true, createdAt: now, updatedAt: now,
       });
       await tx.units.createMany([{

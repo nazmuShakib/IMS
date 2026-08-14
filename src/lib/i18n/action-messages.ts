@@ -32,6 +32,7 @@ const bnMessages: Record<string, string> = {
   'Draft cart not found.': 'খসড়া কার্ট পাওয়া যায়নি।',
   'Cart item not found.': 'কার্টের পণ্য পাওয়া যায়নি।',
   'Invoice not found.': 'ইনভয়েস পাওয়া যায়নি।',
+  'Invoice voided. Inventory and financial records were reversed together.': 'ইনভয়েস বাতিল হয়েছে। স্টক ও আর্থিক রেকর্ড একসঙ্গে বিপরীত এন্ট্রি দিয়ে সমন্বয় করা হয়েছে।',
   'The selected customer is unavailable.': 'নির্বাচিত ক্রেতাকে পাওয়া যাচ্ছে না।',
   'The selected category is unavailable.': 'নির্বাচিত ক্যাটাগরিটি ব্যবহার করা যাচ্ছে না।',
   'The selected brand is unavailable.': 'নির্বাচিত ব্র্যান্ডটি ব্যবহার করা যাচ্ছে না।',
@@ -113,6 +114,9 @@ const bnMessages: Record<string, string> = {
   'Confirm that this expense should be voided.': 'এই ব্যয়টি বাতিল করতে নিশ্চিত করুন।',
   'Category name must contain at least 2 characters.': 'ক্যাটাগরির নামে কমপক্ষে ২টি অক্ষর থাকতে হবে।',
   'Category name must not exceed 100 characters.': 'ক্যাটাগরির নাম ১০০ অক্ষরের বেশি হতে পারবে না।',
+  'Enter the maximum discount STAFF may apply to this product.': 'এই পণ্যে কর্মীরা সর্বোচ্চ কত টাকা ছাড় দিতে পারবেন তা লিখুন।',
+  'Enter a valid amount of zero or more.': 'শূন্য বা তার বেশি সঠিক পরিমাণ লিখুন।',
+  'The STAFF discount cannot exceed this product’s selling price.': 'কর্মীর ছাড় এই পণ্যের বিক্রয়মূল্যের বেশি হতে পারবে না।',
 };
 
 export function translateActionMessage(locale: Locale, value: string): string {
@@ -145,6 +149,10 @@ export function translateActionMessage(locale: Locale, value: string): string {
   if (match) return `${match[1]} ব্যয় হালনাগাদ হয়েছে।`;
   match = value.match(/^Voided (EXP-.+)\.$/);
   if (match) return `${match[1]} ব্যয় বাতিল করা হয়েছে।`;
+  match = value.match(/^STAFF may not sell this item below (.+)\.$/);
+  if (match) return `কর্মীরা এই পণ্যটি ${match[1]}-এর কমে বিক্রি করতে পারবেন না।`;
+  match = value.match(/^(.+) must be at least (.+) for STAFF\.$/);
+  if (match) return `কর্মীদের জন্য ${match[1]}-এর মূল্য কমপক্ষে ${match[2]} হতে হবে।`;
 
   return value;
 }

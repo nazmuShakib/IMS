@@ -178,6 +178,8 @@ export interface Product {
   brandId: string | null;
   defaultCostPrice: Paisa;
   defaultSalePrice: Paisa;
+  /** Maximum reduction from list price that STAFF may apply per unit. */
+  staffMaxDiscount: Paisa;
   taxRate: number; // basis points; unused in v1
   reorderPoint: number;
   /** CACHE. Authoritative only for trackingType = QUANTITY. See PLAN.md §5.2. */

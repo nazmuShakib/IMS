@@ -157,6 +157,11 @@ const users: UserRepository = {
   },
 };
 
+const productDefaults = (value: Product): Product => ({
+  ...value,
+  staffMaxDiscount: value.staffMaxDiscount ?? 0,
+});
+
 const products: ProductRepository = {
   async findAll(filters) {
     const rows = await readAll<Product>('products');
@@ -165,22 +170,23 @@ const products: ProductRepository = {
         (!filters?.categoryId || p.categoryId === filters.categoryId) &&
         (!filters?.brandId || p.brandId === filters.brandId) &&
         (!filters?.activeOnly || p.isActive),
-    );
+    ).map(productDefaults);
   },
   async findById(id) {
-    return (await readAll<Product>('products')).find((p) => p.id === id) ?? null;
+    const row = (await readAll<Product>('products')).find((p) => p.id === id);
+    return row ? productDefaults(row) : null;
   },
   async findBySku(sku) {
     const lower = sku.toLowerCase();
-    return (
-      (await readAll<Product>('products')).find((p) => p.sku.toLowerCase() === lower) ?? null
-    );
+    const row = (await readAll<Product>('products')).find((p) => p.sku.toLowerCase() === lower);
+    return row ? productDefaults(row) : null;
   },
   async findByBarcode(barcode) {
     const lower = barcode.toLowerCase().trim();
-    return (await readAll<Product>('products')).find(
+    const row = (await readAll<Product>('products')).find(
       (product) => product.barcode?.toLowerCase() === lower,
-    ) ?? null;
+    );
+    return row ? productDefaults(row) : null;
   },
   /**
    * Phase 0 search: naive substring match. Phase 1 replaces this with pg_trgm +
@@ -199,7 +205,8 @@ const products: ProductRepository = {
             (p.barcode?.toLowerCase().includes(q) ?? false) ||
             (p.model?.toLowerCase().includes(q) ?? false)),
       )
-      .slice(0, limit);
+      .slice(0, limit)
+      .map(productDefaults);
   },
   async create(data) {
     return withLock(async () => {
@@ -562,6 +569,7 @@ const sales: SaleRepository = {
           !filters.customerType
           || (filters.customerType === 'WALK_IN' ? item.customerId === null : item.customerId !== null)
         )
+        && (!filters.actorId || item.actorId === filters.actorId)
         && (!filters.paymentStatus || item.paymentStatus === filters.paymentStatus)
         && (!filters.paymentMethod || item.paymentMethod === filters.paymentMethod)
         && (filters.minTotal === undefined || item.total >= filters.minTotal)

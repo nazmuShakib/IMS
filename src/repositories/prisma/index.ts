@@ -722,6 +722,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
               : filters.customerType === 'REGISTERED'
                 ? { not: null }
                 : undefined,
+            actorId: filters.actorId,
             paymentStatus: filters.paymentStatus,
             paymentMethod: filters.paymentMethod,
             total: filters.minTotal !== undefined || filters.maxTotal !== undefined

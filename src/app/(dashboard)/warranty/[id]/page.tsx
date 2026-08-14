@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/repositories';
-import { getAuthUserNames, getSession, requireCapability } from '@/lib/session';
+import { getAuthUserNames, getSession, requirePageCapability } from '@/lib/session';
 import { Badge, Card, Money, PageHeader, SerialChip, TableViewport } from '@/components/ui';
 import {
   PrintButton, SupplierWarrantyForm, WarrantyHandoverForm, WarrantyNoteForm,
@@ -15,7 +15,7 @@ const label = (value: string) => value.replaceAll('_', ' ').toLowerCase();
 const stamp = (iso: string, _locale: Locale) => new Date(iso).toLocaleString('en-GB', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true });
 
 export default async function WarrantyDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  await requireCapability('VIEW_RMA'); const { role, locale } = await getSession(); const t = createTranslator(locale); const { id } = await params;
+  await requirePageCapability('VIEW_RMA'); const { role, locale } = await getSession(); const t = createTranslator(locale); const { id } = await params;
   const claim = await db.warranties.findById(id); if (!claim) notFound();
   const [unit, sale, events, supplierCase, suppliers, users] = await Promise.all([
     db.units.findById(claim.unitId), db.movements.findById(claim.saleMovementId),

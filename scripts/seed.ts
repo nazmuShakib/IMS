@@ -58,7 +58,7 @@ async function main() {
     db.products.create({
       id: uuidv7(), sku: p.sku, barcode: null, name: p.name, description: null,
       model: p.model, trackingType: p.tracking, categoryId: p.categoryId, brandId: p.brandId,
-      defaultCostPrice: taka(p.cost), defaultSalePrice: taka(p.price), taxRate: 0,
+      defaultCostPrice: taka(p.cost), defaultSalePrice: taka(p.price), staffMaxDiscount: 0, taxRate: 0,
       reorderPoint: p.reorder, quantityOnHand: 0, avgCostPrice: 0, imageUrl: null,
       isActive: true, createdAt: now(), updatedAt: now(),
     });

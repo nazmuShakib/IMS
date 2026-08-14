@@ -10,6 +10,7 @@ import type {
   TradeInCartDraft,
 } from '@/domain/types';
 import { uuidv7 } from '@/lib/ids';
+import { formatBDT } from '@/lib/money';
 import { normalizeBangladeshMobile } from '@/lib/phone';
 import { db, type Repositories } from '@/repositories';
 import {
@@ -175,6 +176,7 @@ export async function updateCartItem(input: {
   cartId: string;
   itemId: string;
   actorId: string;
+  actorRole: Role;
   quantity: number;
   actualUnitPrice: number;
 }): Promise<CartItem> {
@@ -190,6 +192,12 @@ export async function updateCartItem(input: {
     }
     if (product.trackingType === 'QUANTITY' && parsed.quantity > product.quantityOnHand) {
       throw new Error(`Only ${product.quantityOnHand} × ${product.name} are in stock.`);
+    }
+    if (input.actorRole === 'STAFF') {
+      const minimumPrice = Math.max(0, item.listUnitPrice - product.staffMaxDiscount);
+      if (parsed.actualUnitPrice < minimumPrice) {
+        throw new Error(`STAFF may not sell this item below ${formatBDT(minimumPrice)}.`);
+      }
     }
     return tx.carts.updateItem(item.id, parsed);
   });
@@ -317,6 +325,7 @@ export async function checkoutCart(raw: {
   cartId: string;
   actorId: string;
   actorName: string;
+  actorRole: Role;
   idempotencyKey: string;
 }): Promise<Sale> {
   const input = checkoutSchema.parse(raw);
@@ -345,6 +354,19 @@ export async function checkoutCart(raw: {
         throw new Error(`Only ${product.quantityOnHand} × ${product.name} remain in stock.`);
       }
       resolved.push({ item, product, unit });
+    }
+
+    // Re-check each product's live STAFF allowance inside the same transaction
+    // that writes the sale. A stale cart cannot bypass an ADMIN reduction.
+    // This prevents a stale cart or a crafted Server Action request from using a
+    // discount that an ADMIN has since disallowed.
+    if (raw.actorRole === 'STAFF') {
+      for (const { item, product } of resolved) {
+        const minimumPrice = Math.max(0, item.listUnitPrice - product.staffMaxDiscount);
+        if (item.actualUnitPrice < minimumPrice) {
+          throw new Error(`${product.name} must be at least ${formatBDT(minimumPrice)} for STAFF.`);
+        }
+      }
     }
 
     const now = new Date().toISOString();

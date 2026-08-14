@@ -1,5 +1,5 @@
 import { SupplierAnalyticsWorkspace } from '@/components/suppliers/SupplierAnalyticsWorkspace';
-import { requireCapability } from '@/lib/session';
+import { requirePageCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import { getSupplierAnalytics, parseSupplierAnalyticsFilters } from '@/services/supplier-analytics';
 
@@ -8,7 +8,7 @@ export const dynamic = 'force-dynamic';
 type RawParams = Record<string, string | string[] | undefined>;
 
 export default async function SupplierAnalyticsPage({ searchParams }: { searchParams: Promise<RawParams> }) {
-  await requireCapability('VIEW_REPORTS');
+  await requirePageCapability('VIEW_REPORTS');
   const filters = parseSupplierAnalyticsFilters(await searchParams);
   const [result, suppliers, products, categories, brands] = await Promise.all([
     getSupplierAnalytics(filters), db.suppliers.findAll(), db.products.findAll(), db.categories.findAll(), db.brands.findAll(),

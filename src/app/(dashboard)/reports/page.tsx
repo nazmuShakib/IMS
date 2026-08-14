@@ -2,7 +2,7 @@ import { ReportWorkspace } from '@/components/reports/ReportWorkspace';
 import { Card, EmptyState, Input, Money, PageHeader, Select, TableViewport } from '@/components/ui';
 import { MOVEMENT_REASONS, MOVEMENT_TYPES } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
-import { getAuthUserNames, getSession, requireCapability } from '@/lib/session';
+import { getAuthUserNames, getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator, type MessageKey } from '@/lib/i18n/messages';
 import type { Locale } from '@/lib/i18n/config';
 import { db } from '@/repositories';
@@ -128,7 +128,7 @@ export default async function ReportsPage({
 }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  await requireCapability('VIEW_REPORTS');
+  await requirePageCapability('VIEW_REPORTS');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const raw = await searchParams;

@@ -1,5 +1,5 @@
 import { db } from '@/repositories';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageRole } from '@/lib/session';
 import { toProductDTO } from '@/lib/dto';
 import { StockInForm } from '@/components/stock/StockInForm';
 import { PageHeader } from '@/components/ui';
@@ -12,7 +12,7 @@ export default async function StockInPage({
 }: {
   searchParams: Promise<{ product?: string; supplier?: string; reference?: string; supplierReturn?: string }>;
 }) {
-  await requireRole('ADMIN', 'MANAGER', 'STAFF');
+  await requirePageRole('ADMIN', 'MANAGER', 'STAFF');
   const { role, locale } = await getSession();
   const t = createTranslator(locale);
   const { product, supplier, reference, supplierReturn } = await searchParams;

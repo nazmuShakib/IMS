@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { db } from '@/repositories';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageRole } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { updateProduct } from '@/actions/catalog';
 import { ProductForm } from '@/components/catalog/ProductForm';
@@ -13,8 +13,8 @@ export default async function EditProductPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole('ADMIN', 'MANAGER');
-  const { locale } = await getSession();
+  await requirePageRole('ADMIN', 'MANAGER');
+  const { locale, role } = await getSession();
   const t = createTranslator(locale);
   const { id } = await params;
 
@@ -40,6 +40,7 @@ export default async function EditProductPage({
         categories={categories}
         brands={brands}
         product={product}
+        canManageStaffDiscount={role === 'ADMIN'}
       />
     </>
   );

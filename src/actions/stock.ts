@@ -85,7 +85,8 @@ export async function lookupSerial(
   _prev: { error?: string; found?: SerialLookup },
   fd: FormData,
 ): Promise<{ error?: string; found?: SerialLookup }> {
-  const { role } = await getSession();
+  const actor = await requireCapability('REMOVE_STOCK');
+  const { role } = actor;
   const serial = str(fd, 'serialNo');
   if (!serial) return { error: 'Enter a device number or IMEI' };
 
@@ -236,7 +237,7 @@ export async function stockOutAction(
   _prev: StockActionState,
   fd: FormData,
 ): Promise<StockActionState> {
-  const actor = await requireCapability('MOVE_STOCK');
+  const actor = await requireCapability('REMOVE_STOCK');
 
   const productId = str(fd, 'productId');
   if (!productId) return { error: 'Missing product' };

@@ -1,6 +1,6 @@
 import { Card, EmptyState, PageHeader, TableViewport } from '@/components/ui';
 import { prisma } from '@/lib/prisma';
-import { getSession, requireRole } from '@/lib/session';
+import { getSession, requirePageRole } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import type { Locale } from '@/lib/i18n/config';
 
@@ -18,7 +18,7 @@ const dhaka = (date: Date, _locale: Locale) =>
   });
 
 export default async function AuditPage() {
-  await requireRole('ADMIN');
+  await requirePageRole('ADMIN');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const logs = await prisma.auditLog.findMany({

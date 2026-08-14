@@ -1,5 +1,5 @@
 import { db } from '@/repositories';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { PageHeader } from '@/components/ui';
 import { SupplierReturnRegister, type SupplierReturnRow } from '@/components/suppliers/SupplierReturnRegister';
@@ -39,7 +39,7 @@ export default async function SupplierReturnsPage({ searchParams }: { searchPara
     recoveryMethod: allowedMethods.includes(one(rawParams, 'recoveryMethod')) ? one(rawParams, 'recoveryMethod') : '',
     order: allowedOrders.includes(requestedOrder) ? requestedOrder : 'newest',
   };
-  await requireCapability('MANAGE_CATALOG');
+  await requirePageCapability('MANAGE_CATALOG');
   const { locale } = await getSession();
   const t = createTranslator(locale);
   const [returns, movements, suppliers] = await Promise.all([

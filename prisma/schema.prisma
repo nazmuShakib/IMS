@@ -342,6 +342,9 @@ model Product {
   /// ProductUnit (SERIAL) or on the StockMovement (QUANTITY) — never here.
   defaultCostPrice Int @default(0) // paisa
   defaultSalePrice Int @default(0) // paisa
+  /// Maximum reduction from the captured list price that STAFF may apply.
+  /// ADMIN and MANAGER are not restricted by this value.
+  staffMaxDiscount Int @default(0) // paisa
 
   taxRate      Int @default(0) // basis points (1500 = 15.00%). Unused in v1 — see §18.
   reorderPoint Int @default(5)

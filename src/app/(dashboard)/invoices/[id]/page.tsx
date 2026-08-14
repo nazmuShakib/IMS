@@ -1,14 +1,14 @@
 import { notFound } from 'next/navigation';
 
 import { InvoiceView } from '@/components/invoices/InvoiceView';
-import { requireCapability } from '@/lib/session';
+import { requirePageCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import { assertVoidPermission } from '@/services/sales';
 
 export const dynamic = 'force-dynamic';
 
 export default async function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
-  const actor = await requireCapability('VIEW_INVOICES');
+  const actor = await requirePageCapability('VIEW_INVOICES');
   const { id } = await params;
   const sale = await db.sales.findById(id);
   if (!sale) notFound();

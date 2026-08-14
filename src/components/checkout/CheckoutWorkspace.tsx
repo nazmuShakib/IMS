@@ -78,6 +78,7 @@ export interface CheckoutLine {
   quantity: number;
   listUnitPrice: number;
   actualUnitPrice: number;
+  staffMaxDiscount: number;
   position: number;
   onHand: number;
   usedGrade: string | null;
@@ -102,6 +103,8 @@ function CartLineEditor({
   dragging,
   dragDisabled,
   onPendingChange,
+  onValidityChange,
+  staffMinimumPrice,
 }: {
   cartId: string;
   line: CheckoutLine;
@@ -109,6 +112,8 @@ function CartLineEditor({
   dragging: boolean;
   dragDisabled: boolean;
   onPendingChange: (lineId: string, pending: boolean) => void;
+  onValidityChange: (lineId: string, valid: boolean) => void;
+  staffMinimumPrice: number | null;
 }) {
   const { t } = useI18n();
   const [updateState, updateAction, updating] = useActionState(
@@ -137,6 +142,9 @@ function CartLineEditor({
     Number.isFinite(parsedPrice) && parsedPrice >= 0
       ? Math.round(parsedPrice * 100)
       : line.actualUnitPrice;
+  const priceFormatValid = /^\d+(\.\d{1,2})?$/.test(priceValue);
+  const priceBelowFloor = staffMinimumPrice !== null && displayUnitPrice < staffMinimumPrice;
+  const priceValid = priceFormatValid && !priceBelowFloor;
   const linePending = saveQueued || updating;
   const formId = `cart-line-${line.id}`;
 
@@ -165,6 +173,10 @@ function CartLineEditor({
   }, [line.id, linePending, onPendingChange]);
 
   useEffect(() => {
+    onValidityChange(line.id, priceValid);
+  }, [line.id, onValidityChange, priceValid]);
+
+  useEffect(() => {
     if (updating || (!updateState.ok && !updateState.error)) return;
     dirtyRef.current = false;
     setSaveQueued(false);
@@ -178,8 +190,9 @@ function CartLineEditor({
     () => () => {
       clearSaveTimer();
       onPendingChange(line.id, false);
+      onValidityChange(line.id, true);
     },
-    [line.id, onPendingChange],
+    [line.id, onPendingChange, onValidityChange],
   );
 
   const stepQuantity = (change: -1 | 1) => {
@@ -303,25 +316,34 @@ function CartLineEditor({
           </Field>
         )}
         <div className="grid grid-cols-[minmax(0,1fr)_2.25rem] items-end gap-2 sm:contents">
-          <Field label={t("products.sellingPrice")}>
+          <Field
+            label={t("products.sellingPrice")}
+            hint={staffMinimumPrice !== null
+              ? t('checkout.staffMinimumPrice', { price: formatBDT(staffMinimumPrice) })
+              : undefined}
+            error={priceBelowFloor ? t('checkout.staffPriceTooLow') : undefined}
+          >
             <MonoInput
               name="actualUnitPrice"
               inputMode="decimal"
               required
+              min={staffMinimumPrice === null ? undefined : toTaka(staffMinimumPrice)}
               value={priceValue}
               onChange={(event) => {
                 const value = event.target.value;
                 dirtyRef.current = true;
                 setPriceValue(value);
-                if (/^\d+(\.\d{1,2})?$/.test(value)) {
+                const entered = Number(value);
+                if (/^\d+(\.\d{1,2})?$/.test(value)
+                  && (staffMinimumPrice === null || Math.round(entered * 100) >= staffMinimumPrice)) {
                   queueSave();
                 } else {
                   clearSaveTimer();
-                  setSaveQueued(true);
+                  setSaveQueued(false);
                 }
               }}
               onBlur={() => {
-                if (/^\d+(\.\d{1,2})?$/.test(priceValue)) queueSave(0);
+                if (/^\d+(\.\d{1,2})?$/.test(priceValue) && !priceBelowFloor) queueSave(0);
               }}
             />
           </Field>
@@ -401,6 +423,9 @@ export function CheckoutWorkspace({
   const [pendingLineIds, setPendingLineIds] = useState<Set<string>>(
     () => new Set(),
   );
+  const [invalidLineIds, setInvalidLineIds] = useState<Set<string>>(
+    () => new Set(),
+  );
   const [addState, addAction, adding] = useActionState(addCartItemAction, {});
   const [detailState, detailAction, saving] = useActionState(
     updateCartDetailsAction,
@@ -415,6 +440,7 @@ export function CheckoutWorkspace({
     {},
   );
   const lineUpdatesPending = pendingLineIds.size > 0;
+  const hasInvalidLines = invalidLineIds.size > 0;
 
   const handleLinePending = useCallback((lineId: string, pending: boolean) => {
     setPendingLineIds((current) => {
@@ -422,6 +448,16 @@ export function CheckoutWorkspace({
       const next = new Set(current);
       if (pending) next.add(lineId);
       else next.delete(lineId);
+      return next;
+    });
+  }, []);
+
+  const handleLineValidity = useCallback((lineId: string, valid: boolean) => {
+    setInvalidLineIds((current) => {
+      if (current.has(lineId) === !valid) return current;
+      const next = new Set(current);
+      if (valid) next.delete(lineId);
+      else next.add(lineId);
       return next;
     });
   }, []);
@@ -706,6 +742,10 @@ export function CheckoutWorkspace({
                     orderedLines.length < 2 || reordering || lineUpdatesPending
                   }
                   onPendingChange={handleLinePending}
+                  onValidityChange={handleLineValidity}
+                  staffMinimumPrice={role === 'STAFF'
+                    ? Math.max(0, line.listUnitPrice - line.staffMaxDiscount)
+                    : null}
                   dragProps={{
                     "aria-label": t("checkout.reorderItem", {
                       product: line.productName,
@@ -933,6 +973,7 @@ export function CheckoutWorkspace({
                 disabled={
                   checkingOut ||
                   lineUpdatesPending ||
+                  hasInvalidLines ||
                   orderedLines.length === 0 ||
                   !checkoutKey
                 }
@@ -945,6 +986,11 @@ export function CheckoutWorkspace({
             {lineUpdatesPending && (
               <p className="mt-2 text-[11px] font-medium text-signal">
                 {t("checkout.waitForLineSave")}
+              </p>
+            )}
+            {hasInvalidLines && (
+              <p className="mt-2 text-[11px] font-medium text-out">
+                {t('checkout.fixInvalidLines')}
               </p>
             )}
             <Message
@@ -1052,7 +1098,7 @@ export function CheckoutWorkspace({
                     <Button
                       type="submit"
                       formAction={completeAction}
-                      disabled={checkingOut || lineUpdatesPending}
+                      disabled={checkingOut || lineUpdatesPending || hasInvalidLines}
                     >
                       {checkingOut
                         ? t("checkout.completing")

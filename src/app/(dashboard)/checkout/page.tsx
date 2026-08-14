@@ -1,6 +1,6 @@
 import { CheckoutWorkspace } from '@/components/checkout/CheckoutWorkspace';
 import { PageHeader } from '@/components/ui';
-import { getSession, requireCapability } from '@/lib/session';
+import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import { getOrCreateCart } from '@/services/checkout';
@@ -12,7 +12,7 @@ export default async function CheckoutPage({
 }: {
   searchParams: Promise<{ serial?: string }>;
 }) {
-  const actor = await requireCapability('CHECKOUT');
+  const actor = await requirePageCapability('CHECKOUT');
   const { locale } = await getSession();
   const { serial = '' } = await searchParams;
   const t = createTranslator(locale);
@@ -65,6 +65,7 @@ export default async function CheckoutPage({
             quantity: item.quantity,
             listUnitPrice: item.listUnitPrice,
             actualUnitPrice: item.actualUnitPrice,
+            staffMaxDiscount: product.staffMaxDiscount,
             position: item.position,
             onHand: product.trackingType === 'SERIAL' ? 1 : product.quantityOnHand,
             usedGrade: unit?.usedGrade ?? null,
