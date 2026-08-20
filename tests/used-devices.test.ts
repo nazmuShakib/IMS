@@ -99,7 +99,7 @@ describe('accepted used-device workflow', () => {
     const schema = source('prisma/schema.prisma');
     const checkout = source('src/services/checkout.ts');
     const action = source('src/actions/used-devices.ts');
-    expect(schema).toContain('tradeInDraft         Json?');
+    expect(schema).toContain('tradeInDraft Json?');
     expect(checkout).toContain('saveTradeInDraft');
     expect(checkout).toContain('acceptUsedDeviceInTransaction');
     expect(checkout).toContain("idempotencyKey: `${input.idempotencyKey}:trade-in`");

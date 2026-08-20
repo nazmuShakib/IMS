@@ -37,7 +37,8 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(form).toContain("error={fieldError('phone')}");
     expect(action).toContain('createCustomerSchema.safeParse({');
     expect(action).toContain('fieldErrors: customerFieldErrors(parsed.error)');
-    expect(checkout).toContain('<CreateCustomerForm cartId={cart.id} stacked />');
+    expect(checkout).toContain('<CreateCustomerForm onCreated={chooseCustomer} stacked />');
+    expect(action).toContain('customerId: customer.id');
   });
 
   it('accepts only Bangladeshi mobile numbers when creating or editing suppliers', () => {
@@ -122,9 +123,14 @@ describe('Phase 8 customer and checkout decisions', () => {
     const service = source('src/services/checkout.ts');
     const action = source('src/actions/checkout.ts');
     const control = source('src/components/checkout/DiscardDraftControl.tsx');
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     expect(service).toContain('const cart = await ownedCart(tx, cartId, actorId)');
     expect(service).toContain('await tx.carts.delete(cart.id)');
     expect(action).toContain("action: 'cart.discard'");
+    expect(action).toContain("action: 'cart.expire'");
+    expect(workspace).toContain('LOCAL_DRAFT_TTL_MS = 24 * 60 * 60 * 1000');
+    expect(workspace).toContain('window.localStorage.removeItem(storageKey)');
+    expect(workspace).toContain('expireCartDraftAction(data)');
     expect(control).toContain('role="alertdialog"');
     expect(control).toContain("t('checkout.inventoryUnchanged')");
   });
@@ -141,9 +147,15 @@ describe('Phase 8 customer and checkout decisions', () => {
   it('requires confirmation before completing a sale', () => {
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     expect(workspace).toContain('role="alertdialog"');
-    expect(workspace).toMatch(/t\(["']checkout\.confirmTitle["']\)/);
-    expect(workspace).toMatch(/t\(["']checkout\.confirmDescription["']/);
-    expect(workspace).toContain("formAction={completeAction}");
+    expect(workspace).toMatch(/t\(["']checkout\.invoicePreview["']\)/);
+    expect(workspace).toMatch(/t\(["']checkout\.invoicePreviewHelp["']\)/);
+    expect(workspace).toContain('invoice-preview-viewport contextual-scroll-area scrollbar-active');
+    expect(workspace).toContain('orderedLines.map((line) =>');
+    expect(workspace).toContain('formatBDT(line.actualUnitPrice * line.quantity)');
+    expect(workspace).toMatch(/t\(["']checkout\.previewTradeInDevice["']\)/);
+    expect(workspace).toContain('cart.tradeInDraft.serialNo');
+    expect(workspace).toContain('cart.tradeInDraft.acquisitionValue');
+    expect(workspace).toContain('<form action={completeAction}');
     expect(workspace).toMatch(/t\(["']checkout\.yesComplete["']\)/);
   });
 
@@ -152,7 +164,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toMatch(/line\.trackingType === ["']SERIAL["']/);
     expect(workspace).toMatch(/t\(["']checkout\.serialImei["']\)/);
     expect(workspace).toContain('<SerialChip serial={line.serialNo} />');
-    expect(workspace).toContain('type="hidden" name="quantity" value="1"');
+    expect(workspace).toContain('quantity: product.trackingType === "SERIAL" ? 1');
   });
 
   it('uses a bounded local quantity stepper for bulk cart lines', () => {
@@ -162,16 +174,30 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toMatch(/t\(["']checkout\.decreaseQuantity["']\)/);
     expect(workspace).toMatch(/t\(["']checkout\.increaseQuantity["']\)/);
     expect(workspace).toContain('quantity >= maximumQuantity');
-    expect(workspace).toContain('type="hidden" name="quantity" value={quantity}');
+    expect(workspace).toContain('onChange(line.id, { quantity: next, actualUnitPrice: line.actualUnitPrice })');
   });
 
-  it('auto-saves quantity and selling-price edits before checkout can complete', () => {
+  it('persists edits locally and submits the untrusted browser cart for final server validation', () => {
+    const schema = source('prisma/schema.prisma');
+    const migration = source('prisma/migrations/20260820150000_local_checkout_drafts/migration.sql');
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
-    expect(workspace).toContain('formRef.current?.requestSubmit()');
-    expect(workspace).toContain('const queueSave = (delay = 650)');
-    expect(workspace).toContain('onPendingChange(line.id, linePending)');
-    expect(workspace).toContain('checkingOut || lineUpdatesPending');
-    expect(workspace).toMatch(/t\(["']checkout\.waitForLineSave["']\)/);
+    const action = source('src/actions/checkout.ts');
+    const service = source('src/services/checkout.ts');
+    expect(workspace).toContain('window.localStorage.setItem(storageKey');
+    expect(workspace).toContain('const [draftHydrated, setDraftHydrated] = useState(false)');
+    expect(workspace).toContain('if (!draftHydrated) return');
+    expect(workspace).toContain('setDraftHydrated(true)');
+    expect(workspace).toContain('LOCAL_DRAFT_TTL_MS = 24 * 60 * 60 * 1000');
+    expect(workspace).toContain('name="localCartLines"');
+    expect(action).toContain('lines: localLines');
+    expect(action).not.toContain('replaceCartItemsFromBrowser');
+    expect(service).toContain('lines: localCheckoutLinesSchema');
+    expect(service).toContain('checkoutSubmissionSchema.parse(raw)');
+    expect(service).toContain("if (input.actorRole === 'STAFF')");
+    expect(schema).not.toContain('model CartItem');
+    expect(schema).toContain('tradeInDraft Json?');
+    expect(migration).toContain('DROP TABLE "cart_items"');
+    expect(migration).toContain('DROP COLUMN "paymentMethod"');
     expect(workspace).not.toMatch(/t\(["']checkout\.update["']\)/);
   });
 
@@ -184,17 +210,17 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toMatch(/aria-label=\{t\(["']checkout\.remove["']\)\}/);
   });
 
-  it('persists drag ordering from the draft through the immutable invoice', () => {
+  it('keeps drag ordering local and snapshots that order into the immutable invoice', () => {
     const schema = source('prisma/schema.prisma');
     const service = source('src/services/checkout.ts');
     const action = source('src/actions/checkout.ts');
     const repository = source('src/repositories/prisma/index.ts');
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
-    expect(schema).toContain('position        Int      @default(0)');
-    expect(service).toContain('reorderCartItems');
+    expect(schema).not.toContain('model CartItem');
+    expect(service).toContain('for (const [position, line] of input.lines.entries())');
     expect(service).toContain('position: item.position');
-    expect(action).toContain("action: 'cart.items_reorder'");
-    expect(repository).toContain("orderBy: [{ position: 'asc' }");
+    expect(action).not.toContain("action: 'cart.items_reorder'");
+    expect(repository).not.toContain('async reorderItems');
     expect(workspace).toContain('cursor-grab active:cursor-grabbing');
     expect(workspace).toContain('data-cart-line-id={line.id}');
     expect(workspace).toMatch(/closest\(\s*["']input, button, select, textarea, a, label["']/);

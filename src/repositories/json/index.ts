@@ -12,7 +12,6 @@ import type {
   SupplierWarrantyCase,
   Customer,
   CartDraft,
-  CartItem,
   Sale,
   SaleItem,
   InvoiceItem,
@@ -527,33 +526,7 @@ const carts: CartRepository = {
     await writeAll('cart-drafts', copy);
     return next;
   },
-  async findItems(cartId) {
-    return (await readAll<CartItem>('cart-items'))
-      .filter((item) => item.cartId === cartId)
-      .sort((a, b) => (a.position ?? 0) - (b.position ?? 0) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-  },
-  async findItem(id) {
-    return (await readAll<CartItem>('cart-items')).find((item) => item.id === id) ?? null;
-  },
-  async createItem(value) {
-    const rows = await readAll<CartItem>('cart-items');
-    await writeAll('cart-items', [...rows, value]);
-    return value;
-  },
-  async updateItem(id, patch) {
-    const rows = await readAll<CartItem>('cart-items');
-    const index = rows.findIndex((item) => item.id === id);
-    if (index < 0) throw new Error('Cart item not found.');
-    const next = { ...rows[index]!, ...patch, updatedAt: nowIso() };
-    const copy = [...rows]; copy[index] = next;
-    await writeAll('cart-items', copy);
-    return next;
-  },
-  async deleteItem(id) {
-    await writeAll('cart-items', (await readAll<CartItem>('cart-items')).filter((item) => item.id !== id));
-  },
   async delete(id) {
-    await writeAll('cart-items', (await readAll<CartItem>('cart-items')).filter((item) => item.cartId !== id));
     await writeAll('cart-drafts', (await readAll<CartDraft>('cart-drafts')).filter((item) => item.id !== id));
   },
 };
@@ -684,9 +657,8 @@ const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
       .find((item) => item.tradeInSaleId === saleId) ?? null;
   },
   async findAvailableTradeIns() {
-    const claimedByDraft = new Set((await readAll<CartDraft>('cart-drafts')).map((cart) => cart.tradeInAcquisitionId).filter(Boolean));
     return (await readAll<UsedDeviceAcquisition>('used-device-acquisitions'))
-      .filter((item) => item.type === 'TRADE_IN' && item.tradeInSaleId === null && !claimedByDraft.has(item.id))
+      .filter((item) => item.type === 'TRADE_IN' && item.tradeInSaleId === null)
       .sort((a, b) => b.acquiredAt.localeCompare(a.acquiredAt));
   },
   async create(value) {

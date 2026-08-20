@@ -30,7 +30,6 @@ export const BUSINESS_DATA_TABLES = [
   'document_sequences',
   'customers',
   'cart_drafts',
-  'cart_items',
   'sales',
   'sale_items',
   'emi_contracts',

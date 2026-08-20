@@ -395,7 +395,6 @@ model Product {
 
   units     ProductUnit[]
   movements StockMovement[]
-  cartItems CartItem[]
 
   @@index([categoryId])
   @@index([brandId])
@@ -449,7 +448,6 @@ model ProductUnit {
 
   movements             StockMovement[]
   warrantyClaims        WarrantyClaim[]
-  cartItems             CartItem[]
   usedAcquisitions      UsedDeviceAcquisition[]
   refurbishmentExpenses RefurbishmentExpense[]
 
@@ -662,7 +660,6 @@ model Customer {
   createdAt            DateTime                    @default(now())
   updatedAt            DateTime                    @updatedAt
 
-  drafts       CartDraft[]
   sales        Sale[]
   emiContracts EmiContract[]
 
@@ -677,52 +674,13 @@ model CartDraft {
   actorId String @unique
   actor   User   @relation(fields: [actorId], references: [id], onDelete: Cascade)
 
-  customerId String?
-  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  /// Protected, cross-page staging for a trade-in. Ordinary checkout state is
+  /// browser-local and is validated atomically when the sale completes.
+  tradeInDraft Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  paymentMethod        PaymentMethod          @default(CASH)
-  paymentStatus        PaymentStatus          @default(PAID)
-  reference            String?
-  note                 String?
-  isEmi                Boolean                @default(false)
-  emiTermMonths        Int?
-  emiDownPayment       Int                    @default(0)
-  emiFirstDueDate      DateTime?
-  tradeInDraft         Json?
-  tradeInAcquisitionId String?                @unique
-  tradeInAcquisition   UsedDeviceAcquisition? @relation("DraftTradeIn", fields: [tradeInAcquisitionId], references: [id], onDelete: SetNull)
-  createdAt            DateTime               @default(now())
-  updatedAt            DateTime               @updatedAt
-
-  items CartItem[]
-
-  @@index([customerId])
   @@map("cart_drafts")
-}
-
-model CartItem {
-  id     String    @id @default(uuid(7))
-  cartId String
-  cart   CartDraft @relation(fields: [cartId], references: [id], onDelete: Cascade)
-
-  productId String
-  product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
-
-  unitId String?
-  unit   ProductUnit? @relation(fields: [unitId], references: [id], onDelete: Restrict)
-
-  quantity        Int
-  listUnitPrice   Int
-  actualUnitPrice Int
-  position        Int      @default(0)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  @@unique([cartId, unitId])
-  @@unique([cartId, productId, unitId])
-  @@index([cartId, position])
-  @@index([productId])
-  @@map("cart_items")
 }
 
 model Sale {
@@ -928,9 +886,8 @@ model UsedDeviceAcquisition {
   acquiredAt           DateTime            @default(now())
   createdAt            DateTime            @default(now())
 
-  tradeInSaleId String?    @unique
-  tradeInSale   Sale?      @relation("TradeInSale", fields: [tradeInSaleId], references: [id], onDelete: Restrict)
-  draft         CartDraft? @relation("DraftTradeIn")
+  tradeInSaleId String? @unique
+  tradeInSale   Sale?   @relation("TradeInSale", fields: [tradeInSaleId], references: [id], onDelete: Restrict)
 
   @@index([type, acquiredAt])
   @@index([unitId, acquiredAt])

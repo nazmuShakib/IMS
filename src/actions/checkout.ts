@@ -5,20 +5,13 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { writeAudit } from '@/lib/audit';
-import { parseBDT } from '@/lib/money';
 import { requireCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import {
-  addCartItem,
   checkoutCart,
   clearTradeInDraft,
   createCustomer,
   discardCart,
-  removeCartItem,
-  reorderCartItems,
-  updateCartDetails,
-  updateCartItem,
-  updateCustomerIdentification,
 } from '@/services/checkout';
 import { emiVoidRefundAmount } from '@/lib/emi-summary';
 import { voidSale } from '@/services/sales';
@@ -37,6 +30,7 @@ export interface CheckoutActionState {
 
 export interface CustomerActionState extends CheckoutActionState {
   fieldErrors?: Partial<Record<keyof CreateCustomerInput, string>>;
+  customerId?: string;
 }
 
 export interface VoidInvoiceActionState extends CheckoutActionState {
@@ -80,122 +74,6 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
-function emiDetails(fd: FormData) {
-  const isEmi = str(fd, 'saleMode') === 'EMI';
-  const date = str(fd, 'emiFirstDueDate');
-  return {
-    isEmi,
-    emiTermMonths: isEmi ? Number(str(fd, 'emiTermMonths') ?? '0') as 3 | 6 | 9 | 12 : null,
-    emiDownPayment: isEmi ? parseBDT(str(fd, 'emiDownPayment') ?? '0') : 0,
-    emiFirstDueDate: isEmi && date ? new Date(`${date}T12:00:00.000Z`).toISOString() : null,
-  };
-}
-
-export async function addCartItemAction(
-  _previous: CheckoutActionState,
-  fd: FormData,
-): Promise<CheckoutActionState> {
-  const actor = await requireCapability('CHECKOUT');
-  try {
-    const item = await addCartItem({
-      cartId: str(fd, 'cartId') ?? '',
-      actorId: actor.id,
-      identifier: str(fd, 'identifier') ?? undefined,
-      productId: str(fd, 'productId') ?? undefined,
-      unitId: str(fd, 'unitId') ?? undefined,
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'cart.item_add',
-      entity: 'CartItem',
-      entityId: item.id,
-      after: { cartId: item.cartId, productId: item.productId, unitId: item.unitId, quantity: item.quantity },
-    });
-    revalidatePath('/checkout');
-    return { ok: 'Item added to the draft cart.' };
-  } catch (error) {
-    return { error: message(error) };
-  }
-}
-
-export async function updateCartItemAction(
-  _previous: CheckoutActionState,
-  fd: FormData,
-): Promise<CheckoutActionState> {
-  const actor = await requireCapability('CHECKOUT');
-  try {
-    const item = await updateCartItem({
-      cartId: str(fd, 'cartId') ?? '',
-      itemId: str(fd, 'itemId') ?? '',
-      actorId: actor.id,
-      actorRole: actor.role,
-      quantity: Number(str(fd, 'quantity') ?? '0'),
-      actualUnitPrice: parseBDT(str(fd, 'actualUnitPrice') ?? ''),
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'cart.item_update',
-      entity: 'CartItem',
-      entityId: item.id,
-      after: { quantity: item.quantity, actualUnitPrice: item.actualUnitPrice },
-    });
-    revalidatePath('/checkout');
-    return { ok: 'Cart line updated.' };
-  } catch (error) {
-    return { error: message(error) };
-  }
-}
-
-export async function removeCartItemAction(
-  _previous: CheckoutActionState,
-  fd: FormData,
-): Promise<CheckoutActionState> {
-  const actor = await requireCapability('CHECKOUT');
-  const cartId = str(fd, 'cartId') ?? '';
-  const itemId = str(fd, 'itemId') ?? '';
-  try {
-    await removeCartItem(cartId, itemId, actor.id);
-    await writeAudit({
-      actorId: actor.id,
-      action: 'cart.item_remove',
-      entity: 'CartItem',
-      entityId: itemId,
-      before: { cartId },
-    });
-    revalidatePath('/checkout');
-    return { ok: 'Item removed.' };
-  } catch (error) {
-    return { error: message(error) };
-  }
-}
-
-export async function reorderCartItemsAction(fd: FormData): Promise<CheckoutActionState> {
-  const actor = await requireCapability('CHECKOUT');
-  const cartId = str(fd, 'cartId') ?? '';
-  try {
-    const rawIds = JSON.parse(str(fd, 'orderedItemIds') ?? '[]') as unknown;
-    if (!Array.isArray(rawIds) || rawIds.some((id) => typeof id !== 'string')) {
-      throw new Error('Invalid cart order.');
-    }
-    const items = await reorderCartItems({
-      cartId,
-      actorId: actor.id,
-      orderedItemIds: rawIds,
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'cart.items_reorder',
-      entity: 'CartDraft',
-      entityId: cartId,
-      after: { orderedItemIds: items.map((item) => item.id) },
-    });
-    revalidatePath('/checkout');
-    return { ok: 'Cart order saved.' };
-  } catch (error) {
-    return { error: message(error) };
-  }
-}
-
 export async function discardCartAction(
   _previous: CheckoutActionState,
   fd: FormData,
@@ -209,15 +87,31 @@ export async function discardCartAction(
       entity: 'CartDraft',
       entityId: discarded.cart.id,
       before: {
-        customerId: discarded.cart.customerId,
-        paymentMethod: discarded.cart.paymentMethod,
-        paymentStatus: discarded.cart.paymentStatus,
-        tradeInAcquisitionId: discarded.cart.tradeInAcquisitionId,
-        itemCount: discarded.itemCount,
+        hadTradeIn: Boolean(discarded.cart.tradeInDraft),
       },
     });
     revalidatePath('/checkout');
     return { ok: 'Draft discarded. A fresh empty draft is ready.' };
+  } catch (error) {
+    return { error: message(error) };
+  }
+}
+
+export async function expireCartDraftAction(fd: FormData): Promise<CheckoutActionState> {
+  const actor = await requireCapability('CHECKOUT');
+  try {
+    const discarded = await discardCart(str(fd, 'cartId') ?? '', actor.id);
+    await writeAudit({
+      actorId: actor.id,
+      action: 'cart.expire',
+      entity: 'CartDraft',
+      entityId: discarded.cart.id,
+      before: {
+        hadTradeIn: Boolean(discarded.cart.tradeInDraft),
+      },
+    });
+    revalidatePath('/checkout');
+    return { ok: 'Expired draft removed.' };
   } catch (error) {
     return { error: message(error) };
   }
@@ -243,44 +137,6 @@ export async function clearTradeInDraftAction(
   }
 }
 
-export async function updateCartDetailsAction(
-  _previous: CheckoutActionState,
-  fd: FormData,
-): Promise<CheckoutActionState> {
-  const actor = await requireCapability('CHECKOUT');
-  try {
-    const cart = await updateCartDetails({
-      cartId: str(fd, 'cartId') ?? '',
-      actorId: actor.id,
-      customerId: str(fd, 'customerId'),
-      paymentMethod: (str(fd, 'paymentMethod') ?? 'CASH') as PaymentMethod,
-      paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
-      reference: str(fd, 'reference'),
-      note: str(fd, 'note'),
-      tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
-      actorRole: actor.role,
-      ...emiDetails(fd),
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'cart.details_update',
-      entity: 'CartDraft',
-      entityId: cart.id,
-      after: {
-        customerId: cart.customerId,
-        paymentMethod: cart.paymentMethod,
-        paymentStatus: cart.paymentStatus,
-        reference: cart.reference,
-        tradeInAcquisitionId: cart.tradeInAcquisitionId,
-      },
-    });
-    revalidatePath('/checkout');
-    return { ok: 'Checkout details saved.' };
-  } catch (error) {
-    return { error: message(error) };
-  }
-}
-
 export async function createCustomerAction(
   _previous: CustomerActionState,
   fd: FormData,
@@ -295,18 +151,6 @@ export async function createCustomerAction(
   }
   try {
     const customer = await createCustomer(parsed.data);
-    const cartId = str(fd, 'cartId');
-    if (cartId) {
-      const cart = await db.carts.findById(cartId);
-      if (!cart || cart.actorId !== actor.id) throw new Error('Draft cart not found.');
-      await updateCartDetails({
-        ...cart,
-        cartId: cart.id,
-        actorId: actor.id,
-        customerId: customer.id,
-        actorRole: actor.role,
-      });
-    }
     await writeAudit({
       actorId: actor.id,
       action: 'customer.create',
@@ -316,7 +160,7 @@ export async function createCustomerAction(
     });
     revalidatePath('/checkout');
     revalidatePath('/customers');
-    return { ok: cartId ? `${customer.name} created and selected.` : `${customer.name} created.` };
+    return { ok: `${customer.name} created.`, customerId: customer.id };
   } catch (error) {
     return { error: message(error) };
   }
@@ -330,6 +174,14 @@ export async function checkoutAction(
   let saleId: string;
   try {
     const cartId = str(fd, 'cartId') ?? '';
+    const localLinesRaw = str(fd, 'localCartLines');
+    if (!localLinesRaw) throw new Error('The browser cart is missing. Add the items again and retry.');
+    let localLines: unknown;
+    try {
+      localLines = JSON.parse(localLinesRaw);
+    } catch {
+      throw new Error('The browser cart could not be read. Add the items again and retry.');
+    }
     const isEmi = str(fd, 'saleMode') === 'EMI';
     const parsedEmi = isEmi ? emiCheckoutFieldsSchema.parse({
       isEmi: true,
@@ -344,33 +196,30 @@ export async function checkoutAction(
       emiTermMonths: parsedEmi.termMonths as 3 | 6 | 9 | 12,
       emiDownPayment: parsedEmi.downPayment,
       emiFirstDueDate: parsedEmi.firstDueDate.toISOString(),
-    } : emiDetails(fd);
+      identificationType: parsedEmi.identificationType,
+      identificationNumber: parsedEmi.identificationNumber,
+    } : {
+      isEmi: false,
+      emiTermMonths: null,
+      emiDownPayment: 0,
+      emiFirstDueDate: null,
+      identificationType: null,
+      identificationNumber: null,
+    };
     const customerId = str(fd, 'customerId');
-    if (details.isEmi && customerId) {
-      await updateCustomerIdentification({
-        customerId,
-        identificationType: parsedEmi!.identificationType,
-        identificationNumber: parsedEmi!.identificationNumber,
-      });
-    }
-    await updateCartDetails({
-      cartId,
-      actorId: actor.id,
-      customerId,
-      paymentMethod: (str(fd, 'paymentMethod') ?? 'CASH') as PaymentMethod,
-      paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
-      reference: str(fd, 'reference'),
-      note: str(fd, 'note'),
-      tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
-      actorRole: actor.role,
-      ...details,
-    });
     const sale = await checkoutCart({
       cartId,
       actorId: actor.id,
       actorName: actor.name,
       actorRole: actor.role,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
+      lines: localLines,
+      customerId,
+      paymentMethod: (str(fd, 'paymentMethod') ?? 'CASH') as PaymentMethod,
+      paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
+      reference: str(fd, 'reference'),
+      note: str(fd, 'note'),
+      ...details,
     });
     saleId = sale.id;
     await writeAudit({

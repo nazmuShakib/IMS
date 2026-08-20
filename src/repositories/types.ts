@@ -15,7 +15,6 @@ import type {
   RmaStatus,
   Customer,
   CartDraft,
-  CartItem,
   Sale,
   SaleItem,
   InvoiceItem,
@@ -152,12 +151,7 @@ export interface CartRepository {
   findByActor(actorId: string): Promise<CartDraft | null>;
   findById(id: string): Promise<CartDraft | null>;
   create(value: CartDraft): Promise<CartDraft>;
-  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note' | 'tradeInDraft' | 'tradeInAcquisitionId' | 'isEmi' | 'emiTermMonths' | 'emiDownPayment' | 'emiFirstDueDate'>>): Promise<CartDraft>;
-  findItems(cartId: string): Promise<CartItem[]>;
-  findItem(id: string): Promise<CartItem | null>;
-  createItem(value: CartItem): Promise<CartItem>;
-  updateItem(id: string, patch: Partial<Pick<CartItem, 'quantity' | 'actualUnitPrice' | 'position'>>): Promise<CartItem>;
-  deleteItem(id: string): Promise<void>;
+  update(id: string, patch: Partial<Pick<CartDraft, 'tradeInDraft'>>): Promise<CartDraft>;
   delete(id: string): Promise<void>;
 }
 

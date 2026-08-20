@@ -30,11 +30,13 @@ describe('Phase 10 controlled selling', () => {
     const action = source('src/actions/checkout.ts');
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     expect(service).toContain("if (input.actorRole === 'STAFF') {");
-    expect(service).toContain("raw.actorRole === 'STAFF'");
-    expect(service.match(/item\.listUnitPrice - product\.staffMaxDiscount/g)).toHaveLength(2);
+    expect(service).toContain('listUnitPrice - product.staffMaxDiscount');
     expect(action).toContain('actorRole: actor.role');
     expect(workspace).toContain('const hasInvalidLines = invalidLineIds.size > 0');
-    expect(workspace).toContain('disabled={checkingOut || lineUpdatesPending || hasInvalidLines}');
+    expect(workspace).toContain('disabled={checkingOut || hasInvalidLines}');
+    expect(workspace).toContain('name="localCartLines"');
+    expect(action).toContain('lines: localLines');
+    expect(action).not.toContain('replaceCartItemsFromBrowser');
   });
 
   it('makes stock removal an ADMIN-only capability at every entry point', () => {

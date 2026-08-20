@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, type FormEvent } from 'react';
+import { useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
 
 import { createCustomerAction, type CustomerActionState } from '@/actions/checkout';
 import { Button, Field, Input, MonoInput } from '@/components/ui';
@@ -13,15 +13,16 @@ type CustomerFieldErrors = Partial<Record<keyof CustomerFields, string>>;
 const EMPTY_VALUES: CustomerFields = { name: '', phone: '' };
 
 export function CreateCustomerForm({
-  cartId,
   stacked = false,
+  onCreated,
 }: {
-  cartId?: string;
   stacked?: boolean;
+  onCreated?: (customerId: string) => void;
 }) {
   const [state, action, pending] = useActionState<CustomerActionState, FormData>(createCustomerAction, {});
   const { t, message } = useI18n();
   const [values, setValues] = useState<CustomerFields>(EMPTY_VALUES);
+  const onCreatedRef = useRef(onCreated);
   const [clientErrors, setClientErrors] = useState<CustomerFieldErrors>({});
   const [clearedServerErrors, setClearedServerErrors] = useState<Set<keyof CustomerFields>>(() => new Set());
 
@@ -30,11 +31,16 @@ export function CreateCustomerForm({
   }, [state.fieldErrors]);
 
   useEffect(() => {
+    onCreatedRef.current = onCreated;
+  }, [onCreated]);
+
+  useEffect(() => {
     if (!pending && state.ok) {
       setValues(EMPTY_VALUES);
       setClientErrors({});
+      if (state.customerId) onCreatedRef.current?.(state.customerId);
     }
-  }, [pending, state.ok]);
+  }, [pending, state.customerId, state.ok]);
 
   function update(field: keyof CustomerFields, value: string) {
     setValues((current) => ({ ...current, [field]: value }));
@@ -66,7 +72,6 @@ export function CreateCustomerForm({
       noValidate
       className={stacked ? 'grid gap-3' : 'grid gap-3 sm:grid-cols-2'}
     >
-      {cartId && <input type="hidden" name="cartId" value={cartId} />}
       <Field label={t('common.name')} error={fieldError('name')}>
         <Input
           name="name"
@@ -90,7 +95,7 @@ export function CreateCustomerForm({
       </Field>
       <div className={stacked ? '' : 'sm:col-span-2'}>
         <Button type="submit" disabled={pending}>
-          {pending ? t('customers.creating') : t(cartId ? 'checkout.createSelect' : 'customers.create')}
+          {pending ? t('customers.creating') : t(onCreated ? 'checkout.createSelect' : 'customers.create')}
         </Button>
         {state.error && <p className="mt-2 text-[12px] text-out">{message(state.error)}</p>}
         {state.ok && <p className="mt-2 text-[12px] text-ok">{message(state.ok)}</p>}

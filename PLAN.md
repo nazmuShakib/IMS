@@ -1141,8 +1141,15 @@ movement, but it does not pretend to be a customer-refund workflow.
 
 **Decisions confirmed 28 July 2026:**
 
-1. Draft carts are server-persisted per user and survive refresh/logout. Users can
-   explicitly discard an unwanted draft after confirmation.
+1. **Updated 20 August 2026:** ordinary checkout drafts are persisted in the
+   current browser's local storage for 24 hours and survive refresh/navigation.
+   Users can explicitly discard an unwanted draft after confirmation. Products,
+   prices, customer/payment details, identification details, and EMI inputs are
+   treated as untrusted browser data and are validated again by the server when
+   the sale is completed. The final sale, stock movements, invoice, EMI records,
+   and any staged trade-in are then committed atomically. A minimal server draft
+   remains only for a protected trade-in being prepared across pages; ordinary
+   cart lines and checkout form fields are not duplicated in the database.
 2. STAFF may change the actual selling price; list and actual prices are both
    snapshotted for audit and historical explanation.
 3. Record payment method plus `PAID`/`UNPAID`; payment processing and customer

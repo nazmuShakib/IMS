@@ -343,17 +343,7 @@ export interface Customer {
 export interface CartDraft {
   id: string;
   actorId: string;
-  customerId: string | null;
-  paymentMethod: PaymentMethod;
-  paymentStatus: PaymentStatus;
-  reference: string | null;
-  note: string | null;
-  isEmi?: boolean;
-  emiTermMonths?: EmiTerm | null;
-  emiDownPayment?: Paisa;
-  emiFirstDueDate?: string | null;
   tradeInDraft: TradeInCartDraft | null;
-  tradeInAcquisitionId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -378,19 +368,6 @@ export interface TradeInCartDraft {
   acquisitionValue: Paisa;
   reference: string | null;
   note: string | null;
-}
-
-export interface CartItem {
-  id: string;
-  cartId: string;
-  productId: string;
-  unitId: string | null;
-  quantity: number;
-  listUnitPrice: Paisa;
-  actualUnitPrice: Paisa;
-  position: number;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface Sale {

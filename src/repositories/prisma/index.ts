@@ -13,7 +13,6 @@ import type {
   SupplierWarrantyCase,
   Customer,
   CartDraft,
-  CartItem,
   Sale,
   SaleItem,
   InvoiceItem,
@@ -154,15 +153,9 @@ function cartDraft(row: Awaited<ReturnType<Client['cartDraft']['findUniqueOrThro
   return {
     ...row,
     tradeInDraft: row.tradeInDraft as TradeInCartDraft | null,
-    emiTermMonths: row.emiTermMonths as CartDraft['emiTermMonths'],
-    emiFirstDueDate: row.emiFirstDueDate ? iso(row.emiFirstDueDate) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
-}
-
-function cartItem(row: Awaited<ReturnType<Client['cartItem']['findUniqueOrThrow']>>): CartItem {
-  return { ...row, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt) };
 }
 
 function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sale {
@@ -673,7 +666,6 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             tradeInDraft: value.tradeInDraft
               ? value.tradeInDraft as unknown as Prisma.InputJsonValue
               : Prisma.DbNull,
-            emiFirstDueDate: value.emiFirstDueDate ? new Date(value.emiFirstDueDate) : null,
             createdAt: new Date(value.createdAt),
             updatedAt: new Date(value.updatedAt),
           },
@@ -688,38 +680,10 @@ function createRepositories(client: Client, transact?: Repositories['transaction
                 : Prisma.DbNull,
             }
           : patch;
-        if ('emiFirstDueDate' in data) {
-          (data as Record<string, unknown>).emiFirstDueDate = data.emiFirstDueDate ? new Date(data.emiFirstDueDate as string) : null;
-        }
         return cartDraft(await client.cartDraft.update({
           where: { id },
           data: data as unknown as Prisma.CartDraftUncheckedUpdateInput,
         }));
-      },
-      async findItems(cartId) {
-        return (await client.cartItem.findMany({
-          where: { cartId },
-          orderBy: [{ position: 'asc' }, { createdAt: 'asc' }, { id: 'asc' }],
-        })).map(cartItem);
-      },
-      async findItem(id) {
-        const row = await client.cartItem.findUnique({ where: { id } });
-        return row ? cartItem(row) : null;
-      },
-      async createItem(value) {
-        return cartItem(await client.cartItem.create({
-          data: {
-            ...value,
-            createdAt: new Date(value.createdAt),
-            updatedAt: new Date(value.updatedAt),
-          },
-        }));
-      },
-      async updateItem(id, patch) {
-        return cartItem(await client.cartItem.update({ where: { id }, data: patch }));
-      },
-      async deleteItem(id) {
-        await client.cartItem.delete({ where: { id } });
       },
       async delete(id) {
         await client.cartDraft.delete({ where: { id } });
@@ -884,7 +848,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async findAvailableTradeIns() {
         return (await client.usedDeviceAcquisition.findMany({
-          where: { type: 'TRADE_IN', tradeInSaleId: null, draft: null },
+          where: { type: 'TRADE_IN', tradeInSaleId: null },
           orderBy: { acquiredAt: 'desc' },
         })).map(usedDeviceAcquisition);
       },

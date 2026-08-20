@@ -321,25 +321,25 @@ export const createCustomerSchema = z.object({
 });
 export type CreateCustomerInput = z.infer<typeof createCustomerSchema>;
 
-export const cartItemUpdateSchema = z.object({
-  quantity: z.number().int().positive().max(10_000),
-  actualUnitPrice: paisa,
-});
-
-export const cartDetailsSchema = z.object({
-  customerId: z.string().uuid().optional().nullable(),
-  paymentMethod: z.enum(PAYMENT_METHODS),
-  paymentStatus: z.enum(PAYMENT_STATUSES),
-  reference: z.string().max(100).optional().nullable(),
-  note: z.string().max(1000).optional().nullable(),
-  tradeInAcquisitionId: z.string().uuid().optional().nullable(),
-});
-
 export const checkoutSchema = z.object({
   cartId: z.string().uuid(),
   actorId: z.string().min(1),
   idempotencyKey: z.string().min(8).max(200),
 });
+
+/**
+ * Browser checkout drafts are deliberately small and untrusted. Product names,
+ * list prices, stock counts and totals are rebuilt from the database before a
+ * sale is committed.
+ */
+export const localCheckoutLinesSchema = z.array(z.object({
+  clientId: z.string().min(1).max(100),
+  productId: z.string().uuid(),
+  unitId: z.string().uuid().nullable(),
+  quantity: z.number().int().positive().max(10_000),
+  actualUnitPrice: paisa,
+})).min(1, 'Add at least one item before checkout.').max(250, 'A checkout may contain at most 250 lines.');
+export type LocalCheckoutLinesInput = z.infer<typeof localCheckoutLinesSchema>;
 
 export const productStaffDiscountFieldsSchema = z.object({
   staffMaxDiscount: z.string().trim()

@@ -21,7 +21,6 @@ async function main() {
   const checkoutActorId = uuidv7();
   const customerId = uuidv7();
   const cartId = uuidv7();
-  const cartItemId = uuidv7();
   const saleId = uuidv7();
   const now = new Date().toISOString();
 
@@ -135,29 +134,11 @@ async function main() {
       await tx.carts.create({
         id: cartId,
         actorId: checkoutActorId,
-        customerId,
-        paymentMethod: 'CASH',
-        paymentStatus: 'PAID',
-        reference: 'ROLLBACK-VERIFY',
-        note: null,
         tradeInDraft: null,
-        tradeInAcquisitionId: null,
         createdAt: now,
         updatedAt: now,
       });
-      await tx.carts.createItem({
-        id: cartItemId,
-        cartId,
-        productId: bulkProductId,
-        unitId: null,
-        quantity: 1,
-        listUnitPrice: 1_500,
-        actualUnitPrice: 1_400,
-        position: 0,
-        createdAt: now,
-        updatedAt: now,
-      });
-      assert((await tx.carts.findItems(cartId)).length === 1, 'Draft cart persistence failed.');
+      assert((await tx.carts.findById(cartId))?.actorId === checkoutActorId, 'Trade-in draft persistence failed.');
 
       const invoiceNumber = await tx.sales.nextInvoiceNumber(new Date(now));
       await tx.sales.create({

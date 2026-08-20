@@ -9,9 +9,11 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 export function DiscardDraftControl({
   cartId,
   itemCount,
+  onDiscard,
 }: {
   cartId: string;
   itemCount: number;
+  onDiscard: () => void;
 }) {
   const [open, setOpen] = useState(false);
   const { t, message } = useI18n();
@@ -40,7 +42,6 @@ export function DiscardDraftControl({
         {t('checkout.discard')}
       </button>
       {state.error && <p className="mt-1 text-[11px] text-out">{message(state.error)}</p>}
-
       {open && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-ink/40 p-4"
@@ -71,7 +72,7 @@ export function DiscardDraftControl({
               <Button type="button" variant="ghost" onClick={() => setOpen(false)} autoFocus>
                 {t('checkout.keepDraft')}
               </Button>
-              <form action={action}>
+              <form action={action} onSubmit={onDiscard}>
                 <input type="hidden" name="cartId" value={cartId} />
                 <Button type="submit" variant="danger" disabled={pending}>
                   {pending ? t('checkout.discarding') : t('checkout.discard')}
