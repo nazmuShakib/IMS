@@ -85,7 +85,9 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(register).toContain("t('loading.searchCustomers')");
     expect(register).toContain('window.history.pushState');
     expect(register).toContain('router.refresh()');
-    expect(register).toContain('sm:grid-cols-2');
+    expect(register).toContain('<TableViewport>');
+    expect(register).toContain("t('customers.purchaseHistory')");
+    expect(register).toContain("t('customers.view')");
     expect(register).toContain('sm:p-5');
     expect(page).toContain('max-w-5xl');
   });

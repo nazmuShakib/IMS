@@ -21,16 +21,32 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
   const total = completedSales.reduce((sum, sale) => sum + sale.total, 0);
 
   return (
-    <>
+    <div className="mx-auto w-full max-w-6xl">
       <PageHeader
         title={customer.name}
-        count={t('customers.lifetime', {
-          phone: customer.phone ?? t('customers.noPhone'),
-          count: completedSales.length,
-          total: formatBDT(total),
-        })}
-        action={<Link href="/customers" className="rounded-[3px] border border-rule bg-card px-3 py-2 text-[13px]">{t('customers.all')}</Link>}
+        action={(
+          <Link
+            href="/customers"
+            className="inline-flex h-9 items-center rounded-[3px] border border-slate-600 bg-slate-600 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-slate-800 hover:bg-slate-800"
+          >
+            {t('customers.all')}
+          </Link>
+        )}
       />
+      <dl className="mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 rounded-[3px] border border-rule bg-card px-4 py-3 text-[13px] text-ink">
+        <div className="flex items-baseline gap-2">
+          <dt className="font-semibold text-graphite">{t('common.phone')}:</dt>
+          <dd className="tnum font-semibold text-ink">{customer.phone ?? t('customers.noPhone')}</dd>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <dt className="font-semibold text-graphite">{t('customers.completedPurchases')}:</dt>
+          <dd className="tnum font-semibold text-ink">{completedSales.length}</dd>
+        </div>
+        <div className="flex items-baseline gap-2">
+          <dt className="font-semibold text-graphite">{t('customers.lifetimeSales')}:</dt>
+          <dd className="tnum font-semibold text-ink">{formatBDT(total)}</dd>
+        </div>
+      </dl>
       <Card>
         {sales.length === 0 ? <EmptyState title={t('customers.noHistory')} /> : (
           <TableViewport>
@@ -54,6 +70,6 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
           </TableViewport>
         )}
       </Card>
-    </>
+    </div>
   );
 }
