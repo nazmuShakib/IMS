@@ -8,6 +8,7 @@ import type {
   SaleItem,
   Role,
   TradeInCartDraft,
+  EmiTerm,
 } from '@/domain/types';
 import { uuidv7 } from '@/lib/ids';
 import { formatBDT } from '@/lib/money';
@@ -23,6 +24,7 @@ import {
   type AcceptUsedDeviceInput,
 } from '@/schemas';
 import { acceptUsedDeviceInTransaction } from '@/services/used-devices';
+import { installmentAmounts, installmentDates } from '@/services/emi';
 
 export function normalizePhone(value: string | null | undefined): string | null {
   if (!value?.trim()) return null;
@@ -42,6 +44,10 @@ export async function getOrCreateCart(actorId: string): Promise<CartDraft> {
       paymentStatus: 'PAID',
       reference: null,
       note: null,
+      isEmi: false,
+      emiTermMonths: null,
+      emiDownPayment: 0,
+      emiFirstDueDate: null,
       tradeInDraft: null,
       tradeInAcquisitionId: null,
       createdAt: now,
@@ -76,9 +82,24 @@ export async function createCustomer(
     name: input.name,
     phone: input.phone ?? null,
     phoneNormalized,
+    identificationType: null,
+    identificationNumber: null,
     isActive: true,
     createdAt: now,
     updatedAt: now,
+  });
+}
+
+export async function updateCustomerIdentification(input: {
+  customerId: string;
+  identificationType: 'NID' | 'PASSPORT' | 'BIRTH_CERTIFICATE';
+  identificationNumber: string;
+}): Promise<Customer> {
+  const number = input.identificationNumber.trim();
+  if (number.length < 3) throw new Error('Enter the customer identification number.');
+  return db.customers.update(input.customerId, {
+    identificationType: input.identificationType,
+    identificationNumber: number,
   });
 }
 
@@ -177,6 +198,10 @@ export async function updateCartItem(input: {
   itemId: string;
   actorId: string;
   actorRole: Role;
+  isEmi?: boolean;
+  emiTermMonths?: 3 | 6 | 9 | 12 | null;
+  emiDownPayment?: number;
+  emiFirstDueDate?: string | null;
   quantity: number;
   actualUnitPrice: number;
 }): Promise<CartItem> {
@@ -234,6 +259,10 @@ export async function updateCartDetails(input: {
   note: string | null;
   tradeInAcquisitionId: string | null;
   actorRole: Role;
+  isEmi?: boolean;
+  emiTermMonths?: EmiTerm | null;
+  emiDownPayment?: number;
+  emiFirstDueDate?: string | null;
 }): Promise<CartDraft> {
   const details = cartDetailsSchema.parse(input);
   return db.transaction(async (tx) => {
@@ -254,7 +283,15 @@ export async function updateCartDetails(input: {
         }
       }
     }
-    return tx.carts.update(input.cartId, details);
+    return tx.carts.update(input.cartId, {
+      ...details,
+      ...(input.isEmi !== undefined ? {
+        isEmi: input.isEmi,
+        emiTermMonths: input.emiTermMonths ?? null,
+        emiDownPayment: input.emiDownPayment ?? 0,
+        emiFirstDueDate: input.emiFirstDueDate ?? null,
+      } : {}),
+    });
   });
 }
 
@@ -356,12 +393,26 @@ export async function checkoutCart(raw: {
       resolved.push({ item, product, unit });
     }
 
+    let saleRows = resolved;
+    if (cart.isEmi) {
+      if (!customer) throw new Error('Choose a saved customer for an EMI sale.');
+      if (!customer.identificationType || !customer.identificationNumber) {
+        throw new Error('Add the customer identification type and number before an EMI sale.');
+      }
+      if (![3, 6, 9, 12].includes(cart.emiTermMonths ?? 0)) throw new Error('Choose a valid EMI term.');
+      if (!cart.emiFirstDueDate) throw new Error('Choose the first installment date.');
+      const firstDueDate = new Date(cart.emiFirstDueDate);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const latest = new Date(today); latest.setDate(latest.getDate() + 31); latest.setHours(23, 59, 59, 999);
+      if (firstDueDate < today || firstDueDate > latest) throw new Error('First installment date must be today or within the next 31 days.');
+    }
+
     // Re-check each product's live STAFF allowance inside the same transaction
     // that writes the sale. A stale cart cannot bypass an ADMIN reduction.
     // This prevents a stale cart or a crafted Server Action request from using a
     // discount that an ADMIN has since disallowed.
     if (raw.actorRole === 'STAFF') {
-      for (const { item, product } of resolved) {
+      for (const { item, product } of saleRows) {
         const minimumPrice = Math.max(0, item.listUnitPrice - product.staffMaxDiscount);
         if (item.actualUnitPrice < minimumPrice) {
           throw new Error(`${product.name} must be at least ${formatBDT(minimumPrice)} for STAFF.`);
@@ -371,11 +422,11 @@ export async function checkoutCart(raw: {
 
     const now = new Date().toISOString();
     const invoiceNumber = await tx.sales.nextInvoiceNumber(new Date(now));
-    const subtotal = resolved.reduce(
+    const subtotal = saleRows.reduce(
       (sum, row) => sum + row.item.listUnitPrice * row.item.quantity,
       0,
     );
-    const total = resolved.reduce(
+    const total = saleRows.reduce(
       (sum, row) => sum + row.item.actualUnitPrice * row.item.quantity,
       0,
     );
@@ -389,6 +440,12 @@ export async function checkoutCart(raw: {
     const tradeInCredit = cart.tradeInDraft?.acquisitionValue ?? legacyTradeIn?.acquisitionValue ?? 0;
     if (tradeInCredit > total) {
       throw new Error('Trade-in credit cannot exceed the sale total in this version.');
+    }
+    if (cart.isEmi && (cart.emiDownPayment ?? 0) + tradeInCredit > total) {
+      throw new Error('Down payment and trade-in credit cannot exceed the EMI total.');
+    }
+    if (cart.isEmi && [total, cart.emiDownPayment ?? 0, tradeInCredit].some((amount) => amount % 100 !== 0)) {
+      throw new Error('EMI price, down payment, and trade-in credit must use whole-taka amounts.');
     }
     const acceptedTradeIn = cart.tradeInDraft
       ? await acceptUsedDeviceInTransaction({
@@ -418,7 +475,7 @@ export async function checkoutCart(raw: {
       actorId: input.actorId,
       actorName: raw.actorName,
       paymentMethod: cart.paymentMethod,
-      paymentStatus: cart.paymentStatus,
+      paymentStatus: cart.isEmi && total - tradeInCredit - (cart.emiDownPayment ?? 0) > 0 ? 'UNPAID' : cart.paymentStatus,
       reference: cart.reference,
       note: cart.note,
       subtotal,
@@ -448,7 +505,7 @@ export async function checkoutCart(raw: {
     if (acceptedTradeIn) await tx.usedDeviceAcquisitions.attachToSale(acceptedTradeIn.acquisition.id, sale.id);
     if (legacyTradeIn) await tx.usedDeviceAcquisitions.attachToSale(legacyTradeIn.id, sale.id);
 
-    for (const [index, row] of resolved.entries()) {
+    for (const [index, row] of saleRows.entries()) {
       const { item, product, unit } = row;
       const unitCost = unit?.costPrice ?? product.avgCostPrice;
       if (unit) {
@@ -502,6 +559,41 @@ export async function checkoutCart(raw: {
         createdAt: now,
       };
       await tx.sales.createItem(saleItem);
+    }
+
+    if (cart.isEmi) {
+      const termMonths = cart.emiTermMonths as 3 | 6 | 9 | 12;
+      const financedAmount = total - tradeInCredit - (cart.emiDownPayment ?? 0);
+      const contractId = uuidv7();
+      const contract = {
+        id: contractId,
+        contractNumber: await tx.emi.nextContractNumber(new Date(now)),
+        saleId: sale.id,
+        customerId: customer!.id,
+        status: financedAmount === 0 ? 'PAID' as const : 'ACTIVE' as const,
+        termMonths,
+        normalPrice: subtotal,
+        emiTotal: total,
+        downPayment: cart.emiDownPayment ?? 0,
+        tradeInCredit,
+        financedAmount,
+        firstDueDate: cart.emiFirstDueDate!,
+        createdById: input.actorId,
+        createdByName: raw.actorName,
+        createdAt: now,
+        updatedAt: now,
+        completedAt: financedAmount === 0 ? now : null,
+        voidedAt: null,
+      };
+      await tx.emi.createContract(contract);
+      const dates = installmentDates(new Date(cart.emiFirstDueDate!), termMonths);
+      const amounts = installmentAmounts(financedAmount, termMonths);
+      for (let index = 0; index < termMonths; index += 1) {
+        await tx.emi.createInstallment({
+          id: uuidv7(), contractId, sequence: index + 1, dueDate: dates[index]!.toISOString(), amountDue: amounts[index]!, amountPaid: 0,
+          status: financedAmount === 0 ? 'PAID' : 'UPCOMING', paidAt: financedAmount === 0 ? now : null, createdAt: now, updatedAt: now,
+        });
+      }
     }
 
     await tx.carts.delete(cart.id);

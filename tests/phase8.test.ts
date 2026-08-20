@@ -244,8 +244,8 @@ describe('Phase 8 stock and invoice invariants', () => {
   it('provides A4/PDF and 80 mm thermal invoice output', () => {
     const invoice = source('src/components/invoices/InvoiceView.tsx');
     const css = source('src/app/globals.css');
-    expect(invoice).toContain('A4 invoice');
-    expect(invoice).toContain('80 mm thermal');
+    expect(invoice).toContain("t('invoice.a4Layout')");
+    expect(invoice).toContain("t('invoice.thermalLayout')");
     expect(invoice).toContain('/pdf');
     expect(invoice).toContain('flex flex-wrap items-center gap-2');
     expect(css).toContain('@page invoice-a4');
@@ -253,7 +253,7 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(css).toContain('width: min(210mm, 100%)');
     expect(css).toContain('container: invoice-preview / inline-size');
     expect(invoice).toContain('className="invoice-preview-viewport"');
-    expect(invoice).toContain('aria-label="Scrollable invoice preview"');
+    expect(invoice).toContain("aria-label={t('invoice.previewAria')}");
     expect(css).toContain('.invoice-preview-viewport');
     expect(css).toContain('overflow: auto');
     expect(css).toContain('@container invoice-preview (max-width: 767px)');

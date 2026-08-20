@@ -2,14 +2,17 @@
 
 import { useActionState, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 
 import { recordInvoicePrintAction, voidInvoiceAction } from '@/actions/checkout';
 import { Button } from '@/components/ui';
-import { PAYMENT_METHODS, type InvoiceItem, type Sale } from '@/domain/types';
+import { PAYMENT_METHODS, type EmiContract, type EmiEarlySettlement, type EmiInstallment, type EmiPayment, type InvoiceItem, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { domainLabel } from '@/lib/i18n/domain';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
+import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
 
 export interface InvoiceShop {
   name: string;
@@ -27,16 +30,25 @@ function dateTime(value: string): string {
   }).format(new Date(value));
 }
 
+function dateOnly(value: string): string {
+  return new Intl.DateTimeFormat('en-BD', {
+    timeZone: 'Asia/Dhaka',
+    dateStyle: 'medium',
+  }).format(new Date(value));
+}
+
 export function InvoiceView({
   sale,
   items,
   shop,
   canVoid,
+  emi,
 }: {
   sale: Sale;
   items: InvoiceItem[];
   shop: InvoiceShop;
   canVoid: boolean;
+  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null; payments: EmiPayment[] } | null;
 }) {
   const router = useRouter();
   const [layout, setLayout] = useState<'a4' | 'thermal'>('a4');
@@ -72,9 +84,15 @@ export function InvoiceView({
     if (voidState.error || voidState.fieldErrors) setHideServerVoidErrors(false);
   }, [voidState]);
 
-  const refundAmount = sale.paymentStatus === 'PAID'
-    ? Math.max(0, sale.total - sale.tradeInCredit)
-    : 0;
+  const activeEmiPayments = emi?.payments.filter((payment) => payment.status === 'ACTIVE') ?? [];
+  const refundAmount = emi
+    ? emiVoidRefundAmount(emi.contract, emi.payments)
+    : sale.paymentStatus === 'PAID'
+      ? Math.max(0, sale.total - sale.tradeInCredit)
+      : 0;
+  const currentEmiStatus = emi
+    ? t(`emi.status.${emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement).toLowerCase()}` as 'emi.status.active')
+    : null;
 
   function openVoidDialog() {
     setVoidFields({ reason: '', refundMethod: sale.paymentMethod, confirmed: false });
@@ -109,10 +127,16 @@ export function InvoiceView({
       <div className="invoice-screen-controls print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-rule bg-card p-3">
           <div>
-            <p className="text-[13px] font-medium">Invoice layout</p>
-            <p className="text-[11px] text-graphite">Reprints use the original completed-sale snapshot.</p>
+            <p className="text-[13px] font-medium">{t('invoice.layout')}</p>
+            <p className="text-[11px] text-graphite">{t('invoice.reprintHelp')}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+          <Link
+            href="/invoices"
+            className="inline-flex h-9 items-center rounded-[3px] border border-slate-600 bg-slate-600 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-slate-800 hover:bg-slate-800"
+          >
+            {t('invoice.backToInvoices')}
+          </Link>
           <form action={action} className="flex flex-wrap items-center gap-2">
             <input type="hidden" name="saleId" value={sale.id} />
             <select
@@ -121,22 +145,22 @@ export function InvoiceView({
               onChange={(event) => setLayout(event.target.value as 'a4' | 'thermal')}
               className="h-9 rounded-[3px] border border-rule bg-card px-2.5 text-[13px]"
             >
-              <option value="a4">A4 invoice</option>
-              <option value="thermal">80 mm thermal</option>
+              <option value="a4">{t('invoice.a4Layout')}</option>
+              <option value="thermal">{t('invoice.thermalLayout')}</option>
             </select>
             <Button type="submit" disabled={pending}>
-              {pending ? 'Preparing…' : 'Print'}
+              {pending ? t('invoice.preparing') : t('invoice.print')}
             </Button>
             <a
               href={`/api/invoices/${sale.id}/pdf`}
               className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3.5 text-[13px] font-medium"
             >
-              Download PDF
+              {t('invoice.downloadPdf')}
             </a>
           </form>
           {canVoid && (
             <Button type="button" variant="danger" onClick={openVoidDialog}>
-              Void invoice
+              {t('invoice.voidInvoice')}
             </Button>
           )}
           </div>
@@ -144,7 +168,7 @@ export function InvoiceView({
         {state.error && <p className="mb-3 text-[12px] text-out">{message(state.error)}</p>}
       </div>
 
-      <div className="invoice-preview-viewport" tabIndex={0} aria-label="Scrollable invoice preview">
+      <div className="invoice-preview-viewport" tabIndex={0} aria-label={t('invoice.previewAria')}>
         <article className="invoice-document">
           <header className="invoice-header">
             <div>
@@ -224,8 +248,26 @@ export function InvoiceView({
             </dl>
           </section>
 
+          {emi && (
+            <section className="invoice-trade-in">
+              <span>{t('emi.schedule')}</span>
+              <p>{emi.installments.map((row) => `#${row.sequence} ${new Date(row.dueDate).toLocaleDateString('en-GB')} ${formatBDT(row.amountDue)}`).join(' · ')}</p>
+            </section>
+          )}
+
           <section className="invoice-payment">
-            <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
+            {emi ? (
+              <div>
+                <p><span>{t('emi.paymentPlanLabel')}</span> {t('checkout.shopManagedEmi')}</p>
+                <p><span>{t('invoice.emiStatus')}</span> {currentEmiStatus}</p>
+                <p><span>{t('invoice.contract')}</span> {emi.contract.contractNumber} · {t('emi.installments', { count: emi.contract.termMonths })}</p>
+                <p><span>{t('checkout.downPayment')}:</span> {formatBDT(emi.contract.downPayment)} {t('common.via')} {domainLabel(t, sale.paymentMethod)}</p>
+                <p><span>{t('checkout.financedBalance')}:</span> {formatBDT(emi.contract.financedAmount)}</p>
+                <p><span>{t('checkout.firstInstallmentDate')}:</span> {dateOnly(emi.contract.firstDueDate)}</p>
+              </div>
+            ) : (
+              <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
+            )}
             {sale.note && <p><span>Note:</span> {sale.note}</p>}
             {sale.status === 'VOIDED' && (
               <p className="invoice-void-details">
@@ -265,6 +307,7 @@ export function InvoiceView({
             <div className="space-y-4 p-5">
               <div className="rounded-[3px] border border-out/30 bg-out/5 p-3 text-[13px]">
                 <p><strong>{items.length}</strong> invoice line{items.length === 1 ? '' : 's'} will be reversed.</p>
+                {emi && <p className="mt-1"><strong>{activeEmiPayments.length}</strong> active installment receipt{activeEmiPayments.length === 1 ? '' : 's'} will be marked REVERSED.</p>}
                 {sale.tradeInDetails && <p className="mt-1">The trade-in device must be returned to the customer and will leave available inventory.</p>}
                 <p className="mt-1">Refund to record: <strong>{formatBDT(refundAmount)}</strong></p>
               </div>

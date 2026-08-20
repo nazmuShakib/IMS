@@ -10,6 +10,14 @@ import { PAYMENT_METHODS, PAYMENT_STATUSES, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { domainLabel } from '@/lib/i18n/domain';
+import type { EmiDisplayStatus } from '@/lib/emi-summary';
+
+export interface InvoiceEmiSummary {
+  contractNumber: string;
+  termMonths: number;
+  status: EmiDisplayStatus;
+  overdueAmount: number;
+}
 
 export interface InvoiceFilterValues {
   q: string;
@@ -50,6 +58,7 @@ export function InvoiceRegister({
   confirmedFilters,
   sellers,
   sales,
+  emiBySaleId,
   hasFilters,
   invalidDateRange,
   invalidPriceRange,
@@ -58,6 +67,7 @@ export function InvoiceRegister({
   confirmedFilters: InvoiceFilterValues;
   sellers: Array<{ id: string; name: string }>;
   sales: Sale[];
+  emiBySaleId: Record<string, InvoiceEmiSummary>;
   hasFilters: boolean;
   invalidDateRange: boolean;
   invalidPriceRange: boolean;
@@ -91,6 +101,14 @@ export function InvoiceRegister({
   function applyFilters(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     navigate(values);
+  }
+
+  function emiStatusLabel(status: EmiDisplayStatus): string {
+    if (status === 'SETTLED_EARLY') return t('invoices.settledEarly');
+    if (status === 'OVERDUE') return t('invoices.overdue');
+    if (status === 'PAID') return t('invoices.paid');
+    if (status === 'VOIDED') return t('invoices.voided');
+    return t('invoices.active');
   }
 
   return (
@@ -259,19 +277,22 @@ export function InvoiceRegister({
             <EmptyState title={hasFilters ? t('invoices.noMatch') : t('invoices.empty')} />
           ) : (
             <TableViewport>
-              <table className="min-w-[850px] w-full border-collapse text-[12px]">
+              <table className="min-w-[1020px] w-full border-collapse text-[12px]">
                 <thead className="sticky top-0 bg-card">
                   <tr className="border-b border-rule text-left">
                     <th className="eyebrow px-4 py-2.5">{t('invoices.invoice')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('common.date')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('common.customer')}</th>
                     <th className="eyebrow px-4 py-2.5">{t('invoices.seller')}</th>
-                    <th className="eyebrow px-4 py-2.5">{t('invoices.payment')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('invoices.saleType')}</th>
+                    <th className="eyebrow px-4 py-2.5">{t('invoices.paymentStatusColumn')}</th>
                     <th className="eyebrow px-4 py-2.5 text-right">{t('common.total')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {sales.map((sale) => (
+                  {sales.map((sale) => {
+                    const emi = emiBySaleId[sale.id];
+                    return (
                     <tr key={sale.id} className="border-b border-rule-soft last:border-0">
                       <td className="px-4 py-3">
                         <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
@@ -280,10 +301,27 @@ export function InvoiceRegister({
                       <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
                       <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
                       <td className="px-4 py-3">{sale.actorName}</td>
-                      <td className="px-4 py-3">{domainLabel(t, sale.paymentMethod)} · {domainLabel(t, sale.paymentStatus)}</td>
+                      <td className="px-4 py-3">
+                        {emi
+                          ? <><span className="font-medium">{t('invoices.shopManagedEmi')}</span><span className="block text-[11px] text-graphite">{t('invoices.monthlyInstallments', { count: emi.termMonths })}</span></>
+                          : t('invoices.regularSale')}
+                      </td>
+                      <td className="px-4 py-3">
+                        {emi ? (
+                          <>
+                            <Badge tone={emi.status === 'PAID' || emi.status === 'SETTLED_EARLY' ? 'ok' : emi.status === 'OVERDUE' || emi.status === 'VOIDED' ? 'out' : 'signal'}>
+                              {emiStatusLabel(emi.status)}
+                            </Badge>
+                            {emi.status === 'OVERDUE' && <span className="tnum ml-2 text-[11px] text-out">{formatBDT(emi.overdueAmount)} {t('invoices.overdueAmount')}</span>}
+                          </>
+                        ) : (
+                          <>{domainLabel(t, sale.paymentStatus)} <span className="text-graphite">· {domainLabel(t, sale.paymentMethod)}</span></>
+                        )}
+                      </td>
                       <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </TableViewport>

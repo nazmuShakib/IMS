@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 
-import type { OperatingExpense, Product, ProductUnit, StockMovement, Supplier, User } from '@/domain/types';
+import type { OperatingExpense, Product, ProductUnit, Sale, StockMovement, Supplier, User } from '@/domain/types';
 import { searchInventory } from '@/lib/search';
 import type { Repositories } from '@/repositories';
 import { getDashboard } from '@/services/dashboard';
@@ -94,6 +94,7 @@ function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])):
     suppliers: { findById: vi.fn(async () => supplier) },
     users: { findAll: vi.fn(async () => [user]) },
     movements: { findByDateRange: vi.fn(async () => movements) },
+    sales: { findVoidedByDateRange: vi.fn(async () => []) },
     operatingExpenses: { findAll: vi.fn(async () => [operatingExpense]) },
   } as unknown as Repositories;
 }
@@ -143,6 +144,23 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.monthShrinkage).toBe(20);
     expect(dashboard.monthInternalUseCost).toBe(70);
     expect(dashboard.monthOperatingProfit).toBe(110);
+  });
+
+  it('keeps voided sales out of performance lines and charts cash refunds on the void date', async () => {
+    const voidedSale = {
+      status: 'VOIDED',
+      voidedAt: '2026-07-18T05:00:00.000Z',
+      refundAmount: 650,
+    } as Sale;
+    const testRepositories = repositories();
+    testRepositories.sales.findVoidedByDateRange = vi.fn(async () => [voidedSale]);
+
+    const dashboard = await getDashboard('ADMIN', now, testRepositories);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+
+    expect(dashboard.dailyFinancials.reduce((sum, row) => sum + row.revenue, 0)).toBe(800);
+    expect(dashboard.dailyFinancials.reduce((sum, row) => sum + row.margin, 0)).toBe(300);
+    expect(dashboard.dailyFinancials.reduce((sum, row) => sum + row.refunds, 0)).toBe(650);
   });
 
   it('never serializes financial or cost fields for STAFF', async () => {

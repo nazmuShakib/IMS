@@ -49,6 +49,7 @@ import type {
 import { formatBDT, toTaka } from "@/lib/money";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { domainLabel } from "@/lib/i18n/domain";
+import { emiCheckoutFieldsSchema } from "@/schemas";
 
 export interface CheckoutProductOption {
   id: string;
@@ -105,6 +106,7 @@ function CartLineEditor({
   onPendingChange,
   onValidityChange,
   staffMinimumPrice,
+  isEmi,
 }: {
   cartId: string;
   line: CheckoutLine;
@@ -114,6 +116,7 @@ function CartLineEditor({
   onPendingChange: (lineId: string, pending: boolean) => void;
   onValidityChange: (lineId: string, valid: boolean) => void;
   staffMinimumPrice: number | null;
+  isEmi: boolean;
 }) {
   const { t } = useI18n();
   const [updateState, updateAction, updating] = useActionState(
@@ -142,7 +145,8 @@ function CartLineEditor({
     Number.isFinite(parsedPrice) && parsedPrice >= 0
       ? Math.round(parsedPrice * 100)
       : line.actualUnitPrice;
-  const priceFormatValid = /^\d+(\.\d{1,2})?$/.test(priceValue);
+  const priceFormatValid = isEmi ? /^\d+$/.test(priceValue) : /^\d+(\.\d{1,2})?$/.test(priceValue);
+  const emiPriceHasFraction = isEmi && /^\d+\.\d{1,2}$/.test(priceValue);
   const priceBelowFloor = staffMinimumPrice !== null && displayUnitPrice < staffMinimumPrice;
   const priceValid = priceFormatValid && !priceBelowFloor;
   const linePending = saveQueued || updating;
@@ -317,15 +321,18 @@ function CartLineEditor({
         )}
         <div className="grid grid-cols-[minmax(0,1fr)_2.25rem] items-end gap-2 sm:contents">
           <Field
-            label={t("products.sellingPrice")}
+            label={isEmi ? t("checkout.emiSellingPrice") : t("products.sellingPrice")}
             hint={staffMinimumPrice !== null
               ? t('checkout.staffMinimumPrice', { price: formatBDT(staffMinimumPrice) })
               : undefined}
-            error={priceBelowFloor ? t('checkout.staffPriceTooLow') : undefined}
+            error={emiPriceHasFraction
+              ? t("checkout.wholeTakaEmiPrice")
+              : priceBelowFloor ? t('checkout.staffPriceTooLow') : undefined}
           >
             <MonoInput
               name="actualUnitPrice"
               inputMode="decimal"
+              step={isEmi ? "1" : "0.01"}
               required
               min={staffMinimumPrice === null ? undefined : toTaka(staffMinimumPrice)}
               value={priceValue}
@@ -334,7 +341,8 @@ function CartLineEditor({
                 dirtyRef.current = true;
                 setPriceValue(value);
                 const entered = Number(value);
-                if (/^\d+(\.\d{1,2})?$/.test(value)
+                const validFormat = isEmi ? /^\d+$/.test(value) : /^\d+(\.\d{1,2})?$/.test(value);
+                if (validFormat
                   && (staffMinimumPrice === null || Math.round(entered * 100) >= staffMinimumPrice)) {
                   queueSave();
                 } else {
@@ -343,7 +351,7 @@ function CartLineEditor({
                 }
               }}
               onBlur={() => {
-                if (/^\d+(\.\d{1,2})?$/.test(priceValue) && !priceBelowFloor) queueSave(0);
+                if (priceFormatValid && !priceBelowFloor) queueSave(0);
               }}
             />
           </Field>
@@ -406,9 +414,19 @@ export function CheckoutWorkspace({
   customers: Customer[];
   role: Role;
 }) {
-  const { t } = useI18n();
+  const { t, message } = useI18n();
   const [checkoutKey, setCheckoutKey] = useState("");
   const [customerQuery, setCustomerQuery] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState(cart.customerId ?? "");
+  const [saleMode, setSaleMode] = useState<"CASH" | "EMI">(cart.isEmi ? "EMI" : "CASH");
+  const [emiTerm, setEmiTerm] = useState(cart.emiTermMonths ?? 3);
+  const [emiDownPayment, setEmiDownPayment] = useState(String(toTaka(cart.emiDownPayment ?? 0)));
+  const [emiFirstDueDate, setEmiFirstDueDate] = useState(cart.emiFirstDueDate?.slice(0, 10) ?? "");
+  // Identification is verified per EMI sale. Do not carry a document number
+  // from a customer's previous checkout into a new transaction.
+  const [identificationType, setIdentificationType] = useState("");
+  const [identificationNumber, setIdentificationNumber] = useState("");
+  const [emiErrors, setEmiErrors] = useState<Record<string, string>>({});
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
   const [confirmingTradeInRemoval, setConfirmingTradeInRemoval] = useState(false);
   const [orderedLines, setOrderedLines] = useState(lines);
@@ -441,6 +459,42 @@ export function CheckoutWorkspace({
   );
   const lineUpdatesPending = pendingLineIds.size > 0;
   const hasInvalidLines = invalidLineIds.size > 0;
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date());
+  const maxEmiDueDate = useMemo(() => {
+    const value = new Date(`${today}T12:00:00.000Z`);
+    value.setUTCDate(value.getUTCDate() + 31);
+    return value.toISOString().slice(0, 10);
+  }, [today]);
+
+  function clearEmiError(field: string) {
+    setEmiErrors((current) => { const next = { ...current }; delete next[field]; return next; });
+  }
+
+  function chooseCustomer(customerId: string) {
+    setSelectedCustomerId(customerId);
+    setIdentificationType("");
+    setIdentificationNumber("");
+    clearEmiError('identificationType'); clearEmiError('identificationNumber');
+  }
+
+  function requestCheckoutConfirmation() {
+    if (isEmi) {
+      const parsed = emiCheckoutFieldsSchema.safeParse({
+        isEmi: true,
+        termMonths: emiTerm,
+        downPayment: emiDownPayment,
+        firstDueDate: emiFirstDueDate,
+        identificationType,
+        identificationNumber,
+      });
+      if (!parsed.success) {
+        setEmiErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])));
+        return;
+      }
+    }
+    setEmiErrors({});
+    setConfirmingCheckout(true);
+  }
 
   const handleLinePending = useCallback((lineId: string, pending: boolean) => {
     setPendingLineIds((current) => {
@@ -543,18 +597,17 @@ export function CheckoutWorkspace({
       ),
     [orderedLines],
   );
+  const isEmi = saleMode === "EMI";
   const total = useMemo(
     () =>
-      orderedLines.reduce(
-        (sum, line) => sum + line.actualUnitPrice * line.quantity,
-        0,
-      ),
+      orderedLines.reduce((sum, line) => sum + line.actualUnitPrice * line.quantity, 0),
     [orderedLines],
   );
   const tradeInProduct = products.find((product) => product.id === cart.tradeInDraft?.productId);
   const tradeInCredit = cart.tradeInDraft?.acquisitionValue
     ?? 0;
-  const amountDue = Math.max(0, total - tradeInCredit);
+  const downPayment = (() => { const value = Number(emiDownPayment); return Number.isFinite(value) ? Math.round(value * 100) : 0; })();
+  const amountDue = Math.max(0, total - tradeInCredit - (isEmi ? downPayment : 0));
   const priceAdjustment = total - subtotal;
 
   const setLineOrder = (next: CheckoutLine[]) => {
@@ -633,7 +686,7 @@ export function CheckoutWorkspace({
   return (
     <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
       <section>
-        <Card className="mb-4 p-5">
+        <Card className="mb-4 p-4">
           <p className="eyebrow mb-4">{t("checkout.addItems")}</p>
           <form action={addAction}>
             <input type="hidden" name="cartId" value={cart.id} />
@@ -746,6 +799,7 @@ export function CheckoutWorkspace({
                   staffMinimumPrice={role === 'STAFF'
                     ? Math.max(0, line.listUnitPrice - line.staffMaxDiscount)
                     : null}
+                  isEmi={isEmi}
                   dragProps={{
                     "aria-label": t("checkout.reorderItem", {
                       product: line.productName,
@@ -826,9 +880,15 @@ export function CheckoutWorkspace({
         <form action={detailAction}>
           <input type="hidden" name="cartId" value={cart.id} />
           <input type="hidden" name="idempotencyKey" value={checkoutKey} />
-          <Card className="p-5">
+          <Card className="p-4">
             <p className="eyebrow mb-4">{t("checkout.customerPayment")}</p>
             <div className="space-y-4">
+              <Field label={t("checkout.saleType")}>
+                <Select name="saleMode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as "CASH" | "EMI")}>
+                  <option value="CASH">{t("checkout.regularSale")}</option>
+                  <option value="EMI">{t("checkout.shopManagedEmi")}</option>
+                </Select>
+              </Field>
               <Field
                 label={t("common.customer")}
                 hint={t("checkout.customerHint")}
@@ -841,7 +901,7 @@ export function CheckoutWorkspace({
                   placeholder={t("checkout.filterCustomer")}
                   aria-label={t("checkout.filterCustomer")}
                 />
-                <Select name="customerId" defaultValue={cart.customerId ?? ""}>
+                <Select name="customerId" value={selectedCustomerId} onChange={(event) => chooseCustomer(event.target.value)}>
                   <option value="">{t("checkout.walkIn")}</option>
                   {visibleCustomers.map((customer) => (
                     <option key={customer.id} value={customer.id}>
@@ -851,8 +911,39 @@ export function CheckoutWorkspace({
                   ))}
                 </Select>
               </Field>
+              {isEmi && (
+                <div className="rounded-[3px] border border-blue-300 bg-blue-50/60 p-4">
+                  <p className="mb-3 text-[13px] font-semibold">{t("checkout.emiPlan")}</p>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label={t("checkout.term")} error={emiErrors.termMonths ? message(emiErrors.termMonths) : undefined}>
+                      <Select name="emiTermMonths" value={emiTerm} onChange={(event) => { setEmiTerm(Number(event.target.value) as 3 | 6 | 9 | 12); clearEmiError('termMonths'); }}>
+                        {[3, 6, 9, 12].map((term) => <option key={term} value={term}>{t("checkout.months", { count: term })}</option>)}
+                      </Select>
+                    </Field>
+                    <Field label={t("checkout.optionalDownPayment")} error={emiErrors.downPayment ? message(emiErrors.downPayment) : undefined}>
+                      <Input name="emiDownPayment" inputMode="numeric" step="1" value={emiDownPayment} onChange={(event) => { setEmiDownPayment(event.target.value); clearEmiError('downPayment'); }} placeholder="0" />
+                    </Field>
+                    <Field label={t("checkout.firstInstallmentDate")} hint={t("checkout.firstInstallmentHint")} error={emiErrors.firstDueDate ? message(emiErrors.firstDueDate) : undefined}>
+                      <Input name="emiFirstDueDate" type="date" min={today} max={maxEmiDueDate} value={emiFirstDueDate} onChange={(event) => { setEmiFirstDueDate(event.target.value); clearEmiError('firstDueDate'); }} />
+                    </Field>
+                    <Field label={t("checkout.identificationType")} error={emiErrors.identificationType ? message(emiErrors.identificationType) : undefined}>
+                      <Select name="identificationType" value={identificationType} onChange={(event) => { setIdentificationType(event.target.value as typeof identificationType); clearEmiError('identificationType'); }}>
+                        <option value="">{t("checkout.chooseIdentification")}</option>
+                        <option value="NID">{t("checkout.nid")}</option>
+                        <option value="PASSPORT">{t("checkout.passport")}</option>
+                        <option value="BIRTH_CERTIFICATE">{t("checkout.birthCertificate")}</option>
+                      </Select>
+                    </Field>
+                    <Field label={t("checkout.identificationNumber")} error={emiErrors.identificationNumber ? message(emiErrors.identificationNumber) : undefined}>
+                      <Input name="identificationNumber" value={identificationNumber} onChange={(event) => { setIdentificationNumber(event.target.value); clearEmiError('identificationNumber'); }} placeholder={t("checkout.documentNumberPlaceholder")} />
+                    </Field>
+                  </div>
+                  {!selectedCustomerId && <p className="mt-2 text-[12px] text-out">{t("checkout.savedCustomerRequiredForEmi")}</p>}
+                  <p className="mt-2 text-[12px] text-graphite">{t("checkout.emiPriceHelp")}</p>
+                </div>
+              )}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                <Field label={t("checkout.paymentMethod")}>
+                <Field label={isEmi ? t("checkout.downPaymentMethod") : t("checkout.paymentMethod")}>
                   <Select
                     name="paymentMethod"
                     defaultValue={cart.paymentMethod}
@@ -873,18 +964,15 @@ export function CheckoutWorkspace({
                     ))}
                   </Select>
                 </Field>
-                <Field label={t("checkout.paymentStatus")}>
-                  <Select
-                    name="paymentStatus"
-                    defaultValue={cart.paymentStatus}
-                  >
-                    {(["PAID", "UNPAID"] as PaymentStatus[]).map((value) => (
-                      <option key={value} value={value}>
-                        {domainLabel(t, value)}
-                      </option>
-                    ))}
-                  </Select>
-                </Field>
+                {isEmi
+                  ? <input type="hidden" name="paymentStatus" value="UNPAID" />
+                  : <Field label={t("checkout.paymentStatus")}>
+                      <Select name="paymentStatus" defaultValue={cart.paymentStatus}>
+                        {(["PAID", "UNPAID"] as PaymentStatus[]).map((value) => (
+                          <option key={value} value={value}>{domainLabel(t, value)}</option>
+                        ))}
+                      </Select>
+                    </Field>}
               </div>
               {role === "STAFF" ? (
                 <input type="hidden" name="tradeInAcquisitionId" value="" />
@@ -942,7 +1030,7 @@ export function CheckoutWorkspace({
                 </dd>
               </div>
               <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
-                <dt>{t("common.total")}</dt>
+                <dt>{isEmi ? t("emi.total") : t("common.total")}</dt>
                 <dd className="tnum">{formatBDT(total)}</dd>
               </div>
               {tradeInCredit > 0 && (
@@ -951,11 +1039,21 @@ export function CheckoutWorkspace({
                     <dt>{t("checkout.tradeInCredit")}</dt>
                     <dd className="tnum">−{formatBDT(tradeInCredit)}</dd>
                   </div>
-                  <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
+                  {!isEmi && <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
                     <dt>{t("checkout.amountDue")}</dt>
                     <dd className="tnum">{formatBDT(amountDue)}</dd>
-                  </div>
+                  </div>}
                 </>
+              )}
+              {isEmi && downPayment > 0 && (
+                <div className="flex justify-between text-[13px] text-out">
+                  <dt>{t("checkout.downPayment")}</dt><dd className="tnum">−{formatBDT(downPayment)}</dd>
+                </div>
+              )}
+              {isEmi && (
+                <div className="flex justify-between border-t border-rule pt-2 text-[16px] font-semibold">
+                  <dt>{t("checkout.financedBalance")}</dt><dd className="tnum">{formatBDT(amountDue)}</dd>
+                </div>
               )}
             </dl>
 
@@ -969,13 +1067,14 @@ export function CheckoutWorkspace({
               </Button>
               <Button
                 type="button"
-                onClick={() => setConfirmingCheckout(true)}
+                onClick={requestCheckoutConfirmation}
                 disabled={
                   checkingOut ||
                   lineUpdatesPending ||
                   hasInvalidLines ||
                   orderedLines.length === 0 ||
-                  !checkoutKey
+                  !checkoutKey ||
+                  (isEmi && !selectedCustomerId)
                 }
               >
                 {checkingOut

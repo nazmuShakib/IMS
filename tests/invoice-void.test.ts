@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 import type { Sale } from '@/domain/types';
+import { emiVoidRefundAmount } from '@/lib/emi-summary';
 import { assertVoidPermission, staffVoidWindowMinutes } from '@/services/sales';
 
 function source(path: string): string {
@@ -83,6 +84,17 @@ describe('invoice void safeguards', () => {
     )).not.toThrow();
   });
 
+  it('refunds an EMI down payment and every active installment receipt', () => {
+    expect(emiVoidRefundAmount(
+      { downPayment: 100_000 },
+      [
+        { amount: 500_000, status: 'ACTIVE' },
+        { amount: 250_000, status: 'ACTIVE' },
+        { amount: 300_000, status: 'REVERSED' },
+      ],
+    )).toBe(850_000);
+  });
+
   it('uses one transaction and correction movements for stock and finance integrity', () => {
     const service = source('src/services/sales.ts');
     expect(service).toContain('return db.transaction(async (tx) =>');
@@ -90,6 +102,8 @@ describe('invoice void safeguards', () => {
     expect(service).toContain("status: 'VOIDED'");
     expect(service).toContain('findBySale(sale.id)');
     expect(service).toContain('warranties.findAll({ unitId: unit.id })');
+    expect(service).toContain("status: 'REVERSED'");
+    expect(service).toContain('updatePayment(payment.id');
   });
 
   it('blocks individual sale movement reversal and requires confirmation in the UI', () => {

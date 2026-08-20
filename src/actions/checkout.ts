@@ -18,11 +18,14 @@ import {
   reorderCartItems,
   updateCartDetails,
   updateCartItem,
+  updateCustomerIdentification,
 } from '@/services/checkout';
+import { emiVoidRefundAmount } from '@/lib/emi-summary';
 import { voidSale } from '@/services/sales';
 import { type PaymentMethod, type PaymentStatus } from '@/domain/types';
 import {
   createCustomerSchema,
+  emiCheckoutFieldsSchema,
   voidInvoiceFieldsSchema,
   type CreateCustomerInput,
 } from '@/schemas';
@@ -75,6 +78,17 @@ function str(fd: FormData, key: string): string | null {
 function message(error: unknown): string {
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Invalid input.';
   return error instanceof Error ? error.message : 'Something went wrong.';
+}
+
+function emiDetails(fd: FormData) {
+  const isEmi = str(fd, 'saleMode') === 'EMI';
+  const date = str(fd, 'emiFirstDueDate');
+  return {
+    isEmi,
+    emiTermMonths: isEmi ? Number(str(fd, 'emiTermMonths') ?? '0') as 3 | 6 | 9 | 12 : null,
+    emiDownPayment: isEmi ? parseBDT(str(fd, 'emiDownPayment') ?? '0') : 0,
+    emiFirstDueDate: isEmi && date ? new Date(`${date}T12:00:00.000Z`).toISOString() : null,
+  };
 }
 
 export async function addCartItemAction(
@@ -245,6 +259,7 @@ export async function updateCartDetailsAction(
       note: str(fd, 'note'),
       tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
       actorRole: actor.role,
+      ...emiDetails(fd),
     });
     await writeAudit({
       actorId: actor.id,
@@ -315,16 +330,40 @@ export async function checkoutAction(
   let saleId: string;
   try {
     const cartId = str(fd, 'cartId') ?? '';
+    const isEmi = str(fd, 'saleMode') === 'EMI';
+    const parsedEmi = isEmi ? emiCheckoutFieldsSchema.parse({
+      isEmi: true,
+      termMonths: str(fd, 'emiTermMonths') ?? '',
+      downPayment: str(fd, 'emiDownPayment') ?? '',
+      firstDueDate: str(fd, 'emiFirstDueDate') ?? '',
+      identificationType: str(fd, 'identificationType') ?? '',
+      identificationNumber: str(fd, 'identificationNumber') ?? '',
+    }) : null;
+    const details = parsedEmi ? {
+      isEmi: true,
+      emiTermMonths: parsedEmi.termMonths as 3 | 6 | 9 | 12,
+      emiDownPayment: parsedEmi.downPayment,
+      emiFirstDueDate: parsedEmi.firstDueDate.toISOString(),
+    } : emiDetails(fd);
+    const customerId = str(fd, 'customerId');
+    if (details.isEmi && customerId) {
+      await updateCustomerIdentification({
+        customerId,
+        identificationType: parsedEmi!.identificationType,
+        identificationNumber: parsedEmi!.identificationNumber,
+      });
+    }
     await updateCartDetails({
       cartId,
       actorId: actor.id,
-      customerId: str(fd, 'customerId'),
+      customerId,
       paymentMethod: (str(fd, 'paymentMethod') ?? 'CASH') as PaymentMethod,
       paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
       reference: str(fd, 'reference'),
       note: str(fd, 'note'),
       tradeInAcquisitionId: str(fd, 'tradeInAcquisitionId'),
       actorRole: actor.role,
+      ...details,
     });
     const sale = await checkoutCart({
       cartId,
@@ -403,9 +442,13 @@ export async function voidInvoiceAction(
 
   try {
     const before = await db.sales.findById(parsed.data.saleId);
-    if (before?.paymentStatus === 'PAID'
-      && before.total - before.tradeInCredit > 0
-      && !parsed.data.refundMethod) {
+    const emiContract = before ? await db.emi.findContractBySale(before.id) : null;
+    const refundAmount = emiContract
+      ? emiVoidRefundAmount(emiContract, await db.emi.findPayments(emiContract.id))
+      : before?.paymentStatus === 'PAID'
+        ? Math.max(0, before.total - before.tradeInCredit)
+        : 0;
+    if (refundAmount > 0 && !parsed.data.refundMethod) {
       return { fieldErrors: { refundMethod: 'Choose how the customer was refunded.' } };
     }
     const sale = await voidSale({

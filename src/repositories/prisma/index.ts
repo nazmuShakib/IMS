@@ -25,6 +25,11 @@ import type {
   SupplierReturn,
   ExpenseCategory,
   OperatingExpense,
+  EmiContract,
+  EmiInstallment,
+  EmiPayment,
+  EmiPaymentAllocation,
+  EmiEarlySettlement,
 } from '@/domain/types';
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
@@ -149,6 +154,8 @@ function cartDraft(row: Awaited<ReturnType<Client['cartDraft']['findUniqueOrThro
   return {
     ...row,
     tradeInDraft: row.tradeInDraft as TradeInCartDraft | null,
+    emiTermMonths: row.emiTermMonths as CartDraft['emiTermMonths'],
+    emiFirstDueDate: row.emiFirstDueDate ? iso(row.emiFirstDueDate) : null,
     createdAt: iso(row.createdAt),
     updatedAt: iso(row.updatedAt),
   };
@@ -171,6 +178,22 @@ function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sa
 function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow']>>): SaleItem {
   return { ...row, createdAt: iso(row.createdAt) };
 }
+
+const emiContract = (row: Awaited<ReturnType<Client['emiContract']['findUniqueOrThrow']>>): EmiContract => ({
+  ...row, termMonths: row.termMonths as EmiContract['termMonths'], firstDueDate: iso(row.firstDueDate), createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt), completedAt: row.completedAt ? iso(row.completedAt) : null, voidedAt: row.voidedAt ? iso(row.voidedAt) : null,
+});
+const emiInstallment = (row: Awaited<ReturnType<Client['emiInstallment']['findUniqueOrThrow']>>): EmiInstallment => ({
+  ...row, dueDate: iso(row.dueDate), paidAt: row.paidAt ? iso(row.paidAt) : null, createdAt: iso(row.createdAt), updatedAt: iso(row.updatedAt),
+});
+const emiPayment = (row: Awaited<ReturnType<Client['emiPayment']['findUniqueOrThrow']>>): EmiPayment => ({
+  ...row, paidAt: iso(row.paidAt), reversedAt: row.reversedAt ? iso(row.reversedAt) : null, createdAt: iso(row.createdAt),
+});
+const emiAllocation = (row: Awaited<ReturnType<Client['emiPaymentAllocation']['findUniqueOrThrow']>>): EmiPaymentAllocation => ({
+  ...row, createdAt: iso(row.createdAt),
+});
+const emiSettlement = (row: Awaited<ReturnType<Client['emiEarlySettlement']['findUniqueOrThrow']>>): EmiEarlySettlement => ({
+  ...row, approvedAt: iso(row.approvedAt),
+});
 
 function productData(value: Product): Prisma.ProductUncheckedCreateInput {
   return {
@@ -628,6 +651,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           }));
         } catch (error) { return friendlyDatabaseError(error); }
       },
+      async update(id, patch) {
+        try {
+          return customer(await client.customer.update({ where: { id }, data: patch }));
+        } catch (error) { return friendlyDatabaseError(error); }
+      },
     },
     carts: {
       async findByActor(actorId) {
@@ -645,6 +673,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             tradeInDraft: value.tradeInDraft
               ? value.tradeInDraft as unknown as Prisma.InputJsonValue
               : Prisma.DbNull,
+            emiFirstDueDate: value.emiFirstDueDate ? new Date(value.emiFirstDueDate) : null,
             createdAt: new Date(value.createdAt),
             updatedAt: new Date(value.updatedAt),
           },
@@ -659,6 +688,9 @@ function createRepositories(client: Client, transact?: Repositories['transaction
                 : Prisma.DbNull,
             }
           : patch;
+        if ('emiFirstDueDate' in data) {
+          (data as Record<string, unknown>).emiFirstDueDate = data.emiFirstDueDate ? new Date(data.emiFirstDueDate as string) : null;
+        }
         return cartDraft(await client.cartDraft.update({
           where: { id },
           data: data as unknown as Prisma.CartDraftUncheckedUpdateInput,
@@ -707,6 +739,15 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return (await client.sale.findMany({
           orderBy: { completedAt: 'desc' },
           take: Math.max(1, Math.min(limit, 500)),
+        })).map(sale);
+      },
+      async findVoidedByDateRange(from, to) {
+        return (await client.sale.findMany({
+          where: {
+            status: 'VOIDED',
+            voidedAt: { gte: from, lte: to },
+          },
+          orderBy: { voidedAt: 'desc' },
         })).map(sale);
       },
       async search(filters, limit = 200) {
@@ -1049,6 +1090,54 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         if (result.count !== 1) throw new Error('This expense is already voided or unavailable.');
         return operatingExpense(await client.operatingExpense.findUniqueOrThrow({ where: { id } }));
       },
+    },
+    emi: {
+      async nextContractNumber(now) {
+        const year = dhakaYear(now);
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `EMI:${year}` },
+          create: { key: `EMI:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `EMI-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async nextReceiptNumber(now) {
+        const year = dhakaYear(now);
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `RCPT:${year}` },
+          create: { key: `RCPT:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `RCPT-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findContracts() { return (await client.emiContract.findMany({ orderBy: { createdAt: 'desc' } })).map(emiContract); },
+      async findContractById(id) { const row = await client.emiContract.findUnique({ where: { id } }); return row ? emiContract(row) : null; },
+      async findContractBySale(saleId) { const row = await client.emiContract.findUnique({ where: { saleId } }); return row ? emiContract(row) : null; },
+      async createContract(value) {
+        return emiContract(await client.emiContract.create({ data: { ...value, firstDueDate: new Date(value.firstDueDate), createdAt: new Date(value.createdAt), updatedAt: new Date(value.updatedAt), completedAt: value.completedAt ? new Date(value.completedAt) : null, voidedAt: value.voidedAt ? new Date(value.voidedAt) : null } }));
+      },
+      async updateContract(id, patch) {
+        return emiContract(await client.emiContract.update({ where: { id }, data: { ...patch, completedAt: patch.completedAt ? new Date(patch.completedAt) : patch.completedAt, voidedAt: patch.voidedAt ? new Date(patch.voidedAt) : patch.voidedAt, updatedAt: patch.updatedAt ? new Date(patch.updatedAt) : undefined } }));
+      },
+      async findInstallments(contractId) { return (await client.emiInstallment.findMany({ where: { contractId }, orderBy: { sequence: 'asc' } })).map(emiInstallment); },
+      async createInstallment(value) { return emiInstallment(await client.emiInstallment.create({ data: { ...value, dueDate: new Date(value.dueDate), paidAt: value.paidAt ? new Date(value.paidAt) : null, createdAt: new Date(value.createdAt), updatedAt: new Date(value.updatedAt) } })); },
+      async updateInstallment(id, patch) { return emiInstallment(await client.emiInstallment.update({ where: { id }, data: { ...patch, paidAt: patch.paidAt ? new Date(patch.paidAt) : patch.paidAt, updatedAt: patch.updatedAt ? new Date(patch.updatedAt) : undefined } })); },
+      async findPayments(contractId) { return (await client.emiPayment.findMany({ where: { contractId }, orderBy: { paidAt: 'desc' } })).map(emiPayment); },
+      async findPaymentByIdempotencyKey(idempotencyKey) { const row = await client.emiPayment.findUnique({ where: { idempotencyKey } }); return row ? emiPayment(row) : null; },
+      async createPayment(value) { return emiPayment(await client.emiPayment.create({ data: { ...value, paidAt: new Date(value.paidAt), reversedAt: value.reversedAt ? new Date(value.reversedAt) : null, createdAt: new Date(value.createdAt) } })); },
+      async updatePayment(id, patch) {
+        return emiPayment(await client.emiPayment.update({
+          where: { id },
+          data: {
+            ...patch,
+            reversedAt: patch.reversedAt ? new Date(patch.reversedAt) : patch.reversedAt,
+          },
+        }));
+      },
+      async findAllocations(paymentId) { return (await client.emiPaymentAllocation.findMany({ where: { paymentId }, orderBy: { createdAt: 'asc' } })).map(emiAllocation); },
+      async createAllocation(value) { return emiAllocation(await client.emiPaymentAllocation.create({ data: { ...value, createdAt: new Date(value.createdAt) } })); },
+      async findEarlySettlement(contractId) { const row = await client.emiEarlySettlement.findUnique({ where: { contractId } }); return row ? emiSettlement(row) : null; },
+      async createEarlySettlement(value) { return emiSettlement(await client.emiEarlySettlement.create({ data: { ...value, approvedAt: new Date(value.approvedAt) } })); },
     },
     transaction: transact ?? ((fn) => fn(repositories)),
   };

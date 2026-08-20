@@ -21,6 +21,11 @@ import type {
   SupplierReturn,
   ExpenseCategory,
   OperatingExpense,
+  EmiContract,
+  EmiInstallment,
+  EmiPayment,
+  EmiPaymentAllocation,
+  EmiEarlySettlement,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -42,6 +47,7 @@ import type {
   SupplierReturnRepository,
   ExpenseCategoryRepository,
   OperatingExpenseRepository,
+  EmiRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -486,6 +492,15 @@ const customers: CustomerRepository = {
     await writeAll('customers', [...rows, value]);
     return value;
   },
+  async update(id, patch) {
+    const rows = await readAll<Customer>('customers');
+    const index = rows.findIndex((item) => item.id === id);
+    if (index < 0) throw new Error('Customer not found.');
+    const updated = { ...rows[index]!, ...patch, updatedAt: nowIso() };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('customers', copy);
+    return updated;
+  },
 };
 
 const carts: CartRepository = {
@@ -557,6 +572,14 @@ const sales: SaleRepository = {
     return (await readAll<Sale>('sales'))
       .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
       .slice(0, limit);
+  },
+  async findVoidedByDateRange(from, to) {
+    return (await readAll<Sale>('sales'))
+      .filter((item) => item.status === 'VOIDED'
+        && item.voidedAt !== null
+        && new Date(item.voidedAt) >= from
+        && new Date(item.voidedAt) <= to)
+      .sort((a, b) => (b.voidedAt ?? '').localeCompare(a.voidedAt ?? ''));
   },
   async search(filters, limit = 200) {
     const query = filters.query?.trim().toLowerCase();
@@ -832,6 +855,35 @@ const operatingExpenses: OperatingExpenseRepository = {
   },
 };
 
+const emi: EmiRepository = {
+  async nextContractNumber(now) {
+    const year = dhakaYear(now); const prefix = `EMI-${year}-`;
+    const next = (await readAll<EmiContract>('emi-contracts')).reduce((max, row) => row.contractNumber.startsWith(prefix) ? Math.max(max, Number(row.contractNumber.slice(prefix.length)) || 0) : max, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async nextReceiptNumber(now) {
+    const year = dhakaYear(now); const prefix = `RCPT-${year}-`;
+    const next = (await readAll<EmiPayment>('emi-payments')).reduce((max, row) => row.receiptNumber.startsWith(prefix) ? Math.max(max, Number(row.receiptNumber.slice(prefix.length)) || 0) : max, 0) + 1;
+    return `${prefix}${String(next).padStart(6, '0')}`;
+  },
+  async findContracts() { return (await readAll<EmiContract>('emi-contracts')).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async findContractById(id) { return (await readAll<EmiContract>('emi-contracts')).find((row) => row.id === id) ?? null; },
+  async findContractBySale(saleId) { return (await readAll<EmiContract>('emi-contracts')).find((row) => row.saleId === saleId) ?? null; },
+  async createContract(value) { await writeAll('emi-contracts', [...await readAll<EmiContract>('emi-contracts'), value]); return value; },
+  async updateContract(id, patch) { const rows = await readAll<EmiContract>('emi-contracts'); const index = rows.findIndex((row) => row.id === id); if (index < 0) throw new Error('EMI contract not found.'); const value = { ...rows[index]!, ...patch }; const copy = [...rows]; copy[index] = value; await writeAll('emi-contracts', copy); return value; },
+  async findInstallments(contractId) { return (await readAll<EmiInstallment>('emi-installments')).filter((row) => row.contractId === contractId).sort((a, b) => a.sequence - b.sequence); },
+  async createInstallment(value) { await writeAll('emi-installments', [...await readAll<EmiInstallment>('emi-installments'), value]); return value; },
+  async updateInstallment(id, patch) { const rows = await readAll<EmiInstallment>('emi-installments'); const index = rows.findIndex((row) => row.id === id); if (index < 0) throw new Error('Installment not found.'); const value = { ...rows[index]!, ...patch }; const copy = [...rows]; copy[index] = value; await writeAll('emi-installments', copy); return value; },
+  async findPayments(contractId) { return (await readAll<EmiPayment>('emi-payments')).filter((row) => row.contractId === contractId).sort((a, b) => b.paidAt.localeCompare(a.paidAt)); },
+  async findPaymentByIdempotencyKey(key) { return (await readAll<EmiPayment>('emi-payments')).find((row) => row.idempotencyKey === key) ?? null; },
+  async createPayment(value) { await writeAll('emi-payments', [...await readAll<EmiPayment>('emi-payments'), value]); return value; },
+  async updatePayment(id, patch) { const rows = await readAll<EmiPayment>('emi-payments'); const index = rows.findIndex((row) => row.id === id); if (index < 0) throw new Error('EMI payment not found.'); const value = { ...rows[index]!, ...patch }; const copy = [...rows]; copy[index] = value; await writeAll('emi-payments', copy); return value; },
+  async findAllocations(paymentId) { return (await readAll<EmiPaymentAllocation>('emi-payment-allocations')).filter((row) => row.paymentId === paymentId); },
+  async createAllocation(value) { await writeAll('emi-payment-allocations', [...await readAll<EmiPaymentAllocation>('emi-payment-allocations'), value]); return value; },
+  async findEarlySettlement(contractId) { return (await readAll<EmiEarlySettlement>('emi-early-settlements')).find((row) => row.contractId === contractId) ?? null; },
+  async createEarlySettlement(value) { await writeAll('emi-early-settlements', [...await readAll<EmiEarlySettlement>('emi-early-settlements'), value]); return value; },
+};
+
 export const jsonRepositories: Repositories = {
   categories,
   brands,
@@ -849,6 +901,7 @@ export const jsonRepositories: Repositories = {
   supplierReturns,
   expenseCategories,
   operatingExpenses,
+  emi,
   transaction: (fn) => withLock(() => fn(jsonRepositories)),
 };
 

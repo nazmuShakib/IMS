@@ -26,6 +26,7 @@ import {
   UserCog,
   UsersRound,
   WalletCards,
+  CalendarClock,
   type LucideIcon,
 } from 'lucide-react';
 
@@ -55,6 +56,7 @@ export function NavigationLinks({
       <p className="sidebar-section-label eyebrow px-2 pb-1">{t('shell.sales')}</p>
       <NavLink href="/checkout" onClick={onNavigate} icon={icon(ShoppingCart)}>{t('nav.checkout')}</NavLink>
       <NavLink href="/invoices" onClick={onNavigate} icon={icon(ReceiptText)}>{t('nav.invoices')}</NavLink>
+      <NavLink href="/emi" onClick={onNavigate} icon={icon(CalendarClock)}>{t('nav.emi')}</NavLink>
       <NavLink href="/customers" onClick={onNavigate} icon={icon(UsersRound)}>{t('nav.customers')}</NavLink>
 
       <p className="sidebar-section-label eyebrow px-2 pb-1">{t('shell.stock')}</p>

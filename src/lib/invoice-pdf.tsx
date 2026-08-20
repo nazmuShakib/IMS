@@ -1,6 +1,7 @@
 import { Document, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 
-import type { InvoiceItem, Sale } from '@/domain/types';
+import type { EmiContract, EmiEarlySettlement, EmiInstallment, InvoiceItem, Sale } from '@/domain/types';
+import { emiDisplayStatus } from '@/lib/emi-summary';
 
 const styles = StyleSheet.create({
   page: { padding: 34, fontFamily: 'Helvetica', fontSize: 9, color: '#14181d' },
@@ -33,11 +34,16 @@ function InvoiceDocument({
   sale,
   items,
   shop,
+  emi,
 }: {
   sale: Sale;
   items: InvoiceItem[];
   shop: { name: string; address: string | null; phone: string | null; policy: string | null };
+  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null;
 }) {
+  const currentEmiStatus = emi
+    ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement).replaceAll('_', ' ')
+    : null;
   return (
     <Document title={sale.invoiceNumber} author={shop.name}>
       <Page size="A4" style={styles.page}>
@@ -64,7 +70,9 @@ function InvoiceDocument({
             <Text style={styles.label}>Sale details</Text>
             <Text>{new Date(sale.completedAt).toLocaleString('en-BD', { timeZone: 'Asia/Dhaka' })}</Text>
             <Text style={styles.muted}>Served by {sale.actorName}</Text>
-            <Text style={styles.muted}>{sale.paymentMethod.replaceAll('_', ' ')} / {sale.paymentStatus}</Text>
+            <Text style={styles.muted}>
+              {emi ? `Shop-managed EMI / ${currentEmiStatus}` : `${sale.paymentMethod.replaceAll('_', ' ')} / ${sale.paymentStatus}`}
+            </Text>
           </View>
         </View>
         <View style={[styles.row, styles.tableHead]}>
@@ -105,6 +113,15 @@ function InvoiceDocument({
             </>
           )}
         </View>
+        {emi && (
+          <View style={styles.tradeIn} wrap={false}>
+            <Text style={styles.label}>Payment plan</Text>
+            <Text>Shop-managed EMI / {currentEmiStatus}</Text>
+            <Text style={styles.muted}>{emi.contract.contractNumber} / {emi.contract.termMonths} monthly installments</Text>
+            <Text style={styles.muted}>Down payment: {money(emi.contract.downPayment)} via {sale.paymentMethod.replaceAll('_', ' ')}</Text>
+            <Text style={styles.muted}>Financed amount: {money(emi.contract.financedAmount)}</Text>
+          </View>
+        )}
         {sale.note && <Text style={styles.note}>Note: {sale.note}</Text>}
         {sale.status === 'VOIDED' && (
           <Text style={[styles.note, styles.voided]}>
@@ -126,6 +143,7 @@ export async function invoiceToPdf(
   sale: Sale,
   items: InvoiceItem[],
   shop: { name: string; address: string | null; phone: string | null; policy: string | null },
+  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null = null,
 ): Promise<Buffer> {
-  return renderToBuffer(<InvoiceDocument sale={sale} items={items} shop={shop} />);
+  return renderToBuffer(<InvoiceDocument sale={sale} items={items} shop={shop} emi={emi} />);
 }

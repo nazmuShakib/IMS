@@ -28,6 +28,11 @@ import type {
   ExpenseCategory,
   OperatingExpense,
   OperatingExpenseStatus,
+  EmiContract,
+  EmiInstallment,
+  EmiPayment,
+  EmiPaymentAllocation,
+  EmiEarlySettlement,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 
@@ -140,13 +145,14 @@ export interface CustomerRepository {
   findByNormalizedPhone(phoneNormalized: string): Promise<Customer | null>;
   search(query: string, limit?: number): Promise<Customer[]>;
   create(value: Customer): Promise<Customer>;
+  update(id: string, patch: Partial<Pick<Customer, 'name' | 'phone' | 'phoneNormalized' | 'identificationType' | 'identificationNumber' | 'isActive'>>): Promise<Customer>;
 }
 
 export interface CartRepository {
   findByActor(actorId: string): Promise<CartDraft | null>;
   findById(id: string): Promise<CartDraft | null>;
   create(value: CartDraft): Promise<CartDraft>;
-  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note' | 'tradeInDraft' | 'tradeInAcquisitionId'>>): Promise<CartDraft>;
+  update(id: string, patch: Partial<Pick<CartDraft, 'customerId' | 'paymentMethod' | 'paymentStatus' | 'reference' | 'note' | 'tradeInDraft' | 'tradeInAcquisitionId' | 'isEmi' | 'emiTermMonths' | 'emiDownPayment' | 'emiFirstDueDate'>>): Promise<CartDraft>;
   findItems(cartId: string): Promise<CartItem[]>;
   findItem(id: string): Promise<CartItem | null>;
   createItem(value: CartItem): Promise<CartItem>;
@@ -224,6 +230,7 @@ export interface OperatingExpenseRepository {
 export interface SaleRepository {
   nextInvoiceNumber(now: Date): Promise<string>;
   findAll(limit?: number): Promise<Sale[]>;
+  findVoidedByDateRange(from: Date, to: Date): Promise<Sale[]>;
   search(filters: SaleFilters, limit?: number): Promise<Sale[]>;
   findById(id: string): Promise<Sale | null>;
   findByInvoiceNumber(invoiceNumber: string): Promise<Sale | null>;
@@ -236,6 +243,27 @@ export interface SaleRepository {
   ): Promise<Sale>;
   createItem(value: SaleItem): Promise<SaleItem>;
   findItems(saleId: string): Promise<InvoiceItem[]>;
+}
+
+export interface EmiRepository {
+  nextContractNumber(now: Date): Promise<string>;
+  nextReceiptNumber(now: Date): Promise<string>;
+  findContracts(): Promise<EmiContract[]>;
+  findContractById(id: string): Promise<EmiContract | null>;
+  findContractBySale(saleId: string): Promise<EmiContract | null>;
+  createContract(value: EmiContract): Promise<EmiContract>;
+  updateContract(id: string, patch: Partial<Pick<EmiContract, 'status' | 'completedAt' | 'voidedAt' | 'updatedAt'>>): Promise<EmiContract>;
+  findInstallments(contractId: string): Promise<EmiInstallment[]>;
+  createInstallment(value: EmiInstallment): Promise<EmiInstallment>;
+  updateInstallment(id: string, patch: Partial<Pick<EmiInstallment, 'amountDue' | 'amountPaid' | 'status' | 'paidAt' | 'updatedAt'>>): Promise<EmiInstallment>;
+  findPayments(contractId: string): Promise<EmiPayment[]>;
+  findPaymentByIdempotencyKey(key: string): Promise<EmiPayment | null>;
+  createPayment(value: EmiPayment): Promise<EmiPayment>;
+  updatePayment(id: string, patch: Partial<Pick<EmiPayment, 'status' | 'reversedAt' | 'reverseReason'>>): Promise<EmiPayment>;
+  findAllocations(paymentId: string): Promise<EmiPaymentAllocation[]>;
+  createAllocation(value: EmiPaymentAllocation): Promise<EmiPaymentAllocation>;
+  findEarlySettlement(contractId: string): Promise<EmiEarlySettlement | null>;
+  createEarlySettlement(value: EmiEarlySettlement): Promise<EmiEarlySettlement>;
 }
 
 export interface SaleFilters {
@@ -309,5 +337,6 @@ export interface Repositories {
   supplierReturns: SupplierReturnRepository;
   expenseCategories: ExpenseCategoryRepository;
   operatingExpenses: OperatingExpenseRepository;
+  emi: EmiRepository;
   transaction: Transactor;
 }

@@ -16,6 +16,7 @@ import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import type { SaleFilters } from '@/repositories/types';
+import { emiDisplayStatus, emiOverdueAmount } from '@/lib/emi-summary';
 
 export const dynamic = 'force-dynamic';
 
@@ -98,6 +99,21 @@ export default async function InvoicesPage({
   const sales = invalidPriceRange || invalidDateRange
     ? []
     : await db.sales.search(filters, 500);
+  const visibleSaleIds = new Set(sales.map((sale) => sale.id));
+  const emiContracts = (await db.emi.findContracts()).filter((contract) => visibleSaleIds.has(contract.saleId));
+  const emiSummaries = await Promise.all(emiContracts.map(async (contract) => {
+    const [installments, earlySettlement] = await Promise.all([
+      db.emi.findInstallments(contract.id),
+      db.emi.findEarlySettlement(contract.id),
+    ]);
+    return [contract.saleId, {
+      contractNumber: contract.contractNumber,
+      termMonths: contract.termMonths,
+      status: emiDisplayStatus(contract, installments, earlySettlement),
+      overdueAmount: emiOverdueAmount(installments),
+    }] as const;
+  }));
+  const emiBySaleId = Object.fromEntries(emiSummaries);
   const users = await usersPromise;
 
   return (
@@ -114,6 +130,7 @@ export default async function InvoicesPage({
         confirmedFilters={confirmedFilters}
         sellers={users.map(({ id, name }) => ({ id, name }))}
         sales={sales}
+        emiBySaleId={emiBySaleId}
         hasFilters={hasFilters}
         invalidDateRange={Boolean(invalidDateRange)}
         invalidPriceRange={invalidPriceRange}

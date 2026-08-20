@@ -144,6 +144,33 @@ enum PaymentMethod {
   OTHER
 }
 
+enum CustomerIdentificationType {
+  NID
+  PASSPORT
+  BIRTH_CERTIFICATE
+}
+
+enum EmiContractStatus {
+  ACTIVE
+  PAID
+  OVERDUE
+  VOIDED
+}
+
+enum EmiInstallmentStatus {
+  UPCOMING
+  DUE
+  PARTIAL
+  PAID
+  OVERDUE
+  VOIDED
+}
+
+enum EmiPaymentStatus {
+  ACTIVE
+  REVERSED
+}
+
 enum OperatingExpenseStatus {
   ACTIVE
   VOIDED
@@ -196,9 +223,12 @@ model User {
   refurbishmentExpenses  RefurbishmentExpense[]
   createdSupplierReturns SupplierReturn[]        @relation("SupplierReturnCreatedBy")
   settledSupplierReturns SupplierReturn[]        @relation("SupplierReturnSettledBy")
-  recordedExpenses        OperatingExpense[]      @relation("ExpenseRecordedBy")
-  updatedExpenses         OperatingExpense[]      @relation("ExpenseUpdatedBy")
-  voidedExpenses          OperatingExpense[]      @relation("ExpenseVoidedBy")
+  recordedExpenses       OperatingExpense[]      @relation("ExpenseRecordedBy")
+  updatedExpenses        OperatingExpense[]      @relation("ExpenseUpdatedBy")
+  voidedExpenses         OperatingExpense[]      @relation("ExpenseVoidedBy")
+  createdEmiContracts    EmiContract[]           @relation("EmiContractCreatedBy")
+  recordedEmiPayments    EmiPayment[]            @relation("EmiPaymentRecordedBy")
+  approvedEmiSettlements EmiEarlySettlement[]    @relation("EmiSettlementApprovedBy")
 
   @@index([role])
   @@map("users")
@@ -622,19 +652,23 @@ model DocumentSequence {
 // ===========================================================================
 
 model Customer {
-  id              String   @id @default(uuid(7))
-  name            String
-  phone           String?
-  phoneNormalized String?  @unique
-  isActive        Boolean  @default(true)
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                   String                      @id @default(uuid(7))
+  name                 String
+  phone                String?
+  phoneNormalized      String?                     @unique
+  identificationType   CustomerIdentificationType?
+  identificationNumber String?
+  isActive             Boolean                     @default(true)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
 
-  drafts CartDraft[]
-  sales  Sale[]
+  drafts       CartDraft[]
+  sales        Sale[]
+  emiContracts EmiContract[]
 
   @@index([name])
   @@index([isActive])
+  @@index([identificationType, identificationNumber])
   @@map("customers")
 }
 
@@ -650,6 +684,10 @@ model CartDraft {
   paymentStatus        PaymentStatus          @default(PAID)
   reference            String?
   note                 String?
+  isEmi                Boolean                @default(false)
+  emiTermMonths        Int?
+  emiDownPayment       Int                    @default(0)
+  emiFirstDueDate      DateTime?
   tradeInDraft         Json?
   tradeInAcquisitionId String?                @unique
   tradeInAcquisition   UsedDeviceAcquisition? @relation("DraftTradeIn", fields: [tradeInAcquisitionId], references: [id], onDelete: SetNull)
@@ -729,12 +767,120 @@ model Sale {
 
   items              SaleItem[]
   tradeInAcquisition UsedDeviceAcquisition? @relation("TradeInSale")
+  emiContract        EmiContract?
 
   @@index([customerId, completedAt])
   @@index([actorId, completedAt])
   @@index([completedAt])
   @@index([paymentStatus, completedAt])
   @@map("sales")
+}
+
+model EmiContract {
+  id             String            @id @default(uuid(7))
+  contractNumber String            @unique
+  saleId         String            @unique
+  sale           Sale              @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  customerId     String
+  customer       Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  status         EmiContractStatus @default(ACTIVE)
+  termMonths     Int
+  normalPrice    Int
+  emiTotal       Int
+  downPayment    Int               @default(0)
+  tradeInCredit  Int               @default(0)
+  financedAmount Int
+  firstDueDate   DateTime
+  createdById    String
+  createdBy      User              @relation("EmiContractCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  createdByName  String
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  completedAt    DateTime?
+  voidedAt       DateTime?
+
+  installments    EmiInstallment[]
+  payments        EmiPayment[]
+  earlySettlement EmiEarlySettlement?
+
+  @@index([customerId, status])
+  @@index([status, firstDueDate])
+  @@index([createdAt])
+  @@map("emi_contracts")
+}
+
+model EmiInstallment {
+  id          String                 @id @default(uuid(7))
+  contractId  String
+  contract    EmiContract            @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  sequence    Int
+  dueDate     DateTime
+  amountDue   Int
+  amountPaid  Int                    @default(0)
+  status      EmiInstallmentStatus   @default(UPCOMING)
+  paidAt      DateTime?
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+  allocations EmiPaymentAllocation[]
+
+  @@unique([contractId, sequence])
+  @@index([status, dueDate])
+  @@map("emi_installments")
+}
+
+model EmiPayment {
+  id             String                 @id @default(uuid(7))
+  receiptNumber  String                 @unique
+  idempotencyKey String                 @unique
+  contractId     String
+  contract       EmiContract            @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  amount         Int
+  paymentMethod  PaymentMethod
+  reference      String?
+  note           String?
+  status         EmiPaymentStatus       @default(ACTIVE)
+  recordedById   String
+  recordedBy     User                   @relation("EmiPaymentRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedByName String
+  paidAt         DateTime               @default(now())
+  reversedAt     DateTime?
+  reverseReason  String?
+  createdAt      DateTime               @default(now())
+  allocations    EmiPaymentAllocation[]
+
+  @@index([contractId, paidAt])
+  @@index([status, paidAt])
+  @@map("emi_payments")
+}
+
+model EmiPaymentAllocation {
+  id            String         @id @default(uuid(7))
+  paymentId     String
+  payment       EmiPayment     @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  installmentId String
+  installment   EmiInstallment @relation(fields: [installmentId], references: [id], onDelete: Restrict)
+  amount        Int
+  createdAt     DateTime       @default(now())
+
+  @@unique([paymentId, installmentId])
+  @@index([installmentId])
+  @@map("emi_payment_allocations")
+}
+
+model EmiEarlySettlement {
+  id                String      @id @default(uuid(7))
+  contractId        String      @unique
+  contract          EmiContract @relation(fields: [contractId], references: [id], onDelete: Restrict)
+  outstandingBefore Int
+  discountAmount    Int
+  finalAmount       Int
+  reason            String
+  approvedById      String
+  approvedBy        User        @relation("EmiSettlementApprovedBy", fields: [approvedById], references: [id], onDelete: Restrict)
+  approvedByName    String
+  approvedAt        DateTime    @default(now())
+
+  @@map("emi_early_settlements")
 }
 
 model SaleItem {
@@ -840,15 +986,15 @@ model OperatingExpense {
   status        OperatingExpenseStatus @default(ACTIVE)
 
   recordedById String
-  recordedBy   User   @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedBy   User      @relation("ExpenseRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
   updatedById  String
-  updatedBy    User   @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
+  updatedBy    User      @relation("ExpenseUpdatedBy", fields: [updatedById], references: [id], onDelete: Restrict)
   voidedById   String?
-  voidedBy     User?  @relation("ExpenseVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
+  voidedBy     User?     @relation("ExpenseVoidedBy", fields: [voidedById], references: [id], onDelete: Restrict)
   voidedAt     DateTime?
   voidReason   String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   @@index([expenseDate])
   @@index([categoryId, expenseDate])

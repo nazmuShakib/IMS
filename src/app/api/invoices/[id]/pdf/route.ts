@@ -20,12 +20,23 @@ export async function GET(
   const sale = await db.sales.findById(id);
   if (!sale) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
   const items = await db.sales.findItems(sale.id);
+  const emiContract = await db.emi.findContractBySale(sale.id);
+  const [emiInstallments, emiEarlySettlement] = emiContract
+    ? await Promise.all([
+        db.emi.findInstallments(emiContract.id),
+        db.emi.findEarlySettlement(emiContract.id),
+      ])
+    : [[], null];
   const content = await invoiceToPdf(sale, items, {
     name: process.env.SHOP_NAME?.trim() || 'Electronics Shop',
     address: process.env.SHOP_ADDRESS?.trim() || null,
     phone: process.env.SHOP_PHONE?.trim() || null,
     policy: process.env.INVOICE_POLICY?.trim() || null,
-  });
+  }, emiContract ? {
+    contract: emiContract,
+    installments: emiInstallments,
+    earlySettlement: emiEarlySettlement,
+  } : null);
   return new Response(new Uint8Array(content), {
     headers: {
       'Content-Type': 'application/pdf',

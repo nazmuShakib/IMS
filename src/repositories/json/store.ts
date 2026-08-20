@@ -37,7 +37,12 @@ export type Collection =
   | 'refurbishment-expenses'
   | 'supplier-returns'
   | 'expense-categories'
-  | 'operating-expenses';
+  | 'operating-expenses'
+  | 'emi-contracts'
+  | 'emi-installments'
+  | 'emi-payments'
+  | 'emi-payment-allocations'
+  | 'emi-early-settlements';
 
 /** Tiny in-memory cache so a single request doesn't re-read the same file 20 times. */
 const cache = new Map<Collection, unknown[]>();

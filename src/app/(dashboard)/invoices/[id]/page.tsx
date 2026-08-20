@@ -13,6 +13,14 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const sale = await db.sales.findById(id);
   if (!sale) notFound();
   const items = await db.sales.findItems(sale.id);
+  const emiContract = await db.emi.findContractBySale(sale.id);
+  const [emiInstallments, emiEarlySettlement, emiPayments] = emiContract
+    ? await Promise.all([
+        db.emi.findInstallments(emiContract.id),
+        db.emi.findEarlySettlement(emiContract.id),
+        db.emi.findPayments(emiContract.id),
+      ])
+    : [[], null, []];
   let canVoid = sale.status === 'COMPLETED';
   if (canVoid) {
     try {
@@ -27,6 +35,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       sale={sale}
       items={items}
       canVoid={canVoid}
+      emi={emiContract ? { contract: emiContract, installments: emiInstallments, earlySettlement: emiEarlySettlement, payments: emiPayments } : null}
       shop={{
         name: process.env.SHOP_NAME?.trim() || 'Electronics Shop',
         address: process.env.SHOP_ADDRESS?.trim() || null,

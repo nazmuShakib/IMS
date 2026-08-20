@@ -110,6 +110,14 @@ export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type SaleStatus = 'COMPLETED' | 'VOIDED';
 
+export const CUSTOMER_IDENTIFICATION_TYPES = ['NID', 'PASSPORT', 'BIRTH_CERTIFICATE'] as const;
+export type CustomerIdentificationType = (typeof CUSTOMER_IDENTIFICATION_TYPES)[number];
+export const EMI_TERMS = [3, 6, 9, 12] as const;
+export type EmiTerm = (typeof EMI_TERMS)[number];
+export type EmiContractStatus = 'ACTIVE' | 'PAID' | 'OVERDUE' | 'VOIDED';
+export type EmiInstallmentStatus = 'UPCOMING' | 'DUE' | 'PARTIAL' | 'PAID' | 'OVERDUE' | 'VOIDED';
+export type EmiPaymentStatus = 'ACTIVE' | 'REVERSED';
+
 export const OPERATING_EXPENSE_STATUSES = ['ACTIVE', 'VOIDED'] as const;
 export type OperatingExpenseStatus = (typeof OPERATING_EXPENSE_STATUSES)[number];
 
@@ -325,6 +333,8 @@ export interface Customer {
   name: string;
   phone: string | null;
   phoneNormalized: string | null;
+  identificationType?: CustomerIdentificationType | null;
+  identificationNumber?: string | null;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -338,6 +348,10 @@ export interface CartDraft {
   paymentStatus: PaymentStatus;
   reference: string | null;
   note: string | null;
+  isEmi?: boolean;
+  emiTermMonths?: EmiTerm | null;
+  emiDownPayment?: Paisa;
+  emiFirstDueDate?: string | null;
   tradeInDraft: TradeInCartDraft | null;
   tradeInAcquisitionId: string | null;
   createdAt: string;
@@ -432,6 +446,78 @@ export interface SaleItem {
   knownDefects: string | null;
   position: number;
   createdAt: string;
+}
+
+export interface EmiContract {
+  id: string;
+  contractNumber: string;
+  saleId: string;
+  customerId: string;
+  status: EmiContractStatus;
+  termMonths: EmiTerm;
+  normalPrice: Paisa;
+  emiTotal: Paisa;
+  downPayment: Paisa;
+  tradeInCredit: Paisa;
+  financedAmount: Paisa;
+  firstDueDate: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+  completedAt: string | null;
+  voidedAt: string | null;
+}
+
+export interface EmiInstallment {
+  id: string;
+  contractId: string;
+  sequence: number;
+  dueDate: string;
+  amountDue: Paisa;
+  amountPaid: Paisa;
+  status: EmiInstallmentStatus;
+  paidAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface EmiPayment {
+  id: string;
+  receiptNumber: string;
+  idempotencyKey: string;
+  contractId: string;
+  amount: Paisa;
+  paymentMethod: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  status: EmiPaymentStatus;
+  recordedById: string;
+  recordedByName: string;
+  paidAt: string;
+  reversedAt: string | null;
+  reverseReason: string | null;
+  createdAt: string;
+}
+
+export interface EmiPaymentAllocation {
+  id: string;
+  paymentId: string;
+  installmentId: string;
+  amount: Paisa;
+  createdAt: string;
+}
+
+export interface EmiEarlySettlement {
+  id: string;
+  contractId: string;
+  outstandingBefore: Paisa;
+  discountAmount: Paisa;
+  finalAmount: Paisa;
+  reason: string;
+  approvedById: string;
+  approvedByName: string;
+  approvedAt: string;
 }
 
 /** Read model: immutable invoice snapshot plus economics from its linked movement. */

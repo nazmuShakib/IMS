@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import type { PaymentMethod, Role, Sale, StockMovement } from '@/domain/types';
+import { emiVoidRefundAmount } from '@/lib/emi-summary';
 import { db } from '@/repositories';
 import { voidInvoiceFieldsSchema } from '@/schemas';
 import { correctMovementInTransaction } from '@/services/stock';
@@ -58,9 +59,13 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
 
     assertVoidPermission(sale, { id: input.actorId, role: input.actorRole });
 
-    const refundAmount = sale.paymentStatus === 'PAID'
-      ? Math.max(0, sale.total - sale.tradeInCredit)
-      : 0;
+    const emiContract = await tx.emi.findContractBySale(sale.id);
+    const emiPayments = emiContract ? await tx.emi.findPayments(emiContract.id) : [];
+    const refundAmount = emiContract
+      ? emiVoidRefundAmount(emiContract, emiPayments)
+      : sale.paymentStatus === 'PAID'
+        ? Math.max(0, sale.total - sale.tradeInCredit)
+        : 0;
     if (refundAmount > 0 && !input.refundMethod) {
       throw new Error('Choose how the customer was refunded.');
     }
@@ -139,7 +144,17 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
     }
 
     const now = new Date().toISOString();
-    return tx.sales.markVoided(sale.id, {
+    if (emiContract) {
+      for (const payment of emiPayments) {
+        if (payment.status !== 'ACTIVE') continue;
+        await tx.emi.updatePayment(payment.id, {
+          status: 'REVERSED',
+          reversedAt: now,
+          reverseReason: input.reason,
+        });
+      }
+    }
+    const voided = await tx.sales.markVoided(sale.id, {
       status: 'VOIDED',
       voidedAt: now,
       voidedById: input.actorId,
@@ -149,5 +164,12 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
       refundMethod: refundAmount > 0 ? input.refundMethod as PaymentMethod : null,
       voidIdempotencyKey: input.idempotencyKey,
     });
+    if (emiContract) {
+      await tx.emi.updateContract(emiContract.id, { status: 'VOIDED', voidedAt: now, updatedAt: now });
+      for (const installment of await tx.emi.findInstallments(emiContract.id)) {
+        await tx.emi.updateInstallment(installment.id, { status: 'VOIDED', updatedAt: now });
+      }
+    }
+    return voided;
   });
 }

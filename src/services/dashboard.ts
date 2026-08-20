@@ -69,6 +69,7 @@ export interface DailyFinancialPoint {
   stockValue: Paisa;
   revenue: Paisa;
   margin: Paisa;
+  refunds: Paisa;
 }
 
 interface DashboardCommon {
@@ -186,10 +187,14 @@ export async function getDashboard(
   now = new Date(),
   repositories: Repositories = db,
 ): Promise<DashboardDTO> {
-  const [products, movements, users] = await Promise.all([
+  const financialHistoryStart = new Date(startOfDhakaDay(now).getTime() - 61 * DAY_MS);
+  const [products, movements, users, voidedSales] = await Promise.all([
     repositories.products.findAll(),
     repositories.movements.findByDateRange(new Date(0), now),
     repositories.users.findAll(),
+    canSeeCosts(role)
+      ? repositories.sales.findVoidedByDateRange(financialHistoryStart, now)
+      : Promise.resolve([]),
   ]);
   const unitsByProduct = new Map<string, ProductUnit[]>();
   await Promise.all(
@@ -336,7 +341,7 @@ export async function getDashboard(
     return dhakaDateKey(date);
   });
   const operations = new Map(dayKeys.map((date) => [date, { stockIn: 0, stockOut: 0 }]));
-  const financials = new Map(financialDayKeys.map((date) => [date, { revenue: 0, margin: 0 }]));
+  const financials = new Map(financialDayKeys.map((date) => [date, { revenue: 0, margin: 0, refunds: 0 }]));
 
   for (const movement of movements) {
     const key = dhakaDateKey(new Date(movement.createdAt));
@@ -346,11 +351,19 @@ export async function getDashboard(
       if (movement.quantity < 0) operation.stockOut += Math.abs(movement.quantity);
     }
     const financial = financials.get(key);
-    if (financial) {
+    // Performance charts show only sales that remain valid. Corrections and the
+    // original movements they reverse stay in the ledger, but neither is drawn
+    // as a new sale or as negative sales performance.
+    if (financial && isEffectiveOperation(movement)) {
       const values = movementFinancials(movement, movementById);
       financial.revenue += values.revenue;
       financial.margin += values.revenue - values.cogs;
     }
+  }
+  for (const sale of voidedSales) {
+    if (!sale.voidedAt || !sale.refundAmount) continue;
+    const financial = financials.get(dhakaDateKey(new Date(sale.voidedAt)));
+    if (financial) financial.refunds += sale.refundAmount;
   }
 
   const common: DashboardCommon = {
@@ -489,7 +502,13 @@ export async function getDashboard(
   const dailyFinancials = financialDayKeys.map((date): DailyFinancialPoint => {
     runningStockValue += stockValueDeltaByDay.get(date)!;
     const values = financials.get(date)!;
-    return { date, stockValue: runningStockValue, revenue: values.revenue, margin: values.margin };
+    return {
+      date,
+      stockValue: runningStockValue,
+      revenue: values.revenue,
+      margin: values.margin,
+      refunds: values.refunds,
+    };
   });
 
   return {

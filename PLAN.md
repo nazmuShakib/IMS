@@ -1358,10 +1358,42 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
   them. This remains analytics rather than a payable ledger: purchase orders,
   invoices, partial payments, and outstanding balances remain deferred.
 
-### 21.3 Remaining Phase 10 increments
+### 21.3 Shop-managed EMI
 
-- EMI sales and settlement tracking.
-- Further EMI indicators.
+**Implementation status: complete (16 August 2026).**
+
+- EMI is an alternate checkout mode on the existing sale/cart transaction—not a
+  second sales workflow. Terms are limited to 3, 6, 9, or 12 months. The first
+  installment is due on the chosen first-due date, which must be today or within
+  the next 31 days; later dates preserve that day where possible and otherwise
+  use the final valid day of the month.
+- The cashier enters each line's EMI selling price directly in the existing
+  checkout cart. The selected 3/6/9/12-month term controls the installment
+  schedule rather than maintaining a second product-price configuration screen.
+  Browser and transactional server validation both require every EMI selling
+  price to be higher than that line's captured normal price.
+- EMI checkout requires a saved customer with an identification type (NID,
+  passport, or birth certificate) and identification number. An optional down
+  payment and an existing checkout trade-in credit reduce the financed balance.
+  Sale, invoice, stock movements, EMI contract, and complete installment
+  schedule commit together in the checkout transaction.
+- The original invoice remains the only sales invoice and displays the EMI
+  summary and schedule. Installment collections create compact numbered payment
+  receipts and FIFO payment allocations, not duplicate invoices or stored PDF
+  blobs. This keeps payment history queryable without duplicating sale data.
+- STAFF can create EMI sales and view contracts but cannot collect payments.
+  ADMIN and MANAGER can record payments. Early settlement requires ADMIN or
+  MANAGER approval, a reason, and an approved discount; it reduces the remaining
+  schedule without rewriting the original sale price.
+- Open contracts automatically distinguish active and overdue schedules. The
+  EMI register supports contract/invoice/customer/mobile search plus contract
+  status, installment status, term, contract-date, outstanding-range, and
+  ordering filters. It exposes installment balances and receipts and adds open-contract,
+  outstanding-balance, and overdue-contract indicators to the dashboard for
+  financial roles.
+- An EMI invoice cannot be voided after installment collection begins. Before
+  collection, invoice voiding restores stock and marks the contract and schedule
+  VOIDED; only the actual down payment is treated as the customer refund.
 
 ### 21.4 Dashboard period comparison
 

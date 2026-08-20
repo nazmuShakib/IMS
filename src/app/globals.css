@@ -174,7 +174,8 @@ html[lang="bn"] .eyebrow {
   .overflow-x-auto,
   .overflow-y-scroll,
   .overflow-x-scroll,
-  .invoice-preview-viewport
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
 ) {
   scrollbar-gutter: stable;
 }
@@ -185,7 +186,8 @@ html[lang="bn"] .eyebrow {
   .overflow-x-auto,
   .overflow-y-scroll,
   .overflow-x-scroll,
-  .invoice-preview-viewport
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
 )::-webkit-scrollbar {
   width: 4px;
   height: 4px;
@@ -197,7 +199,22 @@ html[lang="bn"] .eyebrow {
   .overflow-x-auto,
   .overflow-y-scroll,
   .overflow-x-scroll,
-  .invoice-preview-viewport
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
+)::-webkit-scrollbar-button {
+  display: none;
+  width: 0;
+  height: 0;
+}
+
+:where(
+  .overflow-auto,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .overflow-y-scroll,
+  .overflow-x-scroll,
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
 )::-webkit-scrollbar-track,
 :where(
   .overflow-auto,
@@ -205,7 +222,8 @@ html[lang="bn"] .eyebrow {
   .overflow-x-auto,
   .overflow-y-scroll,
   .overflow-x-scroll,
-  .invoice-preview-viewport
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
 )::-webkit-scrollbar-corner {
   background: transparent;
 }
@@ -216,7 +234,8 @@ html[lang="bn"] .eyebrow {
   .overflow-x-auto,
   .overflow-y-scroll,
   .overflow-x-scroll,
-  .invoice-preview-viewport
+  .invoice-preview-viewport,
+  .emi-receipt-viewport
 )::-webkit-scrollbar-thumb {
   min-height: 28px;
   border: 1px solid transparent;
@@ -231,7 +250,8 @@ html[lang="bn"] .eyebrow {
     .overflow-x-auto,
     .overflow-y-scroll,
     .overflow-x-scroll,
-    .invoice-preview-viewport
+    .invoice-preview-viewport,
+    .emi-receipt-viewport
   ):is(:hover, :focus-visible)::-webkit-scrollbar-thumb {
   background-color: var(--color-scrollbar-thumb-active);
 }
@@ -242,7 +262,8 @@ html[lang="bn"] .eyebrow {
     .overflow-x-auto,
     .overflow-y-scroll,
     .overflow-x-scroll,
-    .invoice-preview-viewport
+    .invoice-preview-viewport,
+    .emi-receipt-viewport
   )::-webkit-scrollbar-thumb:hover {
   border-width: 0 1px 1px 0;
   background-color: var(--color-scrollbar-thumb-active);
@@ -282,7 +303,8 @@ html[lang="bn"] .eyebrow {
     .overflow-x-auto,
     .overflow-y-scroll,
     .overflow-x-scroll,
-    .invoice-preview-viewport
+    .invoice-preview-viewport,
+    .emi-receipt-viewport
   ) {
     scrollbar-width: thin;
     scrollbar-color: var(--color-scrollbar-thumb-active) transparent;
@@ -527,6 +549,275 @@ html[lang="bn"] .eyebrow {
 
   .stock-label-print-root[data-layout="a4"] .stock-label {
     break-inside: avoid;
+  }
+}
+
+/* EMI installment receipt preview and A4 / 80 mm POS printing. */
+.emi-receipt-viewport {
+  width: 100%;
+  max-height: calc(100dvh - 11rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.emi-receipt-document {
+  box-sizing: border-box;
+  width: min(210mm, 100%);
+  min-height: 180mm;
+  margin: 0 auto;
+  border: 1px solid var(--color-rule);
+  border-radius: 3px;
+  background: #fff;
+  padding: clamp(20px, 5%, 15mm);
+  color: #14181d;
+}
+
+.emi-receipt-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10mm;
+  border-bottom: 1px solid #4b5563;
+  padding-bottom: 5mm;
+}
+
+.emi-receipt-header h2 {
+  margin-top: 1mm;
+  color: #4b5563;
+  font-size: 10pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+}
+
+.emi-receipt-shop {
+  font-size: 20pt;
+  font-weight: 750;
+}
+
+.emi-receipt-number {
+  margin-top: 5mm;
+  font-family: var(--font-mono), monospace;
+  font-weight: 700;
+}
+
+.emi-receipt-header p:last-child {
+  margin-top: 1mm;
+  color: #4b5563;
+  font-size: 9pt;
+}
+
+.emi-receipt-qr-wrap {
+  display: grid;
+  flex: 0 0 auto;
+  justify-items: center;
+  gap: 1mm;
+}
+
+.emi-receipt-qr-wrap span {
+  color: #6b7280;
+  font-size: 7pt;
+}
+
+.emi-receipt-amount {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-top: 6mm;
+  border: 1px solid #d1d5db;
+  background: #d1d5db;
+}
+
+.emi-receipt-amount > div {
+  display: grid;
+  gap: 1.5mm;
+  background: #f3f4f6;
+  padding: 4mm;
+}
+
+.emi-receipt-amount span,
+.emi-receipt-details dt {
+  color: #4b5563;
+  font-size: 7pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.emi-receipt-amount strong {
+  font-family: var(--font-mono), monospace;
+  font-size: 17pt;
+}
+
+.emi-receipt-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 5mm 10mm;
+  padding: 6mm 0;
+}
+
+.emi-receipt-details dd {
+  margin-top: 1.5mm;
+  font-size: 10pt;
+  font-weight: 550;
+}
+
+.emi-receipt-details dd span {
+  color: #4b5563;
+  font-weight: 400;
+}
+
+.emi-receipt-products {
+  border-block: 1px solid #d1d5db;
+  padding: 4mm 0;
+}
+
+.emi-receipt-products h3 {
+  margin-bottom: 2mm;
+  color: #374151;
+  font-size: 8pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.emi-receipt-products > div + div {
+  margin-top: 2mm;
+}
+
+.emi-receipt-products strong,
+.emi-receipt-products span {
+  display: block;
+}
+
+.emi-receipt-products span {
+  margin-top: 0.5mm;
+  color: #4b5563;
+  font-size: 8pt;
+}
+
+.emi-receipt-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 5mm;
+  margin-top: 5mm;
+  color: #4b5563;
+  font-size: 8pt;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
+  display: flex;
+  flex-direction: column;
+  width: min(80mm, 100%);
+  min-height: 0;
+  padding: 4mm;
+  font-size: 8pt;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-header {
+  display: contents;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-header > div:first-child {
+  order: 1;
+  border-bottom: 1px solid #4b5563;
+  padding-bottom: 3mm;
+  text-align: center;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-shop {
+  font-size: 14pt;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-number {
+  margin-top: 3mm;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-qr-wrap {
+  order: 6;
+  margin-top: 4mm;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-qr {
+  width: 25mm;
+  height: 25mm;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-amount,
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-details {
+  grid-template-columns: 1fr;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-amount {
+  order: 2;
+  margin-top: 3mm;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-amount > div {
+  padding: 2.5mm;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-amount strong {
+  font-size: 14pt;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-details {
+  order: 3;
+  gap: 3mm;
+  padding: 3mm 0;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-details dd {
+  font-size: 8pt;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-footer {
+  order: 5;
+  display: grid;
+  gap: 1mm;
+  margin-top: 3mm;
+  text-align: left;
+}
+
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-products {
+  order: 4;
+}
+
+@page emi-receipt-a4 {
+  size: A4 portrait;
+  margin: 0;
+}
+
+@page emi-receipt-thermal {
+  size: 80mm auto;
+  margin: 0;
+}
+
+@media print {
+  .emi-receipt-root > header {
+    display: none;
+  }
+
+  .emi-receipt-viewport {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .emi-receipt-root[data-layout="a4"] .emi-receipt-document {
+    width: 210mm;
+    min-height: 297mm;
+    border: 0;
+    border-radius: 0;
+    padding: 15mm;
+    page: emi-receipt-a4;
+  }
+
+  .emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
+    width: 80mm;
+    min-height: 0;
+    border: 0;
+    border-radius: 0;
+    padding: 4mm;
+    page: emi-receipt-thermal;
   }
 }
 

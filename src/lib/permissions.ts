@@ -22,6 +22,9 @@ export const CAPABILITIES = [
   'VIEW_EXPENSES',
   'MANAGE_EXPENSES',
   'VOID_EXPENSES',
+  'VIEW_EMI',
+  'RECORD_EMI_PAYMENT',
+  'APPROVE_EMI_SETTLEMENT',
 ] as const;
 
 export type Capability = (typeof CAPABILITIES)[number];
@@ -49,6 +52,9 @@ export const CAPABILITY_ROLES: Record<Capability, readonly Role[]> = {
   VIEW_EXPENSES: ['ADMIN', 'MANAGER'],
   MANAGE_EXPENSES: ['ADMIN', 'MANAGER'],
   VOID_EXPENSES: ['ADMIN'],
+  VIEW_EMI: ['ADMIN', 'MANAGER', 'STAFF'],
+  RECORD_EMI_PAYMENT: ['ADMIN', 'MANAGER'],
+  APPROVE_EMI_SETTLEMENT: ['ADMIN', 'MANAGER'],
 };
 
 export function hasPermission(role: Role, capability: Capability): boolean {

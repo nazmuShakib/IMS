@@ -15,6 +15,8 @@ import {
   USED_DEVICE_GRADES,
   USED_ACQUISITION_TYPES,
   INSPECTION_RESULTS,
+  CUSTOMER_IDENTIFICATION_TYPES,
+  EMI_TERMS,
 } from '@/domain/types';
 import { isBangladeshMobile } from '@/lib/phone';
 import { parseBDT } from '@/lib/money';
@@ -483,3 +485,32 @@ export const supplierWarrantyCaseSchema = z.object({
   idempotencyKey: z.string().min(8),
 });
 export type SupplierWarrantyCaseInput = z.infer<typeof supplierWarrantyCaseSchema>;
+
+export const emiCheckoutFieldsSchema = z.object({
+  isEmi: z.boolean(),
+  termMonths: z.coerce.number().refine((value) => EMI_TERMS.includes(value as 3 | 6 | 9 | 12), 'Choose an EMI term.'),
+  downPayment: z.union([z.string(), z.number()])
+    .transform((value) => typeof value === 'number' ? value : value.trim() ? parseBDT(value) : 0)
+    .pipe(paisa.refine((value) => value % 100 === 0, 'Use a whole-taka down payment without decimal places.')),
+  firstDueDate: z.coerce.date(),
+  identificationType: z.enum(CUSTOMER_IDENTIFICATION_TYPES, { message: 'Choose an identification type.' }),
+  identificationNumber: z.string().trim().min(3, 'Enter the customer identification number.').max(100),
+});
+
+export const emiPaymentSchema = z.object({
+  contractId: z.string().uuid(),
+  amount: expenseAmountInput.refine((value) => value % 100 === 0, 'Use a whole-taka payment without decimal places.'),
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  reference: optionalFormText(120),
+  note: optionalFormText(500),
+  idempotencyKey: z.string().min(8),
+});
+
+export const emiEarlySettlementSchema = z.object({
+  contractId: z.string().uuid(),
+  discountAmount: z.union([z.string(), z.number()]).transform((value) => typeof value === 'number' ? value : value.trim() ? parseBDT(value) : 0).pipe(paisa.refine((value) => value % 100 === 0, 'Use a whole-taka discount without decimal places.')),
+  paymentMethod: z.enum(PAYMENT_METHODS),
+  reason: z.string().trim().min(5, 'Give a clear reason using at least 5 characters.').max(500),
+  reference: optionalFormText(120),
+  idempotencyKey: z.string().min(8),
+});

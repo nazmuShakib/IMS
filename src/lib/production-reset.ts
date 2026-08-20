@@ -33,6 +33,11 @@ export const BUSINESS_DATA_TABLES = [
   'cart_items',
   'sales',
   'sale_items',
+  'emi_contracts',
+  'emi_installments',
+  'emi_payments',
+  'emi_payment_allocations',
+  'emi_early_settlements',
 ] as const;
 
 function quoteIdentifier(identifier: string): string {
