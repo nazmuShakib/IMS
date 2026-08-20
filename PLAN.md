@@ -1377,8 +1377,10 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
 - The cashier enters each line's EMI selling price directly in the existing
   checkout cart. The selected 3/6/9/12-month term controls the installment
   schedule rather than maintaining a second product-price configuration screen.
-  Browser and transactional server validation both require every EMI selling
-  price to be higher than that line's captured normal price.
+  Browser and transactional server validation require a valid whole-taka EMI
+  price for every line. The regular selling price is allowed; a higher EMI price
+  may be entered when the shop charges more for installment sales. Existing
+  role-specific selling-price controls still apply at final checkout.
 - EMI checkout requires a saved customer with an identification type (NID,
   passport, or birth certificate) and identification number. An optional down
   payment and an existing checkout trade-in credit reduce the financed balance.
