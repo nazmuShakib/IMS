@@ -3,6 +3,7 @@
 import { useActionState, useEffect, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 
 import { recordInvoicePrintAction, voidInvoiceAction } from '@/actions/checkout';
@@ -13,6 +14,7 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 import { domainLabel } from '@/lib/i18n/domain';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
 import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
+import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
 
 export interface InvoiceShop {
   name: string;
@@ -90,9 +92,17 @@ export function InvoiceView({
     : sale.paymentStatus === 'PAID'
       ? Math.max(0, sale.total - sale.tradeInCredit)
       : 0;
-  const currentEmiStatus = emi
-    ? t(`emi.status.${emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement).toLowerCase()}` as 'emi.status.active')
-    : null;
+  const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
+  const invoicePaymentStatus = rawEmiStatus
+    ? rawEmiStatus === 'PAID' || rawEmiStatus === 'SETTLED_EARLY' ? 'PAID' : 'ACTIVE'
+    : sale.paymentStatus;
+  const paymentBadge = sale.status === 'VOIDED'
+    ? null
+    : rawEmiStatus
+      ? `EMI / ${invoicePaymentStatus}`
+      : invoicePaymentStatus === 'UNPAID'
+        ? 'UNPAID'
+        : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus}`;
 
   function openVoidDialog() {
     setVoidFields({ reason: '', refundMethod: sale.paymentMethod, confirmed: false });
@@ -171,14 +181,23 @@ export function InvoiceView({
       <div className="invoice-preview-viewport" tabIndex={0} aria-label={t('invoice.previewAria')}>
         <article className="invoice-document">
           <header className="invoice-header">
-            <div>
-              <h1>{shop.name}</h1>
+            <div className="invoice-shop-brand">
+              <h1 className="sr-only">{shop.name}</h1>
+              <Image
+                className="invoice-shop-logo"
+                src={SHOP_LOGO_DATA_URI}
+                alt={shop.name}
+                width={600}
+                height={400}
+                unoptimized
+              />
               {shop.address && <p>{shop.address}</p>}
               {shop.phone && <p>{shop.phone}</p>}
             </div>
             <div className="invoice-title">
               <strong>{sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}</strong>
               <span className="tnum">{sale.invoiceNumber}</span>
+              {paymentBadge && <span className="invoice-payment-badge">{paymentBadge}</span>}
             </div>
           </header>
 
@@ -255,19 +274,16 @@ export function InvoiceView({
             </section>
           )}
 
-          <section className="invoice-payment">
+          {(emi || sale.note || sale.status === 'VOIDED') && <section className="invoice-payment">
             {emi ? (
               <div>
                 <p><span>{t('emi.paymentPlanLabel')}</span> {t('checkout.shopManagedEmi')}</p>
-                <p><span>{t('invoice.emiStatus')}</span> {currentEmiStatus}</p>
                 <p><span>{t('invoice.contract')}</span> {emi.contract.contractNumber} · {t('emi.installments', { count: emi.contract.termMonths })}</p>
                 <p><span>{t('checkout.downPayment')}:</span> {formatBDT(emi.contract.downPayment)} {t('common.via')} {domainLabel(t, sale.paymentMethod)}</p>
                 <p><span>{t('checkout.financedBalance')}:</span> {formatBDT(emi.contract.financedAmount)}</p>
                 <p><span>{t('checkout.firstInstallmentDate')}:</span> {dateOnly(emi.contract.firstDueDate)}</p>
               </div>
-            ) : (
-              <p><span>Payment:</span> {sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</p>
-            )}
+            ) : null}
             {sale.note && <p><span>Note:</span> {sale.note}</p>}
             {sale.status === 'VOIDED' && (
               <p className="invoice-void-details">
@@ -276,12 +292,13 @@ export function InvoiceView({
                 {' '}Refund: {formatBDT(sale.refundAmount ?? 0)}{sale.refundMethod ? ` via ${sale.refundMethod.replaceAll('_', ' ')}` : ''}.
               </p>
             )}
-          </section>
+          </section>}
 
-          <footer>
-            {shop.policy && <p>{shop.policy}</p>}
-            <p>This is an ordinary sales invoice, not a VAT/tax invoice.</p>
-          </footer>
+          {shop.policy && (
+            <footer>
+              <p>{shop.policy}</p>
+            </footer>
+          )}
         </article>
       </div>
 

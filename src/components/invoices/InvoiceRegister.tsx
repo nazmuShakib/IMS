@@ -315,7 +315,10 @@ export function InvoiceRegister({
                             {emi.status === 'OVERDUE' && <span className="tnum ml-2 text-[11px] text-out">{formatBDT(emi.overdueAmount)} {t('invoices.overdueAmount')}</span>}
                           </>
                         ) : (
-                          <>{domainLabel(t, sale.paymentStatus)} <span className="text-graphite">· {domainLabel(t, sale.paymentMethod)}</span></>
+                          <>
+                            {domainLabel(t, sale.paymentStatus)}
+                            {sale.paymentStatus !== 'UNPAID' && <span className="text-graphite"> · {domainLabel(t, sale.paymentMethod)}</span>}
+                          </>
                         )}
                       </td>
                       <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>

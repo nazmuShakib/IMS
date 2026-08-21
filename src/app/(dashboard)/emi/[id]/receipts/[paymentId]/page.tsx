@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui';
 import { PrintReceiptButton } from '@/components/emi/PrintReceiptButton';
@@ -10,6 +11,7 @@ import { db } from '@/repositories';
 import { emiRemainingBalanceAfterPayment } from '@/services/emi';
 import { createTranslator } from '@/lib/i18n/messages';
 import { domainLabel } from '@/lib/i18n/domain';
+import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
 
 export const dynamic = 'force-dynamic';
 export default async function EmiReceiptPage({ params }: { params: Promise<{ id: string; paymentId: string }> }) {
@@ -64,7 +66,13 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
         </dl>
       </section>}
       <header className="emi-receipt-header">
-        <div><p className="emi-receipt-shop">{receiptT('emi.shopName')}</p><h2>{receiptT('emi.receiptDocumentTitle')}</h2><p className="emi-receipt-number">{payment.receiptNumber}</p><p>{formatDhakaDateTime(payment.paidAt)}</p></div>
+        <div>
+          <h1 className="sr-only">{receiptT('emi.shopName')}</h1>
+      <Image className="emi-receipt-shop-logo" src={SHOP_LOGO_DATA_URI} alt={receiptT('emi.shopName')} width={180} height={120} unoptimized />
+          <h2>{receiptT('emi.receiptDocumentTitle')}</h2>
+          <p className="emi-receipt-number">{payment.receiptNumber}</p>
+          <p>{formatDhakaDateTime(payment.paidAt)}</p>
+        </div>
         <div className="emi-receipt-qr-wrap"><ReceiptQRCode value={qrValue} /><span>{receiptT('emi.scanReceipt')}</span></div>
       </header>
       <section className="emi-receipt-amount"><div><span>{payment.status === 'REVERSED' ? receiptT('emi.reversedAmount') : receiptT('emi.paidAmount')}</span><strong>{formatBDT(payment.amount)}</strong></div><div><span>{receiptT('emi.dueAmount')}</span><strong>{payment.status === 'REVERSED' ? receiptT('emi.notApplicable') : formatBDT(outstanding)}</strong></div></section>

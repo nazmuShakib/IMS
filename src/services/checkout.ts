@@ -278,7 +278,9 @@ export async function checkoutCart(raw: {
       customerPhone: customer?.phone ?? null,
       actorId: input.actorId,
       actorName: input.actorName,
-      paymentMethod: input.paymentMethod,
+      // An unpaid regular sale has not used a payment channel yet. Normalize
+      // this on the trusted boundary even if a client submits CASH or CARD.
+      paymentMethod: !input.isEmi && input.paymentStatus === 'UNPAID' ? 'OTHER' : input.paymentMethod,
       paymentStatus: input.isEmi && total - tradeInCredit - input.emiDownPayment > 0 ? 'UNPAID' : input.paymentStatus,
       reference: input.reference,
       note: input.note,

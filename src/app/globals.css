@@ -591,9 +591,12 @@ html[lang="bn"] .eyebrow {
   letter-spacing: 0.08em;
 }
 
-.emi-receipt-shop {
-  font-size: 20pt;
-  font-weight: 750;
+.emi-receipt-shop-logo {
+  display: block;
+  width: 30mm !important;
+  max-width: 30mm !important;
+  height: auto !important;
+  object-fit: contain;
 }
 
 .emi-receipt-number {
@@ -726,8 +729,10 @@ html[lang="bn"] .eyebrow {
   text-align: center;
 }
 
-.emi-receipt-root[data-layout="thermal"] .emi-receipt-shop {
-  font-size: 14pt;
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-shop-logo {
+  width: 24mm !important;
+  max-width: 24mm !important;
+  margin-inline: auto;
 }
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-number {
@@ -870,6 +875,21 @@ html[lang="bn"] .eyebrow {
   padding-bottom: 5mm;
 }
 
+.invoice-shop-brand {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.invoice-shop-logo {
+  display: block;
+  width: 34mm;
+  max-width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
 .invoice-header h1 {
   font-size: 20pt;
   font-weight: 700;
@@ -878,7 +898,7 @@ html[lang="bn"] .eyebrow {
 .invoice-header p,
 .invoice-meta p {
   margin-top: 1mm;
-  color: #626c76;
+  color: #374151;
 }
 
 .invoice-title {
@@ -889,6 +909,22 @@ html[lang="bn"] .eyebrow {
 
 .invoice-title strong {
   font-size: 18pt;
+}
+
+.invoice-payment-badge {
+  display: inline-flex;
+  justify-content: center;
+  min-width: 26mm;
+  margin-top: 1mm;
+  border: 0.2mm solid #c7cdd3;
+  border-radius: 0.8mm;
+  background: #f3f4f6;
+  padding: 1.2mm 2.5mm;
+  color: #14181d;
+  font-size: 8.5pt;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 .invoice-root:has(.invoice-void-details) .invoice-title strong,
@@ -908,7 +944,7 @@ html[lang="bn"] .eyebrow {
 .invoice-payment span {
   display: block;
   margin-bottom: 1mm;
-  color: #626c76;
+  color: #374151;
   font-size: 7pt;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -951,7 +987,7 @@ html[lang="bn"] .eyebrow {
 
 .invoice-items td:first-child span {
   margin-top: 1mm;
-  color: #626c76;
+  color: #374151;
   font-size: 8pt;
 }
 
@@ -970,7 +1006,7 @@ html[lang="bn"] .eyebrow {
 .invoice-trade-in span {
   display: block;
   margin-bottom: 1mm;
-  color: #626c76;
+  color: #374151;
   font-size: 7pt;
   font-weight: 600;
   letter-spacing: 0.08em;
@@ -984,7 +1020,7 @@ html[lang="bn"] .eyebrow {
 
 .invoice-trade-in p {
   margin-top: 1mm;
-  color: #626c76;
+  color: #374151;
   font-size: 8pt;
 }
 
@@ -1018,7 +1054,7 @@ html[lang="bn"] .eyebrow {
 
 .invoice-document footer {
   margin-top: 12mm;
-  color: #626c76;
+  color: #374151;
   font-size: 8pt;
 }
 
@@ -1029,6 +1065,14 @@ html[lang="bn"] .eyebrow {
 .invoice-root[data-layout="thermal"] .invoice-header {
   display: block;
   text-align: center;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-shop-brand {
+  align-items: center;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-shop-logo {
+  width: 30mm;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-header h1 {

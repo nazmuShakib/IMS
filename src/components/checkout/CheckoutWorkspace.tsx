@@ -1096,26 +1096,35 @@ export function CheckoutWorkspace({
               )}
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
                 <Field label={isEmi ? t("checkout.downPaymentMethod") : t("checkout.paymentMethod")}>
-                  <Select
-                    name="paymentMethod"
-                    value={paymentMethod}
-                    onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
-                  >
-                    {(
-                      [
-                        "CASH",
-                        "CARD",
-                        "MOBILE_BANKING",
-                        "BANK_TRANSFER",
-                        "MIXED",
-                        "OTHER",
-                      ] as PaymentMethod[]
-                    ).map((value) => (
-                      <option key={value} value={value}>
-                        {domainLabel(t, value)}
-                      </option>
-                    ))}
-                  </Select>
+                  {!isEmi && paymentStatus === "UNPAID" ? (
+                    <>
+                      <Select value="" disabled aria-label={t("checkout.paymentMethod")}>
+                        <option value="">{t("checkout.noPaymentMethodUnpaid")}</option>
+                      </Select>
+                      <input type="hidden" name="paymentMethod" value="OTHER" />
+                    </>
+                  ) : (
+                    <Select
+                      name="paymentMethod"
+                      value={paymentMethod}
+                      onChange={(event) => setPaymentMethod(event.target.value as PaymentMethod)}
+                    >
+                      {(
+                        [
+                          "CASH",
+                          "CARD",
+                          "MOBILE_BANKING",
+                          "BANK_TRANSFER",
+                          "MIXED",
+                          "OTHER",
+                        ] as PaymentMethod[]
+                      ).map((value) => (
+                        <option key={value} value={value}>
+                          {domainLabel(t, value)}
+                        </option>
+                      ))}
+                    </Select>
+                  )}
                 </Field>
                 {isEmi
                   ? <input type="hidden" name="paymentStatus" value="UNPAID" />
@@ -1330,7 +1339,9 @@ export function CheckoutWorkspace({
                         <div className="sm:text-right">
                           <p className="eyebrow">{t("checkout.paymentMethod")}</p>
                           <p className="mt-1 font-semibold">
-                            {domainLabel(t, paymentMethod)} · {isEmi ? t("checkout.emiPlan") : domainLabel(t, paymentStatus)}
+                            {!isEmi && paymentStatus === "UNPAID"
+                              ? domainLabel(t, paymentStatus)
+                              : `${domainLabel(t, paymentMethod)} · ${isEmi ? t("checkout.emiPlan") : domainLabel(t, paymentStatus)}`}
                           </p>
                           {reference && <p className="text-graphite">{t("common.reference")}: {reference}</p>}
                         </div>
