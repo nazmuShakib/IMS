@@ -23,6 +23,7 @@ import {
 } from "@/actions/checkout";
 import { ScannerInput } from "@/components/search/ScannerInput";
 import { DiscardDraftControl } from "@/components/checkout/DiscardDraftControl";
+import { CustomerCombobox } from "@/components/checkout/CustomerCombobox";
 import { CreateCustomerForm } from "@/components/customers/CreateCustomerForm";
 import {
   Button,
@@ -373,7 +374,6 @@ export function CheckoutWorkspace({
   const { t, message } = useI18n();
   const router = useRouter();
   const [checkoutKey, setCheckoutKey] = useState("");
-  const [customerQuery, setCustomerQuery] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [saleMode, setSaleMode] = useState<"CASH" | "EMI">("CASH");
   const [emiTerm, setEmiTerm] = useState<3 | 6 | 9 | 12>(3);
@@ -460,6 +460,10 @@ export function CheckoutWorkspace({
     if (expiryInFlightRef.current) return;
     expiryInFlightRef.current = true;
     discardLocalDraft();
+    if (!cart.tradeInDraft) {
+      expiryInFlightRef.current = false;
+      return;
+    }
     const data = new FormData();
     data.set("cartId", cart.id);
     const result = await expireCartDraftAction(data);
@@ -469,7 +473,7 @@ export function CheckoutWorkspace({
       return;
     }
     router.refresh();
-  }, [cart.id, discardLocalDraft, router]);
+  }, [cart.id, cart.tradeInDraft, discardLocalDraft, router]);
 
   function requestCheckoutConfirmation() {
     if (isEmi) {
@@ -658,14 +662,6 @@ export function CheckoutWorkspace({
   const quantityProducts = products.filter(
     (product) => product.trackingType === "QUANTITY",
   );
-  const visibleCustomers = customers.filter((customer) => {
-    const query = customerQuery.trim().toLowerCase();
-    return (
-      !query ||
-      customer.name.toLowerCase().includes(query) ||
-      customer.phone?.toLowerCase().includes(query)
-    );
-  });
   const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId) ?? null;
   const subtotal = useMemo(
     () =>
@@ -851,7 +847,7 @@ export function CheckoutWorkspace({
   };
 
   return (
-    <div className="grid gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
+    <div className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(20rem,.65fr)]">
       <section>
         <Card className="mb-4 p-4">
           <p className="eyebrow mb-4">{t("checkout.addItems")}</p>
@@ -941,6 +937,7 @@ export function CheckoutWorkspace({
             <DiscardDraftControl
               cartId={cart.id}
               itemCount={orderedLines.length}
+              hasTradeIn={Boolean(cart.tradeInDraft)}
               onDiscard={discardLocalDraft}
             />
           </div>
@@ -1060,26 +1057,14 @@ export function CheckoutWorkspace({
                 label={t("common.customer")}
                 hint={t("checkout.customerHint")}
               >
-                <Input
-                  className="mb-2"
-                  type="search"
-                  value={customerQuery}
-                  onChange={(event) => setCustomerQuery(event.target.value)}
-                  placeholder={t("checkout.filterCustomer")}
-                  aria-label={t("checkout.filterCustomer")}
+                <CustomerCombobox
+                  customers={customers}
+                  value={selectedCustomerId}
+                  onChange={chooseCustomer}
                 />
-                <Select name="customerId" value={selectedCustomerId} onChange={(event) => chooseCustomer(event.target.value)}>
-                  <option value="">{t("checkout.walkIn")}</option>
-                  {visibleCustomers.map((customer) => (
-                    <option key={customer.id} value={customer.id}>
-                      {customer.name}
-                      {customer.phone ? ` — ${customer.phone}` : ""}
-                    </option>
-                  ))}
-                </Select>
               </Field>
               {isEmi && (
-                <div className="rounded-[3px] border border-blue-300 bg-blue-50/60 p-4">
+                <div className="rounded-[3px] border border-blue-300 bg-blue-50/60 p-3">
                   <p className="mb-3 text-[13px] font-semibold">{t("checkout.emiPlan")}</p>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <Field label={t("checkout.term")} error={emiErrors.termMonths ? message(emiErrors.termMonths) : undefined}>
@@ -1166,7 +1151,7 @@ export function CheckoutWorkspace({
                 <div>
                   <p className="eyebrow mb-1.5">{t("checkout.tradeInCredit")}</p>
                   <p className="mb-2 text-[11px] text-graphite">{t("checkout.tradeInHelp")}</p>
-                  <Link href={`/stock/used-intake?cart=${cart.id}`} className="mb-2 inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[13px] font-medium hover:bg-plate">
+                  <Link href={`/stock/used-intake?cart=${cart.id}`} className="mb-2 inline-flex h-9 items-center rounded-[3px] border border-teal-700 bg-teal-700 px-3 text-[13px] font-medium text-white transition-colors hover:border-teal-800 hover:bg-teal-800">
                     {t("checkout.prepareTradeIn")}
                   </Link>
                 </div>

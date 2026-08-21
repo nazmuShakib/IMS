@@ -133,6 +133,8 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toContain('LOCAL_DRAFT_TTL_MS = 24 * 60 * 60 * 1000');
     expect(workspace).toContain('window.localStorage.removeItem(storageKey)');
     expect(workspace).toContain('expireCartDraftAction(data)');
+    expect(workspace).toContain('if (!cart.tradeInDraft)');
+    expect(control).toContain('hasTradeIn ?');
     expect(control).toContain('role="alertdialog"');
     expect(control).toContain("t('checkout.inventoryUnchanged')");
   });
@@ -144,6 +146,16 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(service).toContain('listUnitPrice: item.listUnitPrice');
     expect(service).toContain('unitPrice: item.actualUnitPrice');
     expect(service).toContain('discount: subtotal - total');
+  });
+
+  it('uses one client-side searchable customer combobox during checkout', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    const combobox = source('src/components/checkout/CustomerCombobox.tsx');
+    expect(workspace).toContain('<CustomerCombobox');
+    expect(combobox).toContain('role="combobox"');
+    expect(combobox).toContain('role="listbox"');
+    expect(combobox).toContain('name="customerId"');
+    expect(combobox).toContain('filteredCustomers');
   });
 
   it('requires confirmation before completing a sale', () => {

@@ -3,6 +3,7 @@
 import type { Role } from '@/domain/types';
 import { NavLink } from '@/components/shell/NavLink';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { usePathname, useSearchParams } from 'next/navigation';
 import {
   ArrowLeftRight,
   BadgeCheck,
@@ -40,6 +41,10 @@ export function NavigationLinks({
   desktop?: boolean;
 }) {
   const { t } = useI18n();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const isPreparingCheckoutTradeIn =
+    pathname === '/stock/used-intake' && Boolean(searchParams.get('cart'));
   const icon = (Icon: LucideIcon) => (
     <Icon aria-hidden="true" className="size-[18px] shrink-0" strokeWidth={2.1} />
   );
@@ -54,14 +59,14 @@ export function NavigationLinks({
       <NavLink href="/" onClick={onNavigate} icon={icon(LayoutDashboard)}>{t('nav.dashboard')}</NavLink>
 
       <p className="sidebar-section-label eyebrow px-2 pb-1">{t('shell.sales')}</p>
-      <NavLink href="/checkout" onClick={onNavigate} icon={icon(ShoppingCart)}>{t('nav.checkout')}</NavLink>
+      <NavLink href="/checkout" active={isPreparingCheckoutTradeIn ? true : undefined} onClick={onNavigate} icon={icon(ShoppingCart)}>{t('nav.checkout')}</NavLink>
       <NavLink href="/invoices" onClick={onNavigate} icon={icon(ReceiptText)}>{t('nav.invoices')}</NavLink>
       <NavLink href="/emi" onClick={onNavigate} icon={icon(CalendarClock)}>{t('nav.emi')}</NavLink>
       <NavLink href="/customers" onClick={onNavigate} icon={icon(UsersRound)}>{t('nav.customers')}</NavLink>
 
       <p className="sidebar-section-label eyebrow px-2 pb-1">{t('shell.stock')}</p>
       <NavLink href="/stock/in" onClick={onNavigate} icon={icon(PackagePlus)}>{t('nav.receiveStock')}</NavLink>
-      {role !== 'STAFF' && <NavLink href="/stock/used-intake" onClick={onNavigate} icon={icon(Smartphone)}>{t('nav.usedPhoneIntake')}</NavLink>}
+      {role !== 'STAFF' && <NavLink href="/stock/used-intake" active={isPreparingCheckoutTradeIn ? false : undefined} onClick={onNavigate} icon={icon(Smartphone)}>{t('nav.usedPhoneIntake')}</NavLink>}
       <NavLink href="/stock/labels" onClick={onNavigate} icon={icon(Tags)}>{t('nav.printLabels')}</NavLink>
       {role === 'ADMIN' && <NavLink href="/stock/out" onClick={onNavigate} icon={icon(PackageMinus)}>{t('nav.removeStock')}</NavLink>}
 

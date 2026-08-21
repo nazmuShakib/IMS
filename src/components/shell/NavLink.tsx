@@ -12,6 +12,7 @@ export function NavLink({
   tooltip,
   tooltipPlacement = 'bottom',
   exact = false,
+  active: activeOverride,
 }: {
   href: string;
   children: React.ReactNode;
@@ -20,10 +21,12 @@ export function NavLink({
   tooltip?: string;
   tooltipPlacement?: 'top' | 'bottom';
   exact?: boolean;
+  active?: boolean;
 }) {
   const pathname = usePathname();
   const tooltipId = useId();
-  const active = pathname === href || (!exact && pathname.startsWith(`${href}/`));
+  const routeIsActive = pathname === href || (!exact && pathname.startsWith(`${href}/`));
+  const active = activeOverride ?? routeIsActive;
 
   return (
     <Link

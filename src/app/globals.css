@@ -344,7 +344,9 @@ html[lang="bn"] .eyebrow {
 /* The command search has a permanent high-contrast field boundary. Avoid
    stacking the global focus outline on top of that border. */
 .command-search-input:focus,
-.command-search-input:focus-visible {
+.command-search-input:focus-visible,
+.customer-combobox-input:focus,
+.customer-combobox-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }
