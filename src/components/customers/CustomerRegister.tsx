@@ -92,8 +92,8 @@ export function CustomerRegister({
                 <tbody>
                   {customers.map((customer) => (
                     <tr key={customer.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/50">
-                      <td className="px-4 py-3 text-center font-semibold text-ink">{customer.name}</td>
-                      <td className="tnum px-4 py-3 text-center font-medium text-ink">{customer.phone ?? '—'}</td>
+                      <td className="px-4 py-3 text-center text-ink">{customer.name}</td>
+                      <td className="tnum px-4 py-3 text-center text-ink">{customer.phone ?? '—'}</td>
                       <td className="px-4 py-3 text-center">
                         <Link href={`/customers/${customer.id}`} className="font-medium text-signal hover:underline">
                           {t('customers.view')}

@@ -789,19 +789,31 @@ html[lang="bn"] .eyebrow {
   order: 4;
 }
 
-@page emi-receipt-a4 {
-  size: A4 portrait;
-  margin: 0;
-}
-
-@page emi-receipt-thermal {
-  size: 80mm auto;
-  margin: 0;
-}
-
 @media print {
+  html:has(.emi-receipt-root),
+  body:has(.emi-receipt-root) {
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
+
+  body:has(.emi-receipt-root) .min-h-screen,
+  body:has(.emi-receipt-root) .min-h-screen > div,
+  body:has(.emi-receipt-root) main,
+  body:has(.emi-receipt-root) .dashboard-content,
+  body:has(.emi-receipt-root) .emi-receipt-viewport {
+    display: contents !important;
+  }
+
   .emi-receipt-root > header {
     display: none;
+  }
+
+  .emi-receipt-root {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    break-after: avoid-page;
   }
 
   .emi-receipt-viewport {
@@ -811,20 +823,35 @@ html[lang="bn"] .eyebrow {
 
   .emi-receipt-root[data-layout="a4"] .emi-receipt-document {
     width: 210mm;
-    min-height: 297mm;
+    min-height: 0;
+    height: auto;
+    margin: 0;
     border: 0;
     border-radius: 0;
     padding: 15mm;
-    page: emi-receipt-a4;
+    page: auto;
+  }
+
+  .emi-receipt-root[data-layout="thermal"] {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    page: auto;
   }
 
   .emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
     width: 80mm;
+    max-width: 80mm;
     min-height: 0;
+    height: auto;
+    margin: 0 auto;
     border: 0;
     border-radius: 0;
     padding: 4mm;
-    page: emi-receipt-thermal;
+    page: auto;
+    break-inside: avoid-page;
+    break-after: avoid-page;
   }
 }
 
@@ -1208,37 +1235,74 @@ html[lang="bn"] .eyebrow {
   }
 }
 
-@page invoice-a4 {
-  size: A4 portrait;
-  margin: 0;
-}
-
-@page invoice-thermal {
-  size: 80mm auto;
-  margin: 0;
-}
-
 @media print {
+  /* Chrome can paginate the dashboard's nested flex/scroll wrappers even
+     after their screen-only children are hidden. Flatten those wrappers so
+     the invoice is the only print-layout box and no blank trailing page is
+     generated. */
+  html:has(.invoice-root),
+  body:has(.invoice-root) {
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
+
+  body:has(.invoice-root) .min-h-screen,
+  body:has(.invoice-root) .min-h-screen > div,
+  body:has(.invoice-root) main,
+  body:has(.invoice-root) .dashboard-content,
+  body:has(.invoice-root) .invoice-preview-viewport {
+    display: contents !important;
+  }
+
   .invoice-preview-viewport {
     max-height: none;
     overflow: visible;
   }
 
+  .invoice-root {
+    container: none;
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    break-after: avoid-page;
+  }
+
+  .invoice-root[data-layout="a4"] {
+    width: 210mm;
+    margin: 0;
+    page: auto;
+  }
+
   .invoice-root[data-layout="a4"] .invoice-document {
     width: 210mm;
-    min-height: 297mm;
+    min-height: 0;
+    height: auto;
     aspect-ratio: auto;
     padding: 15mm;
-    page: invoice-a4;
+    page: auto;
     border: 0;
+  }
+
+  .invoice-root[data-layout="thermal"] {
+    width: 100%;
+    min-height: 0;
+    height: auto;
+    margin: 0;
+    page: auto;
   }
 
   .invoice-root[data-layout="thermal"] .invoice-document {
     width: 80mm;
+    max-width: 80mm;
     min-height: 0;
+    height: auto;
+    margin: 0 auto;
     aspect-ratio: auto;
     padding: 4mm;
-    page: invoice-thermal;
+    page: auto;
     border: 0;
+    break-inside: avoid-page;
+    break-after: avoid-page;
   }
 }

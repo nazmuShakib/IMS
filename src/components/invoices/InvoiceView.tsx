@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, type FormEvent } from 'react';
+import { useActionState, useEffect, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -54,7 +54,8 @@ export function InvoiceView({
 }) {
   const router = useRouter();
   const [layout, setLayout] = useState<'a4' | 'thermal'>('a4');
-  const [state, action, pending] = useActionState(recordInvoicePrintAction, {});
+  const [printPending, startPrintTransition] = useTransition();
+  const [printError, setPrintError] = useState<string | null>(null);
   const [voidState, voidAction, voidPending] = useActionState(voidInvoiceAction, {});
   const [showVoid, setShowVoid] = useState(false);
   const [voidKey, setVoidKey] = useState('');
@@ -68,9 +69,6 @@ export function InvoiceView({
   const [voidResult, setVoidResult] = useState<{ tone: 'success' | 'error'; message: string } | null>(null);
   const { message, t } = useI18n();
 
-  useEffect(() => {
-    if (state.printNonce) window.print();
-  }, [state.printNonce]);
   useEffect(() => setVoidKey(crypto.randomUUID()), []);
   useEffect(() => {
     if (voidState.ok) {
@@ -111,6 +109,21 @@ export function InvoiceView({
     setShowVoid(true);
   }
 
+  function printInvoice() {
+    setPrintError(null);
+    startPrintTransition(async () => {
+      const formData = new FormData();
+      formData.set('saleId', sale.id);
+      formData.set('layout', layout);
+      const result = await recordInvoicePrintAction({}, formData);
+      if (result.error) {
+        setPrintError(result.error);
+        return;
+      }
+      window.print();
+    });
+  }
+
   function updateVoidField<K extends keyof VoidInvoiceFields>(key: K, value: VoidInvoiceFields[K]) {
     setVoidFields((current) => ({ ...current, [key]: value }));
     setClientVoidErrors((current) => ({ ...current, [key]: undefined }));
@@ -134,6 +147,7 @@ export function InvoiceView({
 
   return (
     <div className="invoice-root" data-layout={layout}>
+      <style>{`@media print { @page { size: ${layout === 'a4' ? 'A4 portrait' : 'auto'}; margin: 0; } }`}</style>
       <div className="invoice-screen-controls print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-rule bg-card p-3">
           <div>
@@ -147,10 +161,8 @@ export function InvoiceView({
           >
             {t('invoice.backToInvoices')}
           </Link>
-          <form action={action} className="flex flex-wrap items-center gap-2">
-            <input type="hidden" name="saleId" value={sale.id} />
+          <div className="flex flex-wrap items-center gap-2">
             <select
-              name="layout"
               value={layout}
               onChange={(event) => setLayout(event.target.value as 'a4' | 'thermal')}
               className="h-9 rounded-[3px] border border-rule bg-card px-2.5 text-[13px]"
@@ -158,8 +170,8 @@ export function InvoiceView({
               <option value="a4">{t('invoice.a4Layout')}</option>
               <option value="thermal">{t('invoice.thermalLayout')}</option>
             </select>
-            <Button type="submit" disabled={pending}>
-              {pending ? t('invoice.preparing') : t('invoice.print')}
+            <Button type="button" disabled={printPending} onClick={printInvoice}>
+              {printPending ? t('invoice.preparing') : t('invoice.print')}
             </Button>
             <a
               href={`/api/invoices/${sale.id}/pdf`}
@@ -167,7 +179,7 @@ export function InvoiceView({
             >
               {t('invoice.downloadPdf')}
             </a>
-          </form>
+          </div>
           {canVoid && (
             <Button type="button" variant="danger" onClick={openVoidDialog}>
               {t('invoice.voidInvoice')}
@@ -175,7 +187,7 @@ export function InvoiceView({
           )}
           </div>
         </div>
-        {state.error && <p className="mb-3 text-[12px] text-out">{message(state.error)}</p>}
+        {printError && <p className="mb-3 text-[12px] text-out">{message(printError)}</p>}
       </div>
 
       <div className="invoice-preview-viewport" tabIndex={0} aria-label={t('invoice.previewAria')}>

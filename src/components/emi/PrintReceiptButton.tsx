@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button, Select } from '@/components/ui';
 import { useI18n } from '@/components/i18n/I18nProvider';
 
@@ -9,6 +9,14 @@ type ReceiptLayout = 'a4' | 'thermal';
 export function PrintReceiptButton() {
   const { t } = useI18n();
   const [layout, setLayout] = useState<ReceiptLayout>('a4');
+
+  useEffect(() => {
+    const style = document.createElement('style');
+    style.dataset.emiReceiptPage = 'true';
+    style.textContent = `@media print { @page { size: ${layout === 'a4' ? 'A4 portrait' : 'auto'}; margin: 0; } }`;
+    document.head.appendChild(style);
+    return () => style.remove();
+  }, [layout]);
 
   function changeLayout(next: ReceiptLayout) {
     setLayout(next);
