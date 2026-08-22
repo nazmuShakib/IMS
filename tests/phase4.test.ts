@@ -163,6 +163,44 @@ describe('Phase 4 dashboard', () => {
     expect(dashboard.dailyFinancials.reduce((sum, row) => sum + row.refunds, 0)).toBe(650);
   });
 
+  it('excludes both a voided sale and its later correction from dashboard KPI periods', async () => {
+    const originalSale = movement({
+      id: 'sale-before-void',
+      productId: bulkProduct.id,
+      quantity: -1,
+      unitCost: 10_000,
+      unitPrice: 18_000,
+      createdAt: '2026-07-17T10:00:00.000Z',
+    });
+    const voidCorrection = movement({
+      id: 'sale-void-correction',
+      type: 'ADJUST',
+      reason: 'CORRECTION',
+      productId: bulkProduct.id,
+      quantity: 1,
+      unitCost: 10_000,
+      unitPrice: 18_000,
+      reversesId: originalSale.id,
+      createdAt: '2026-07-18T05:00:00.000Z',
+    });
+    const testRepositories = repositories();
+    testRepositories.movements.findByDateRange = vi.fn(async () => [
+      ...movements,
+      originalSale,
+      voidCorrection,
+    ]);
+
+    const dashboard = await getDashboard('ADMIN', now, testRepositories);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+
+    expect(dashboard.periodMetrics.day.current.revenue).toBe(0);
+    expect(dashboard.periodMetrics.day.current.cogs).toBe(0);
+    expect(dashboard.periodMetrics.day.current.grossProfit).toBe(0);
+    expect(dashboard.monthRevenue).toBe(800);
+    expect(dashboard.monthCogs).toBe(500);
+    expect(dashboard.monthGrossProfit).toBe(300);
+  });
+
   it('never serializes financial or cost fields for STAFF', async () => {
     const dashboard = await getDashboard('STAFF', now, repositories());
     expect(dashboard.canSeeFinancials).toBe(false);

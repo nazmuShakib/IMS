@@ -13,7 +13,7 @@ import { domainLabel } from '@/lib/i18n/domain';
 import type { EmiDisplayStatus } from '@/lib/emi-summary';
 
 export interface InvoiceEmiSummary {
-  contractNumber: string;
+  contractId: string;
   termMonths: number;
   status: EmiDisplayStatus;
   overdueAmount: number;
@@ -303,7 +303,7 @@ export function InvoiceRegister({
                       <td className="px-4 py-3">{sale.actorName}</td>
                       <td className="px-4 py-3">
                         {emi
-                          ? <><span className="font-medium">{t('invoices.shopManagedEmi')}</span><span className="block text-[11px] text-graphite">{t('invoices.monthlyInstallments', { count: emi.termMonths })}</span></>
+                          ? <><Link href={`/emi/${emi.contractId}`} className="font-medium text-signal underline-offset-2 hover:underline">{t('invoices.shopManagedEmi')}</Link><span className="block text-[11px] text-graphite">{t('invoices.monthlyInstallments', { count: emi.termMonths })}</span></>
                           : t('invoices.regularSale')}
                       </td>
                       <td className="px-4 py-3">

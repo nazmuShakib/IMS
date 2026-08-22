@@ -156,11 +156,20 @@ function InvoiceDocument({
           </View>
         )}
         <View style={styles.summary}>
-          <View style={[styles.summaryRow, styles.total]}><Text>Total</Text><Text>{money(sale.total)}</Text></View>
-          {sale.tradeInCredit > 0 && (
+          {emi ? (
             <>
-              <View style={styles.summaryRow}><Text>Trade-in credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>
-              <View style={[styles.summaryRow, styles.total]}><Text>Amount due</Text><Text>{money(sale.total - sale.tradeInCredit)}</Text></View>
+              <View style={styles.summaryRow}><Text>Down payment</Text><Text>{money(emi.contract.downPayment)}</Text></View>
+              <View style={[styles.summaryRow, styles.total]}><Text>Outstanding</Text><Text>{money(emi.contract.financedAmount)}</Text></View>
+            </>
+          ) : (
+            <>
+              <View style={[styles.summaryRow, styles.total]}><Text>Total</Text><Text>{money(sale.total)}</Text></View>
+              {sale.tradeInCredit > 0 && (
+                <>
+                  <View style={styles.summaryRow}><Text>Trade-in credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>
+                  <View style={[styles.summaryRow, styles.total]}><Text>Amount due</Text><Text>{money(sale.total - sale.tradeInCredit)}</Text></View>
+                </>
+              )}
             </>
           )}
         </View>
@@ -182,16 +191,8 @@ function InvoiceDocument({
                 <Text>Shop-managed EMI</Text>
               </View>
               <View style={styles.paymentRow}>
-                <Text style={styles.label}>Contract</Text>
-                <Text>{emi.contract.contractNumber} · {emi.contract.termMonths} monthly installments</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.label}>Down payment</Text>
-                <Text>{money(emi.contract.downPayment)} via {sale.paymentMethod.replaceAll('_', ' ')}</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.label}>Financed balance</Text>
-                <Text>{money(emi.contract.financedAmount)}</Text>
+                <Text style={styles.label}>Installments</Text>
+                <Text>{emi.contract.termMonths} monthly installments</Text>
               </View>
               <View style={styles.paymentRow}>
                 <Text style={styles.label}>First installment date</Text>

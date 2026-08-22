@@ -413,6 +413,7 @@ export async function getDashboard(
   let monthCogs = 0;
   for (const movement of movements) {
     if (new Date(movement.createdAt) < monthStart) continue;
+    if (!isEffectiveOperation(movement)) continue;
     const values = movementFinancials(movement, movementById);
     monthRevenue += values.revenue;
     monthCogs += values.cogs;
@@ -446,6 +447,7 @@ export async function getDashboard(
     for (const movement of movements) {
       const occurredAt = new Date(movement.createdAt);
       if (occurredAt < from || occurredAt >= to) continue;
+      if (!isEffectiveOperation(movement)) continue;
       const values = movementFinancials(movement, movementById);
       revenue += values.revenue;
       cogs += values.cogs;

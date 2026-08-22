@@ -5,7 +5,7 @@ import { startTransition, useActionState, useEffect, useState, type FormEvent } 
 import { Check, X } from 'lucide-react';
 import { recordEmiPaymentAction, settleEmiEarlyAction, type EmiActionState } from '@/actions/emi';
 import { Badge, Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
-import type { EmiContract, EmiInstallment, EmiPayment, PaymentMethod, Role } from '@/domain/types';
+import type { EmiContract, EmiEarlySettlement, EmiInstallment, EmiPayment, PaymentMethod, Role } from '@/domain/types';
 import { formatBDT, parseBDT } from '@/lib/money';
 import { formatDhakaDate, formatDhakaDateTime } from '@/lib/time';
 import { emiEarlySettlementSchema, emiPaymentSchema } from '@/schemas';
@@ -25,7 +25,7 @@ function installmentTone(status: EmiInstallment['status']): 'ok' | 'out' | 'low'
   return 'neutral';
 }
 
-export function EmiContractWorkspace({ contract, installments, payments, allocationsByPayment, role }: { contract: EmiContract; installments: EmiInstallment[]; payments: EmiPayment[]; allocationsByPayment: Record<string, Array<{ sequence: number; amount: number }>>; role: Role }) {
+export function EmiContractWorkspace({ contract, installments, payments, earlySettlement, allocationsByPayment, role }: { contract: EmiContract; installments: EmiInstallment[]; payments: EmiPayment[]; earlySettlement: EmiEarlySettlement | null; allocationsByPayment: Record<string, Array<{ sequence: number; amount: number }>>; role: Role }) {
   const { t, message } = useI18n();
   const [paymentState, paymentAction, paymentPending] = useActionState<EmiActionState, FormData>(recordEmiPaymentAction, {});
   const [settleState, settleAction, settlePending] = useActionState<EmiActionState, FormData>(settleEmiEarlyAction, {});
@@ -131,8 +131,22 @@ export function EmiContractWorkspace({ contract, installments, payments, allocat
       <Card className="p-3"><p className="eyebrow">{t('emi.upfrontCredit')}</p><p className="tnum mt-1 text-[19px] font-semibold">{formatBDT(contract.downPayment + contract.tradeInCredit)}</p></Card>
     </div>
 
+    {earlySettlement && <Card className="p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="font-semibold">{t('emi.earlySettlementSummary')}</h2>
+        <Badge tone="ok">{t('emi.settled')}</Badge>
+      </div>
+      <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div><dt className="eyebrow">{t('emi.dueBeforeDiscount')}</dt><dd className="tnum mt-1 font-semibold">{formatBDT(earlySettlement.outstandingBefore)}</dd></div>
+        <div><dt className="eyebrow">{t('emi.earlySettlementDiscount')}</dt><dd className="tnum mt-1 font-semibold text-ok">-{formatBDT(earlySettlement.discountAmount)}</dd></div>
+        <div><dt className="eyebrow">{t('emi.finalSettlementAmount')}</dt><dd className="tnum mt-1 font-semibold">{formatBDT(earlySettlement.finalAmount)}</dd></div>
+        <div><dt className="eyebrow">{t('emi.approvedBy')}</dt><dd className="mt-1 font-medium">{earlySettlement.approvedByName}</dd><dd className="text-[12px] text-graphite">{formatDhakaDateTime(earlySettlement.approvedAt)}</dd></div>
+        <div className="sm:col-span-2 lg:col-span-4"><dt className="eyebrow">{t('emi.approvalReason')}</dt><dd className="mt-1 text-[13px]">{earlySettlement.reason}</dd></div>
+      </dl>
+    </Card>}
+
     <Card className="overflow-auto">
-      <div className="border-b border-rule px-3 py-2.5"><h2 className="font-semibold">{t('emi.schedule')}</h2></div>
+      <div className="border-b border-rule px-3 py-2.5"><h2 className="font-semibold">{t('emi.schedule')}</h2>{earlySettlement && <p className="mt-0.5 text-[12px] text-graphite">{t('emi.scheduleAdjustedForDiscount', { discount: formatBDT(earlySettlement.discountAmount) })}</p>}</div>
       <table className="w-full min-w-[650px] text-[13px]"><thead><tr className="border-b border-rule bg-card"><th className="eyebrow px-3 py-2.5 text-center">{t('emi.installment')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.dueDate')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.amount')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.paid')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.balance')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('common.status')}</th></tr></thead><tbody>
         {installments.map((row) => <tr key={row.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-3 py-2.5 text-center font-medium">#{row.sequence}</td><td className="px-3 py-2.5 text-center">{formatDhakaDate(row.dueDate)}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(row.amountDue)}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(row.amountPaid)}</td><td className="tnum px-3 py-2.5 text-center font-medium">{formatBDT(row.amountDue - row.amountPaid)}</td><td className="px-3 py-2.5 text-center"><Badge tone={installmentTone(row.status)}>{t(`emi.status.${row.status.toLowerCase()}` as 'emi.status.paid')}</Badge></td></tr>)}
       </tbody></table>
@@ -154,7 +168,7 @@ export function EmiContractWorkspace({ contract, installments, payments, allocat
         </Field>
         <Field label={t('emi.amountReceived')} error={paymentError('amount')}><Input name="amount" inputMode="numeric" step="1" readOnly={paymentPlan !== 'custom'} className={paymentPlan !== 'custom' ? 'bg-plate' : undefined} value={paymentValues.amount} onChange={(event) => updatePayment('amount', event.target.value)} placeholder={t('emi.wholeTakaPlaceholder')}/></Field>
         {paymentAllocation.length > 0 && <div className="rounded-[3px] border border-rule bg-plate/60 px-3 py-2 text-[12px]"><span className="font-medium">{t('emi.allocationPreview')}</span> {paymentAllocation.map((item) => `#${item.sequence} ${formatBDT(item.amount)}`).join(' · ')}</div>}
-        <Field label={t('emi.paymentMethod')} error={paymentError('paymentMethod')}><Select name="paymentMethod" value={paymentValues.paymentMethod} onChange={(event) => updatePayment('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method}>{domainLabel(t, method)}</option>)}</Select></Field>
+        <Field label={t('emi.paymentMethod')} error={paymentError('paymentMethod')}><Select name="paymentMethod" value={paymentValues.paymentMethod} onChange={(event) => updatePayment('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method} value={method}>{domainLabel(t, method)}</option>)}</Select></Field>
         <Field label={t('common.reference')} error={paymentError('reference')}><Input name="reference" maxLength={120} value={paymentValues.reference} onChange={(event) => updatePayment('reference', event.target.value)}/></Field><Field label={t('common.note')} error={paymentError('note')}><Textarea name="note" rows={2} value={paymentValues.note} onChange={(event) => updatePayment('note', event.target.value)}/></Field>
         <Button disabled={paymentPending || !paymentKey}>{paymentPending ? t('emi.recording') : t('emi.recordPaymentButton')}</Button>
         {paymentState.error && <p className="text-[12px] text-out">{message(paymentState.error)}</p>}
@@ -162,7 +176,7 @@ export function EmiContractWorkspace({ contract, installments, payments, allocat
       <Card className="p-3"><h2 className="mb-1 font-semibold">{t('emi.earlySettlement')}</h2><p className="mb-3 text-[12px] text-graphite">{t('emi.earlySettlementHelp')}</p><form noValidate onSubmit={submitSettlement} className="space-y-3">
         <input type="hidden" name="contractId" value={contract.id}/><input type="hidden" name="idempotencyKey" value={settleKey}/>
         <Field label={t('emi.approvedDiscount')} error={settleError('discountAmount')}><Input name="discountAmount" inputMode="numeric" step="1" value={settleValues.discountAmount} onChange={(event) => updateSettlement('discountAmount', event.target.value)} placeholder="0"/></Field>
-        <Field label={t('emi.paymentMethod')} error={settleError('paymentMethod')}><Select name="paymentMethod" value={settleValues.paymentMethod} onChange={(event) => updateSettlement('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method}>{domainLabel(t, method)}</option>)}</Select></Field>
+        <Field label={t('emi.paymentMethod')} error={settleError('paymentMethod')}><Select name="paymentMethod" value={settleValues.paymentMethod} onChange={(event) => updateSettlement('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method} value={method}>{domainLabel(t, method)}</option>)}</Select></Field>
         <Field label={t('emi.approvalReason')} error={settleError('reason')}><Textarea name="reason" rows={2} value={settleValues.reason} onChange={(event) => updateSettlement('reason', event.target.value)}/></Field><Field label={t('common.reference')} error={settleError('reference')}><Input name="reference" value={settleValues.reference} onChange={(event) => updateSettlement('reference', event.target.value)}/></Field>
         <Button disabled={settlePending || !settleKey}>{settlePending ? t('emi.settling') : t('emi.approveSettle')}</Button>
         {settleState.error && <p className="text-[12px] text-out">{message(settleState.error)}</p>}
@@ -170,7 +184,7 @@ export function EmiContractWorkspace({ contract, installments, payments, allocat
     </div>}
 
     <Card className="overflow-auto"><div className="border-b border-rule px-4 py-3"><h2 className="font-semibold">{t('emi.paymentReceipts')}</h2></div>
-      {payments.length === 0 ? <p className="p-6 text-center text-graphite">{t('emi.noPayments')}</p> : <table className="w-full min-w-[900px] text-[13px]"><thead><tr className="border-b border-rule"><th className="eyebrow px-3 py-2.5 text-center">{t('emi.receipt')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('common.date')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.appliedTo')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.amount')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.method')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.recordedBy')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('common.status')}</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id} className={`border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40 ${payment.status === 'REVERSED' ? 'text-graphite' : ''}`}><td className="px-3 py-2.5 text-center"><Link className="text-signal hover:underline" href={`/emi/${contract.id}/receipts/${payment.id}`}>{payment.receiptNumber}</Link></td><td className="px-3 py-2.5 text-center">{formatDhakaDateTime(payment.paidAt)}</td><td className="px-3 py-2.5 text-center">{(allocationsByPayment[payment.id] ?? []).map((row) => `#${row.sequence}`).join(', ') || '—'}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(payment.amount)}</td><td className="px-3 py-2.5 text-center">{domainLabel(t, payment.paymentMethod)}</td><td className="px-3 py-2.5 text-center">{payment.recordedByName}</td><td className="px-3 py-2.5 text-center"><Badge tone={payment.status === 'ACTIVE' ? 'ok' : 'out'}>{t(payment.status === 'ACTIVE' ? 'emi.status.active' : 'emi.status.reversed')}</Badge></td></tr>)}</tbody></table>}
+      {payments.length === 0 ? <p className="p-6 text-center text-graphite">{t('emi.noPayments')}</p> : <table className="w-full min-w-[780px] text-[13px]"><thead><tr className="border-b border-rule"><th className="eyebrow px-3 py-2.5 text-center">{t('emi.receipt')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('common.date')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.appliedTo')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.amount')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.method')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.recordedBy')}</th></tr></thead><tbody>{payments.map((payment) => <tr key={payment.id} className={`border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40 ${payment.status === 'REVERSED' ? 'text-graphite' : ''}`}><td className="px-3 py-2.5 text-center"><Link className="text-signal hover:underline" href={`/emi/${contract.id}/receipts/${payment.id}`}>{payment.receiptNumber}</Link></td><td className="px-3 py-2.5 text-center">{formatDhakaDateTime(payment.paidAt)}</td><td className="px-3 py-2.5 text-center">{(allocationsByPayment[payment.id] ?? []).map((row) => `#${row.sequence}`).join(', ') || '—'}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(payment.amount)}</td><td className="px-3 py-2.5 text-center">{domainLabel(t, payment.paymentMethod)}</td><td className="px-3 py-2.5 text-center">{payment.recordedByName}</td></tr>)}</tbody></table>}
     </Card>
     {paymentState.receiptId && !dismissedReceiptIds.has(paymentState.receiptId) && <ReceiptSuccessModal contractId={contract.id} receiptId={paymentState.receiptId} receiptNumber={paymentState.receiptNumber} title={t('emi.paymentRecorded')} message={t('emi.paymentRecordedHelp')} onClose={() => setDismissedReceiptIds((current) => new Set(current).add(paymentState.receiptId!))} />}
     {settleState.receiptId && !dismissedReceiptIds.has(settleState.receiptId) && <ReceiptSuccessModal contractId={contract.id} receiptId={settleState.receiptId} receiptNumber={settleState.receiptNumber} title={t('emi.settled')} message={t('emi.settledHelp')} onClose={() => setDismissedReceiptIds((current) => new Set(current).add(settleState.receiptId!))} />}

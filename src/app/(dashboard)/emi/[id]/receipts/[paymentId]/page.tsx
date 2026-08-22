@@ -26,7 +26,8 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
   const payments = await db.emi.findPayments(id);
   const payment = payments.find((row) => row.id === paymentId);
   if (!payment) notFound();
-  const [customer, sale, saleItems, installments, allocations] = await Promise.all([db.customers.findById(contract.customerId), db.sales.findById(contract.saleId), db.sales.findItems(contract.saleId), db.emi.findInstallments(id), db.emi.findAllocations(payment.id)]);
+  const [customer, sale, saleItems, installments, allocations, earlySettlement] = await Promise.all([db.customers.findById(contract.customerId), db.sales.findById(contract.saleId), db.sales.findItems(contract.saleId), db.emi.findInstallments(id), db.emi.findAllocations(payment.id), db.emi.findEarlySettlement(id)]);
+  const isEarlySettlementReceipt = Boolean(earlySettlement && payment.paidAt === earlySettlement.approvedAt);
   const installmentSequence = new Map(installments.map((row) => [row.id, row.sequence]));
   const outstanding = emiRemainingBalanceAfterPayment(
     contract.financedAmount,
@@ -51,6 +52,10 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
     `Payment: BDT ${(payment.amount / 100).toFixed(0)} via ${payment.paymentMethod.replaceAll('_', ' ')}`,
     `Paid: ${formatDhakaDateTime(payment.paidAt)}`,
     `Applied: ${allocationText}`,
+    ...(isEarlySettlementReceipt && earlySettlement ? [
+      `Due before discount: BDT ${(earlySettlement.outstandingBefore / 100).toFixed(0)}`,
+      `Early-settlement discount: BDT ${(earlySettlement.discountAmount / 100).toFixed(0)}`,
+    ] : []),
     `Plan: ${contract.termMonths} monthly installments; Outstanding: BDT ${(outstanding / 100).toFixed(0)}`,
   ].join('\n');
   return <div className="emi-receipt-root" data-layout="a4">
@@ -75,7 +80,11 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
         </div>
         <div className="emi-receipt-qr-wrap"><ReceiptQRCode value={qrValue} /><span>{receiptT('emi.scanReceipt')}</span></div>
       </header>
-      <section className="emi-receipt-amount"><div><span>{payment.status === 'REVERSED' ? receiptT('emi.reversedAmount') : receiptT('emi.paidAmount')}</span><strong>{formatBDT(payment.amount)}</strong></div><div><span>{receiptT('emi.dueAmount')}</span><strong>{payment.status === 'REVERSED' ? receiptT('emi.notApplicable') : formatBDT(outstanding)}</strong></div></section>
+      <section className="emi-receipt-amount">
+        {isEarlySettlementReceipt && earlySettlement && <><div><span>{receiptT('emi.dueBeforeDiscount')}</span><strong>{formatBDT(earlySettlement.outstandingBefore)}</strong></div><div><span>{receiptT('emi.earlySettlementDiscount')}</span><strong>-{formatBDT(earlySettlement.discountAmount)}</strong></div></>}
+        <div><span>{payment.status === 'REVERSED' ? receiptT('emi.reversedAmount') : receiptT('emi.paidAmount')}</span><strong>{formatBDT(payment.amount)}</strong></div>
+        <div><span>{isEarlySettlementReceipt ? receiptT('emi.dueAfterSettlement') : receiptT('emi.dueAmount')}</span><strong>{payment.status === 'REVERSED' ? receiptT('emi.notApplicable') : formatBDT(outstanding)}</strong></div>
+      </section>
       <dl className="emi-receipt-details"><div><dt>{receiptT('common.customer')}</dt><dd>{customer?.name ?? receiptT('common.notRecorded')}<br/><span>{customer?.phone ?? receiptT('emi.mobileNotRecorded')}</span></dd></div><div><dt>{receiptT('emi.contractInvoice')}</dt><dd>{contract.contractNumber}<br/><span>{sale?.invoiceNumber ?? receiptT('emi.invoiceNotRecorded')}</span></dd></div><div><dt>{receiptT('emi.paymentMethod')}</dt><dd>{domainLabel(receiptT, payment.paymentMethod)}</dd></div><div><dt>{receiptT('emi.recordedBy')}</dt><dd>{payment.recordedByName}</dd></div><div><dt>{receiptT('emi.appliedInstallments')}</dt><dd>{allocations.map((row) => `#${installmentSequence.get(row.installmentId) ?? '?'} (${formatBDT(row.amount)})`).join(' · ') || '—'}</dd></div><div><dt>{receiptT('common.reference')}</dt><dd>{payment.reference ?? '—'}</dd></div></dl>
       <section className="emi-receipt-products"><h3>{receiptT('emi.productDetails')}</h3>{saleItems.map((item) => <div key={item.id}><strong>{item.productName}</strong><span>{receiptT('emi.productCode', { sku: item.sku })}{item.serialNo ? ` · ${receiptT('emi.deviceImei', { serial: item.serialNo })}` : ` · ${receiptT('emi.quantity', { count: item.quantity })}`}</span></div>)}</section>
       <footer className="emi-receipt-footer"><span>{receiptT('emi.installments', { count: contract.termMonths })}</span><span>{receiptT('emi.keepReceipt')}</span></footer>

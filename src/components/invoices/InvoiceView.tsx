@@ -11,7 +11,6 @@ import { Button } from '@/components/ui';
 import { PAYMENT_METHODS, type EmiContract, type EmiEarlySettlement, type EmiInstallment, type EmiPayment, type InvoiceItem, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { domainLabel } from '@/lib/i18n/domain';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
 import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
 import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
@@ -269,11 +268,20 @@ export function InvoiceView({
 
           <section className="invoice-summary">
             <dl>
-              <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
-              {sale.tradeInCredit > 0 && (
+              {emi ? (
                 <>
-                  <div><dt>Trade-in credit</dt><dd className="tnum">−{formatBDT(sale.tradeInCredit)}</dd></div>
-                  <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(sale.total - sale.tradeInCredit)}</dd></div>
+                  <div><dt>Down payment</dt><dd className="tnum">{formatBDT(emi.contract.downPayment)}</dd></div>
+                  <div className="invoice-total"><dt>Outstanding</dt><dd className="tnum">{formatBDT(emi.contract.financedAmount)}</dd></div>
+                </>
+              ) : (
+                <>
+                  <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
+                  {sale.tradeInCredit > 0 && (
+                    <>
+                      <div><dt>Trade-in credit</dt><dd className="tnum">−{formatBDT(sale.tradeInCredit)}</dd></div>
+                      <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(sale.total - sale.tradeInCredit)}</dd></div>
+                    </>
+                  )}
                 </>
               )}
             </dl>
@@ -290,9 +298,7 @@ export function InvoiceView({
             {emi ? (
               <div>
                 <p><span>{t('emi.paymentPlanLabel')}</span> {t('checkout.shopManagedEmi')}</p>
-                <p><span>{t('invoice.contract')}</span> {emi.contract.contractNumber} · {t('emi.installments', { count: emi.contract.termMonths })}</p>
-                <p><span>{t('checkout.downPayment')}:</span> {formatBDT(emi.contract.downPayment)} {t('common.via')} {domainLabel(t, sale.paymentMethod)}</p>
-                <p><span>{t('checkout.financedBalance')}:</span> {formatBDT(emi.contract.financedAmount)}</p>
+                <p><span>Installments:</span> {emi.contract.termMonths} monthly installments</p>
                 <p><span>{t('checkout.firstInstallmentDate')}:</span> {dateOnly(emi.contract.firstDueDate)}</p>
               </div>
             ) : null}

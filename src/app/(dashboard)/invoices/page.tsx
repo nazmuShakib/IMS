@@ -107,7 +107,7 @@ export default async function InvoicesPage({
       db.emi.findEarlySettlement(contract.id),
     ]);
     return [contract.saleId, {
-      contractNumber: contract.contractNumber,
+      contractId: contract.id,
       termMonths: contract.termMonths,
       status: emiDisplayStatus(contract, installments, earlySettlement),
       overdueAmount: emiOverdueAmount(installments),

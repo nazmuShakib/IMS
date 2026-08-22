@@ -13,6 +13,7 @@ import {
 } from "react";
 import { Trash2 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 
 import {
@@ -48,6 +49,7 @@ import { formatBDT, toTaka } from "@/lib/money";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { domainLabel } from "@/lib/i18n/domain";
 import { emiCheckoutFieldsSchema } from "@/schemas";
+import { SHOP_LOGO_DATA_URI } from "@/lib/shop-branding";
 
 export interface CheckoutProductOption {
   id: string;
@@ -379,8 +381,6 @@ export function CheckoutWorkspace({
   const [emiTerm, setEmiTerm] = useState<3 | 6 | 9 | 12>(3);
   const [emiDownPayment, setEmiDownPayment] = useState("0");
   const [emiFirstDueDate, setEmiFirstDueDate] = useState("");
-  // Identification is verified per EMI sale. Do not carry a document number
-  // from a customer's previous checkout into a new transaction.
   const [identificationType, setIdentificationType] = useState("");
   const [identificationNumber, setIdentificationNumber] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
@@ -427,9 +427,10 @@ export function CheckoutWorkspace({
   }
 
   function chooseCustomer(customerId: string) {
+    const customer = customers.find((entry) => entry.id === customerId);
     setSelectedCustomerId(customerId);
-    setIdentificationType("");
-    setIdentificationNumber("");
+    setIdentificationType(customer?.identificationType ?? "");
+    setIdentificationNumber(customer?.identificationNumber ?? "");
     clearEmiError('identificationType'); clearEmiError('identificationNumber');
   }
 
@@ -1319,7 +1320,15 @@ export function CheckoutWorkspace({
                     <article className="mx-auto max-w-3xl rounded-[3px] border border-rule bg-card p-4 sm:p-6">
                       <header className="flex items-start justify-between gap-4 border-b border-ink pb-4">
                         <div>
-                          <h3 className="text-[20px] font-semibold sm:text-[24px]">{shopName}</h3>
+                          <h3 className="sr-only">{shopName}</h3>
+                          <Image
+                            src={SHOP_LOGO_DATA_URI}
+                            alt={shopName}
+                            width={600}
+                            height={400}
+                            unoptimized
+                            className="h-auto w-[120px] sm:w-[150px]"
+                          />
                           <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-graphite">
                             {t("checkout.invoicePreview")}
                           </p>
