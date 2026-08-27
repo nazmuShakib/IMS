@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, useTransition, type CSSProperties, type FormEvent } from 'react';
+import { useActionState, useEffect, useRef, useState, useTransition, type CSSProperties, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -15,6 +15,7 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
 import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
 import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
+import { thermalPageHeightMm } from '@/lib/thermal-print-page';
 
 export interface InvoiceShop {
   name: string;
@@ -56,6 +57,8 @@ export function InvoiceView({
 }) {
   const router = useRouter();
   const [layout, setLayout] = useState<'a4' | 'thermal80' | 'thermal58'>('a4');
+  const [thermalPageHeight, setThermalPageHeight] = useState(210);
+  const invoiceDocumentRef = useRef<HTMLElement>(null);
   const [printPending, startPrintTransition] = useTransition();
   const [printError, setPrintError] = useState<string | null>(null);
   const [voidState, voidAction, voidPending] = useActionState(voidInvoiceAction, {});
@@ -85,6 +88,31 @@ export function InvoiceView({
   useEffect(() => {
     if (voidState.error || voidState.fieldErrors) setHideServerVoidErrors(false);
   }, [voidState]);
+  useEffect(() => {
+    if (layout === 'a4') return;
+
+    const documentElement = invoiceDocumentRef.current;
+    if (!documentElement) return;
+
+    let cancelled = false;
+    const updatePageHeight = () => {
+      if (cancelled) return;
+      const nextHeight = thermalPageHeightMm(documentElement.scrollHeight);
+      setThermalPageHeight((currentHeight) => currentHeight === nextHeight ? currentHeight : nextHeight);
+    };
+
+    updatePageHeight();
+    const resizeObserver = typeof ResizeObserver === 'undefined'
+      ? null
+      : new ResizeObserver(updatePageHeight);
+    resizeObserver?.observe(documentElement);
+    void document.fonts?.ready.then(updatePageHeight);
+
+    return () => {
+      cancelled = true;
+      resizeObserver?.disconnect();
+    };
+  }, [layout]);
 
   const activeEmiPayments = emi?.payments.filter((payment) => payment.status === 'ACTIVE') ?? [];
   const refundAmount = emi
@@ -101,6 +129,9 @@ export function InvoiceView({
       : invoicePaymentStatus === 'UNPAID'
         ? 'UNPAID'
       : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus.replaceAll('_', ' ')}`;
+  const printPageSize = layout === 'a4'
+    ? 'A4 portrait'
+    : `${layout === 'thermal58' ? 58 : 80}mm ${thermalPageHeight}mm`;
 
   function openVoidDialog() {
     setVoidFields({ reason: '', refundMethod: sale.paymentMethod, confirmed: false });
@@ -152,7 +183,7 @@ export function InvoiceView({
       data-thermal-width={layout === 'thermal58' ? '58' : '80'}
       style={{ '--invoice-thermal-width': layout === 'thermal58' ? '58mm' : '80mm' } as CSSProperties}
     >
-      <style>{`@media print { @page { size: ${layout === 'a4' ? 'A4 portrait' : 'auto'}; margin: 0; } }`}</style>
+      <style>{`@media print { @page { size: ${printPageSize}; margin: 0; } }`}</style>
       <div className="invoice-screen-controls print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-rule bg-card p-3">
           <div>
@@ -201,7 +232,7 @@ export function InvoiceView({
       )}
 
       <div className="invoice-preview-viewport scrollbar-hint" tabIndex={0} aria-label={t('invoice.previewAria')}>
-        <article className="invoice-document">
+        <article ref={invoiceDocumentRef} className="invoice-document">
           <header className="invoice-header">
             <div className="invoice-shop-brand">
               <h1 className="sr-only">{shop.name}</h1>

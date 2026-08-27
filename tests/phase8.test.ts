@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizePhone } from '@/services/checkout';
 import { dhakaYear } from '@/lib/time';
+import { thermalPageHeightMm } from '@/lib/thermal-print-page';
 import {
   createCustomerSchema,
   createSupplierSchema,
@@ -13,6 +14,11 @@ import {
 const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
 describe('Phase 8 customer and checkout decisions', () => {
+  it('creates bounded continuous-paper heights from the rendered receipt', () => {
+    expect(thermalPageHeightMm(0)).toBe(40);
+    expect(thermalPageHeightMm(960)).toBe(256);
+    expect(thermalPageHeightMm(20_000)).toBeLessThanOrEqual(3276);
+  });
   it('requires a saved customer for unpaid regular sales on both client and server boundaries', () => {
     expect(regularCheckoutPaymentSchema.safeParse({
       customerId: null,
