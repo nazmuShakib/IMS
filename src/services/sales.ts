@@ -63,9 +63,7 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
     const emiPayments = emiContract ? await tx.emi.findPayments(emiContract.id) : [];
     const refundAmount = emiContract
       ? emiVoidRefundAmount(emiContract, emiPayments)
-      : sale.paymentStatus === 'PAID'
-        ? Math.max(0, sale.total - sale.tradeInCredit)
-        : 0;
+      : Math.max(0, sale.amountPaid ?? 0);
     if (refundAmount > 0 && !input.refundMethod) {
       throw new Error('Choose how the customer was refunded.');
     }

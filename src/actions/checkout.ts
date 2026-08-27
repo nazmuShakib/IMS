@@ -19,6 +19,7 @@ import { type PaymentMethod, type PaymentStatus } from '@/domain/types';
 import {
   createCustomerSchema,
   emiCheckoutFieldsSchema,
+  regularCheckoutPaymentSchema,
   voidInvoiceFieldsSchema,
   type CreateCustomerInput,
 } from '@/schemas';
@@ -207,6 +208,10 @@ export async function checkoutAction(
       identificationNumber: null,
     };
     const customerId = str(fd, 'customerId');
+    const regularPayment = !isEmi ? regularCheckoutPaymentSchema.parse({
+      customerId,
+      paymentStatus: str(fd, 'paymentStatus') ?? 'PAID',
+    }) : null;
     const sale = await checkoutCart({
       cartId,
       actorId: actor.id,
@@ -214,9 +219,10 @@ export async function checkoutAction(
       actorRole: actor.role,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
       lines: localLines,
-      customerId,
+      customerId: regularPayment?.customerId ?? customerId,
       paymentMethod: (str(fd, 'paymentMethod') ?? 'CASH') as PaymentMethod,
-      paymentStatus: (str(fd, 'paymentStatus') ?? 'PAID') as PaymentStatus,
+      tradeInPayoutMethod: (str(fd, 'tradeInPayoutMethod') ?? 'CASH') as PaymentMethod,
+      paymentStatus: (regularPayment?.paymentStatus ?? 'UNPAID') as PaymentStatus,
       reference: str(fd, 'reference'),
       note: str(fd, 'note'),
       ...details,

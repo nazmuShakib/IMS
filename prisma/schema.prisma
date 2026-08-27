@@ -132,7 +132,13 @@ enum SaleStatus {
 
 enum PaymentStatus {
   PAID
+  PARTIALLY_PAID
   UNPAID
+}
+
+enum SaleSettlementType {
+  CUSTOMER_COLLECTION
+  TRADE_IN_PAYOUT
 }
 
 enum PaymentMethod {
@@ -229,6 +235,7 @@ model User {
   createdEmiContracts    EmiContract[]           @relation("EmiContractCreatedBy")
   recordedEmiPayments    EmiPayment[]            @relation("EmiPaymentRecordedBy")
   approvedEmiSettlements EmiEarlySettlement[]    @relation("EmiSettlementApprovedBy")
+  recordedSaleSettlements SaleSettlement[]       @relation("SaleSettlementRecordedBy")
 
   @@index([role])
   @@map("users")
@@ -701,6 +708,7 @@ model Sale {
 
   paymentMethod PaymentMethod
   paymentStatus PaymentStatus
+  amountPaid    Int           @default(0)
   reference     String?
   note          String?
 
@@ -726,12 +734,35 @@ model Sale {
   items              SaleItem[]
   tradeInAcquisition UsedDeviceAcquisition? @relation("TradeInSale")
   emiContract        EmiContract?
+  settlements        SaleSettlement[]
 
   @@index([customerId, completedAt])
   @@index([actorId, completedAt])
   @@index([completedAt])
   @@index([paymentStatus, completedAt])
   @@map("sales")
+}
+
+model SaleSettlement {
+  id             String             @id @default(uuid(7))
+  receiptNumber  String             @unique
+  idempotencyKey String             @unique
+  saleId         String
+  sale           Sale               @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  type           SaleSettlementType
+  amount         Int
+  paymentMethod  PaymentMethod
+  reference      String?
+  note           String?
+  recordedById   String
+  recordedBy     User               @relation("SaleSettlementRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
+  recordedByName String
+  recordedAt     DateTime           @default(now())
+  createdAt      DateTime           @default(now())
+
+  @@index([saleId, recordedAt])
+  @@index([type, recordedAt])
+  @@map("sale_settlements")
 }
 
 model EmiContract {

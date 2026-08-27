@@ -153,6 +153,7 @@ async function main() {
         actorName: 'Rollback checkout actor',
         paymentMethod: 'CASH',
         paymentStatus: 'PAID',
+        amountPaid: 1_400,
         reference: 'ROLLBACK-VERIFY',
         note: null,
         subtotal: 1_500,

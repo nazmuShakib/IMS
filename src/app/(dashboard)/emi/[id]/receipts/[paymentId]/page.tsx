@@ -3,7 +3,6 @@ import Image from 'next/image';
 import { notFound } from 'next/navigation';
 import { PageHeader } from '@/components/ui';
 import { PrintReceiptButton } from '@/components/emi/PrintReceiptButton';
-import { ReceiptQRCode } from '@/components/emi/ReceiptQRCode';
 import { getSession, requirePageCapability } from '@/lib/session';
 import { formatBDT } from '@/lib/money';
 import { formatDhakaDateTime } from '@/lib/time';
@@ -39,27 +38,8 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
   const voidReason = payment.reverseReason && legacyReasonPrefix && payment.reverseReason.startsWith(legacyReasonPrefix)
     ? payment.reverseReason.slice(legacyReasonPrefix.length)
     : payment.reverseReason;
-  const allocationText = allocations.map((row) => `#${installmentSequence.get(row.installmentId) ?? '?'}: BDT ${(row.amount / 100).toFixed(0)}`).join(', ') || 'None';
-  const productText = saleItems.map((item) => `${item.productName} [${item.sku}]${item.serialNo ? ` device ${item.serialNo}` : ` x${item.quantity}`}`).join('; ');
-  const qrValue = [
-    'IMS EMI PAYMENT RECEIPT',
-    `Receipt: ${payment.receiptNumber}`,
-    `Status: ${payment.status}`,
-    `Contract: ${contract.contractNumber}`,
-    `Invoice: ${sale?.invoiceNumber ?? 'Not recorded'}`,
-    `Customer: ${customer?.name ?? 'Not recorded'} (${customer?.phone ?? 'No mobile'})`,
-    `Products: ${productText || 'Not recorded'}`,
-    `Payment: BDT ${(payment.amount / 100).toFixed(0)} via ${payment.paymentMethod.replaceAll('_', ' ')}`,
-    `Paid: ${formatDhakaDateTime(payment.paidAt)}`,
-    `Applied: ${allocationText}`,
-    ...(isEarlySettlementReceipt && earlySettlement ? [
-      `Due before discount: BDT ${(earlySettlement.outstandingBefore / 100).toFixed(0)}`,
-      `Early-settlement discount: BDT ${(earlySettlement.discountAmount / 100).toFixed(0)}`,
-    ] : []),
-    `Plan: ${contract.termMonths} monthly installments; Outstanding: BDT ${(outstanding / 100).toFixed(0)}`,
-  ].join('\n');
   return <div className="emi-receipt-root" data-layout="a4">
-    <PageHeader title={t('emi.receiptTitle')} count={payment.receiptNumber} action={<div className="flex flex-wrap items-center gap-2 sm:flex-nowrap"><Link href={`/emi/${contract.id}`} className="inline-flex h-9 shrink-0 items-center rounded-[3px] border border-slate-600 bg-slate-600 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-slate-800 hover:bg-slate-800">{t('emi.backToDetails')}</Link><PrintReceiptButton /></div>} />
+    <PageHeader title={t('emi.receiptTitle')} count={payment.receiptNumber} action={<div className="flex flex-wrap items-center gap-2 sm:flex-nowrap"><Link href={`/emi/${contract.id}`} className="inline-flex h-9 shrink-0 items-center rounded-[3px] border border-slate-600 bg-slate-600 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-slate-800 hover:bg-slate-800">{t('emi.backToDetails')}</Link><PrintReceiptButton contractId={contract.id} paymentId={payment.id} /></div>} />
     <div className="emi-receipt-viewport" tabIndex={0} aria-label={t('emi.receiptPreviewAria')}>
     <article className="emi-receipt-document">
       {payment.status === 'REVERSED' && <section className="mb-4 border border-out bg-out-wash p-3 text-out">
@@ -78,7 +58,6 @@ export default async function EmiReceiptPage({ params }: { params: Promise<{ id:
           <p className="emi-receipt-number">{payment.receiptNumber}</p>
           <p>{formatDhakaDateTime(payment.paidAt)}</p>
         </div>
-        <div className="emi-receipt-qr-wrap"><ReceiptQRCode value={qrValue} /><span>{receiptT('emi.scanReceipt')}</span></div>
       </header>
       <section className="emi-receipt-amount">
         {isEarlySettlementReceipt && earlySettlement && <><div><span>{receiptT('emi.dueBeforeDiscount')}</span><strong>{formatBDT(earlySettlement.outstandingBefore)}</strong></div><div><span>{receiptT('emi.earlySettlementDiscount')}</span><strong>-{formatBDT(earlySettlement.discountAmount)}</strong></div></>}

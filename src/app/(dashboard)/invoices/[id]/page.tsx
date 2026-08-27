@@ -13,6 +13,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
   const sale = await db.sales.findById(id);
   if (!sale) notFound();
   const items = await db.sales.findItems(sale.id);
+  const settlements = await db.saleSettlements.findBySale(sale.id);
   const emiContract = await db.emi.findContractBySale(sale.id);
   const [emiInstallments, emiEarlySettlement, emiPayments] = emiContract
     ? await Promise.all([
@@ -34,6 +35,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
     <InvoiceView
       sale={sale}
       items={items}
+      settlements={settlements}
       canVoid={canVoid}
       emi={emiContract ? { contract: emiContract, installments: emiInstallments, earlySettlement: emiEarlySettlement, payments: emiPayments } : null}
       shop={{

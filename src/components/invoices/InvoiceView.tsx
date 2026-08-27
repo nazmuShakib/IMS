@@ -7,8 +7,9 @@ import Image from 'next/image';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 
 import { recordInvoicePrintAction, voidInvoiceAction } from '@/actions/checkout';
+import { InvoicePaymentCollection } from '@/components/invoices/InvoicePaymentCollection';
 import { Button } from '@/components/ui';
-import { PAYMENT_METHODS, type EmiContract, type EmiEarlySettlement, type EmiInstallment, type EmiPayment, type InvoiceItem, type Sale } from '@/domain/types';
+import { PAYMENT_METHODS, type EmiContract, type EmiEarlySettlement, type EmiInstallment, type EmiPayment, type InvoiceItem, type Sale, type SaleSettlement } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
@@ -44,15 +45,17 @@ export function InvoiceView({
   shop,
   canVoid,
   emi,
+  settlements,
 }: {
   sale: Sale;
   items: InvoiceItem[];
   shop: InvoiceShop;
   canVoid: boolean;
+  settlements: SaleSettlement[];
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null; payments: EmiPayment[] } | null;
 }) {
   const router = useRouter();
-  const [layout, setLayout] = useState<'a4' | 'thermal'>('a4');
+  const [layout, setLayout] = useState<'a4' | 'thermal80' | 'thermal58'>('a4');
   const [printPending, startPrintTransition] = useTransition();
   const [printError, setPrintError] = useState<string | null>(null);
   const [voidState, voidAction, voidPending] = useActionState(voidInvoiceAction, {});
@@ -86,9 +89,7 @@ export function InvoiceView({
   const activeEmiPayments = emi?.payments.filter((payment) => payment.status === 'ACTIVE') ?? [];
   const refundAmount = emi
     ? emiVoidRefundAmount(emi.contract, emi.payments)
-    : sale.paymentStatus === 'PAID'
-      ? Math.max(0, sale.total - sale.tradeInCredit)
-      : 0;
+    : Math.max(0, sale.amountPaid ?? 0);
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
   const invoicePaymentStatus = rawEmiStatus
     ? rawEmiStatus === 'PAID' || rawEmiStatus === 'SETTLED_EARLY' ? 'PAID' : 'ACTIVE'
@@ -99,7 +100,7 @@ export function InvoiceView({
       ? `EMI / ${invoicePaymentStatus}`
       : invoicePaymentStatus === 'UNPAID'
         ? 'UNPAID'
-        : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus}`;
+      : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus.replaceAll('_', ' ')}`;
 
   function openVoidDialog() {
     setVoidFields({ reason: '', refundMethod: sale.paymentMethod, confirmed: false });
@@ -113,7 +114,7 @@ export function InvoiceView({
     startPrintTransition(async () => {
       const formData = new FormData();
       formData.set('saleId', sale.id);
-      formData.set('layout', layout);
+      formData.set('layout', layout === 'a4' ? 'a4' : 'thermal');
       const result = await recordInvoicePrintAction({}, formData);
       if (result.error) {
         setPrintError(result.error);
@@ -145,7 +146,11 @@ export function InvoiceView({
   }
 
   return (
-    <div className="invoice-root" data-layout={layout}>
+    <div
+      className="invoice-root"
+      data-layout={layout === 'a4' ? 'a4' : 'thermal'}
+      data-thermal-width={layout === 'thermal58' ? '58' : '80'}
+    >
       <style>{`@media print { @page { size: ${layout === 'a4' ? 'A4 portrait' : 'auto'}; margin: 0; } }`}</style>
       <div className="invoice-screen-controls print:hidden">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-[3px] border border-rule bg-card p-3">
@@ -163,11 +168,12 @@ export function InvoiceView({
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={layout}
-              onChange={(event) => setLayout(event.target.value as 'a4' | 'thermal')}
+              onChange={(event) => setLayout(event.target.value as 'a4' | 'thermal80' | 'thermal58')}
               className="h-9 rounded-[3px] border border-rule bg-card px-2.5 text-[13px]"
             >
               <option value="a4">{t('invoice.a4Layout')}</option>
-              <option value="thermal">{t('invoice.thermalLayout')}</option>
+              <option value="thermal80">{t('invoice.thermalLayout')}</option>
+              <option value="thermal58">{t('invoice.thermal58Layout')}</option>
             </select>
             <Button type="button" disabled={printPending} onClick={printInvoice}>
               {printPending ? t('invoice.preparing') : t('invoice.print')}
@@ -189,7 +195,11 @@ export function InvoiceView({
         {printError && <p className="mb-3 text-[12px] text-out">{message(printError)}</p>}
       </div>
 
-      <div className="invoice-preview-viewport" tabIndex={0} aria-label={t('invoice.previewAria')}>
+      {!emi && (sale.status === 'COMPLETED' || settlements.length > 0) && (
+        <InvoicePaymentCollection sale={sale} settlements={settlements} />
+      )}
+
+      <div className="invoice-preview-viewport scrollbar-hint" tabIndex={0} aria-label={t('invoice.previewAria')}>
         <article className="invoice-document">
           <header className="invoice-header">
             <div className="invoice-shop-brand">
@@ -279,7 +289,15 @@ export function InvoiceView({
                   {sale.tradeInCredit > 0 && (
                     <>
                       <div><dt>Trade-in credit</dt><dd className="tnum">−{formatBDT(sale.tradeInCredit)}</dd></div>
-                      <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(sale.total - sale.tradeInCredit)}</dd></div>
+                      {sale.tradeInCredit > sale.total && (
+                        <div><dt>Trade-in cash payout</dt><dd className="tnum">{formatBDT(sale.tradeInCredit - sale.total)}</dd></div>
+                      )}
+                    </>
+                  )}
+                  {Math.max(0, sale.total - sale.tradeInCredit) > 0 && (
+                    <>
+                      <div><dt>Paid amount</dt><dd className="tnum">{formatBDT(sale.amountPaid ?? 0)}</dd></div>
+                      <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(Math.max(0, sale.total - sale.tradeInCredit - (sale.amountPaid ?? 0)))}</dd></div>
                     </>
                   )}
                 </>

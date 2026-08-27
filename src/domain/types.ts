@@ -106,9 +106,11 @@ export type SupplierRecoveryMethod = (typeof SUPPLIER_RECOVERY_METHODS)[number];
 
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'MOBILE_BANKING', 'BANK_TRANSFER', 'MIXED', 'OTHER'] as const;
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
-export const PAYMENT_STATUSES = ['PAID', 'UNPAID'] as const;
+export const PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type SaleStatus = 'COMPLETED' | 'VOIDED';
+export const SALE_SETTLEMENT_TYPES = ['CUSTOMER_COLLECTION', 'TRADE_IN_PAYOUT'] as const;
+export type SaleSettlementType = (typeof SALE_SETTLEMENT_TYPES)[number];
 
 export const CUSTOMER_IDENTIFICATION_TYPES = ['NID', 'PASSPORT', 'BIRTH_CERTIFICATE'] as const;
 export type CustomerIdentificationType = (typeof CUSTOMER_IDENTIFICATION_TYPES)[number];
@@ -382,6 +384,7 @@ export interface Sale {
   actorName: string;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  amountPaid: Paisa;
   reference: string | null;
   note: string | null;
   subtotal: Paisa;
@@ -398,6 +401,22 @@ export interface Sale {
   refundAmount: Paisa | null;
   refundMethod: PaymentMethod | null;
   voidIdempotencyKey: string | null;
+}
+
+export interface SaleSettlement {
+  id: string;
+  receiptNumber: string;
+  idempotencyKey: string;
+  saleId: string;
+  type: SaleSettlementType;
+  amount: Paisa;
+  paymentMethod: PaymentMethod;
+  reference: string | null;
+  note: string | null;
+  recordedById: string;
+  recordedByName: string;
+  recordedAt: string;
+  createdAt: string;
 }
 
 /** Immutable incoming-device summary printed with a completed trade-in sale. */

@@ -328,6 +328,24 @@ export const checkoutSchema = z.object({
 });
 
 /**
+ * Credit cannot be attached to an anonymous walk-in sale. This schema is
+ * shared by the checkout UI and server action so a crafted request cannot
+ * bypass the saved-customer requirement.
+ */
+export const regularCheckoutPaymentSchema = z.object({
+  customerId: z.string().uuid().nullable(),
+  paymentStatus: z.enum(['PAID', 'UNPAID']),
+}).superRefine((value, context) => {
+  if (value.paymentStatus === 'UNPAID' && !value.customerId) {
+    context.addIssue({
+      code: 'custom',
+      path: ['customerId'],
+      message: 'Choose or create a saved customer for an unpaid sale.',
+    });
+  }
+});
+
+/**
  * Browser checkout drafts are deliberately small and untrusted. Product names,
  * list prices, stock counts and totals are rebuilt from the database before a
  * sale is committed.
@@ -372,6 +390,22 @@ export const voidInvoiceFieldsSchema = z.object({
   }),
 });
 export type VoidInvoiceFields = z.infer<typeof voidInvoiceFieldsSchema>;
+
+/** Shared by the regular unpaid-invoice collection form and server action. */
+export const invoicePaymentCollectionFieldsSchema = z.object({
+  amount: z.string().trim()
+    .min(1, 'Enter the amount received.')
+    .refine((value) => {
+      if (!/^\d+(?:\.\d{1,2})?$/.test(value)) return false;
+      try { return parseBDT(value) > 0; } catch { return false; }
+    }, 'Enter a valid amount greater than zero.')
+    .transform((value) => parseBDT(value)),
+  paymentMethod: z.enum(PAYMENT_METHODS, { message: 'Choose the payment method.' }),
+  reference: optionalFormText(120),
+  note: optionalFormText(1000),
+});
+export type InvoicePaymentCollectionFieldsInput = z.input<typeof invoicePaymentCollectionFieldsSchema>;
+export type InvoicePaymentCollectionFields = z.output<typeof invoicePaymentCollectionFieldsSchema>;
 
 export const createUserSchema = z.object({
   name: z.string().min(1).max(100).trim(),

@@ -15,6 +15,7 @@ import type {
   CartDraft,
   Sale,
   SaleItem,
+  SaleSettlement,
   InvoiceItem,
   UsedDeviceAcquisition,
   RefurbishmentExpense,
@@ -161,6 +162,7 @@ function cartDraft(row: Awaited<ReturnType<Client['cartDraft']['findUniqueOrThro
 function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sale {
   return {
     ...row,
+    amountPaid: row.amountPaid ?? 0,
     tradeInDetails: row.tradeInDetails as TradeInSaleSnapshot | null,
     completedAt: iso(row.completedAt),
     createdAt: iso(row.createdAt),
@@ -170,6 +172,10 @@ function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sa
 
 function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow']>>): SaleItem {
   return { ...row, createdAt: iso(row.createdAt) };
+}
+
+function saleSettlement(row: Awaited<ReturnType<Client['saleSettlement']['findUniqueOrThrow']>>): SaleSettlement {
+  return { ...row, recordedAt: iso(row.recordedAt), createdAt: iso(row.createdAt) };
 }
 
 const emiContract = (row: Awaited<ReturnType<Client['emiContract']['findUniqueOrThrow']>>): EmiContract => ({
@@ -689,6 +695,32 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         await client.cartDraft.delete({ where: { id } });
       },
     },
+    saleSettlements: {
+      async nextReceiptNumber(type, now) {
+        const year = dhakaYear(now);
+        const prefix = type === 'CUSTOMER_COLLECTION' ? 'IPR' : 'TIP';
+        const sequence = await client.documentSequence.upsert({
+          where: { key: `${prefix}:${year}` },
+          create: { key: `${prefix}:${year}`, value: 1 },
+          update: { value: { increment: 1 } },
+        });
+        return `${prefix}-${year}-${String(sequence.value).padStart(6, '0')}`;
+      },
+      async findBySale(saleId) {
+        return (await client.saleSettlement.findMany({
+          where: { saleId }, orderBy: { recordedAt: 'desc' },
+        })).map(saleSettlement);
+      },
+      async findByIdempotencyKey(idempotencyKey) {
+        const row = await client.saleSettlement.findUnique({ where: { idempotencyKey } });
+        return row ? saleSettlement(row) : null;
+      },
+      async create(value) {
+        return saleSettlement(await client.saleSettlement.create({
+          data: { ...value, recordedAt: new Date(value.recordedAt), createdAt: new Date(value.createdAt) },
+        }));
+      },
+    },
     sales: {
       async nextInvoiceNumber(now) {
         const year = dhakaYear(now);
@@ -776,6 +808,14 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             createdAt: new Date(value.createdAt),
           },
         }));
+      },
+      async updatePayment(id, expectedAmountPaid, patch) {
+        const result = await client.sale.updateMany({
+          where: { id, status: 'COMPLETED', amountPaid: expectedAmountPaid },
+          data: patch,
+        });
+        if (result.count !== 1) throw new Error('The invoice payment changed. Refresh and try again.');
+        return sale(await client.sale.findUniqueOrThrow({ where: { id } }));
       },
       async markVoided(id, patch) {
         const result = await client.sale.updateMany({

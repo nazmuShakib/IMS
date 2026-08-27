@@ -25,6 +25,7 @@ import type {
   EmiPayment,
   EmiPaymentAllocation,
   EmiEarlySettlement,
+  SaleSettlement,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -47,6 +48,7 @@ import type {
   ExpenseCategoryRepository,
   OperatingExpenseRepository,
   EmiRepository,
+  SaleSettlementRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -599,6 +601,17 @@ const sales: SaleRepository = {
     await writeAll('sales', [...await readAll<Sale>('sales'), value]);
     return value;
   },
+  async updatePayment(id, expectedAmountPaid, patch) {
+    const rows = await readAll<Sale>('sales');
+    const index = rows.findIndex((item) => item.id === id
+      && item.status === 'COMPLETED'
+      && (item.amountPaid ?? 0) === expectedAmountPaid);
+    if (index < 0) throw new Error('The invoice payment changed. Refresh and try again.');
+    const updated = { ...rows[index]!, ...patch };
+    const copy = [...rows]; copy[index] = updated;
+    await writeAll('sales', copy);
+    return updated;
+  },
   async markVoided(id, patch) {
     const rows = await readAll<Sale>('sales');
     const index = rows.findIndex((item) => item.id === id && item.status === 'COMPLETED');
@@ -635,6 +648,36 @@ const sales: SaleRepository = {
         lineTotal: movement.unitPrice * quantity,
       };
       });
+  },
+};
+
+const saleSettlements: SaleSettlementRepository = {
+  async nextReceiptNumber(type, now) {
+    const year = dhakaYear(now);
+    const prefix = type === 'CUSTOMER_COLLECTION' ? 'IPR' : 'TIP';
+    const sequencePrefix = `${prefix}-${year}-`;
+    const next = (await readAll<SaleSettlement>('sale-settlements')).reduce((max, item) =>
+      item.receiptNumber.startsWith(sequencePrefix)
+        ? Math.max(max, Number(item.receiptNumber.slice(sequencePrefix.length)) || 0)
+        : max, 0) + 1;
+    return `${sequencePrefix}${String(next).padStart(6, '0')}`;
+  },
+  async findBySale(saleId) {
+    return (await readAll<SaleSettlement>('sale-settlements'))
+      .filter((item) => item.saleId === saleId)
+      .sort((a, b) => b.recordedAt.localeCompare(a.recordedAt));
+  },
+  async findByIdempotencyKey(idempotencyKey) {
+    return (await readAll<SaleSettlement>('sale-settlements'))
+      .find((item) => item.idempotencyKey === idempotencyKey) ?? null;
+  },
+  async create(value) {
+    const rows = await readAll<SaleSettlement>('sale-settlements');
+    if (rows.some((item) => item.idempotencyKey === value.idempotencyKey)) {
+      throw new Error('This payment or payout has already been recorded.');
+    }
+    await writeAll('sale-settlements', [...rows, value]);
+    return value;
   },
 };
 
@@ -868,6 +911,7 @@ export const jsonRepositories: Repositories = {
   customers,
   carts,
   sales,
+  saleSettlements,
   usedDeviceAcquisitions,
   refurbishmentExpenses,
   supplierReturns,

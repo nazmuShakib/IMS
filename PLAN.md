@@ -1442,6 +1442,29 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
   to operational roles, while the removal navigation, page, serial lookup, and
   mutation all use the separate `REMOVE_STOCK` capability.
 
+### 21.6 Invoice collections and trade-in cash payouts
+
+**Implementation status: complete (24 August 2026).**
+
+- A completed regular sale may be paid, partially paid, or unpaid. Later
+  collections append numbered, auditable payment records to the original
+  invoice and move its status from UNPAID to PARTIALLY PAID and finally PAID.
+  Collection forms share browser and server Zod validation, reject overpayment,
+  and require confirmation before recording money.
+- Sales use accrual accounting: completing the sale records its immutable
+  selling price, revenue, COGS, profit, and stock movement immediately. A later
+  partial or final collection changes only the invoice's paid amount, amount
+  due, payment status, and collection history; it never rewrites the invoice
+  total or financial performance.
+- When an accepted trade-in credit exceeds the new sale total, the difference is
+  recorded as a **trade-in cash payout** with its own numbered settlement,
+  payment method, actor, and audit trail. The sale and trade-in still commit in
+  one transaction. EMI continues to prohibit credit/down-payment combinations
+  above its total because EMI trade-ins do not use this cash-payout workflow.
+- Invoice screens and generated PDFs show the original total, trade-in credit,
+  any cash payout, amount paid, and current amount due. Voiding a regular sale
+  refunds only money actually collected, not an unpaid receivable.
+
 ---
 
 ## 22. Still deferred after Phase 9
@@ -1450,4 +1473,5 @@ operating expenses, EMI sales, staff discount limits, and dashboard improvements
 - **VAT / tax invoices** — the `taxRate` field (basis points) exists, but legal and numbering requirements must be defined first.
 - **Camera barcode scanning** — USB/Bluetooth keyboard scanners are Phase 7.
 - **Multi-branch** — requires `Location`, location-aware on-hand invariants, unit locations, transfers, permissions, and reports. Treat this as a separate major phase.
-- **Trade-in cash payout above sale total** — requires payment-out/refund accounting; current trade-in credit cannot exceed the sale total.
+- **Customer returns and exchanges** — distinct from invoice mistake-voiding,
+  warranty/RMA, and trade-in acquisition; requires a dedicated post-sale policy.

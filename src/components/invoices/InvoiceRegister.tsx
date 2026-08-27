@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Badge, Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
-import { PAYMENT_METHODS, PAYMENT_STATUSES, type Sale } from '@/domain/types';
+import { PAYMENT_METHODS, PAYMENT_STATUSES, type PaymentStatus, type Sale } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { domainLabel } from '@/lib/i18n/domain';
@@ -17,6 +17,7 @@ export interface InvoiceEmiSummary {
   termMonths: number;
   status: EmiDisplayStatus;
   overdueAmount: number;
+  paymentStatus: PaymentStatus | null;
 }
 
 export interface InvoiceFilterValues {

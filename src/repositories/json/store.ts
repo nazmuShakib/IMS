@@ -33,6 +33,7 @@ export type Collection =
   | 'cart-items'
   | 'sales'
   | 'sale-items'
+  | 'sale-settlements'
   | 'used-device-acquisitions'
   | 'refurbishment-expenses'
   | 'supplier-returns'

@@ -6,7 +6,7 @@ const ENUM_KEYS: Record<string, MessageKey> = {
   CASH: 'enum.cash', CARD: 'enum.card', MOBILE_BANKING: 'enum.mobileBanking',
   BANK_TRANSFER: 'enum.bankTransfer', MIXED: 'enum.mixed', OTHER: 'enum.other',
   ACTIVE: 'common.active', VOIDED: 'expenses.voided',
-  PAID: 'enum.paid', UNPAID: 'enum.unpaid',
+  PAID: 'enum.paid', PARTIALLY_PAID: 'enum.partiallyPaid', UNPAID: 'enum.unpaid',
   SUBMITTED: 'enum.submitted', UNDER_INSPECTION: 'enum.underInspection', APPROVED: 'enum.approved',
   REJECTED: 'enum.rejected', SENT_FOR_REPAIR: 'enum.sentForRepair',
   READY_FOR_COLLECTION: 'enum.readyForCollection', REPLACED: 'enum.replaced',

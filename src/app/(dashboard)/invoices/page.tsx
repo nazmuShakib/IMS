@@ -17,6 +17,7 @@ import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import type { SaleFilters } from '@/repositories/types';
 import { emiDisplayStatus, emiOverdueAmount } from '@/lib/emi-summary';
+import { effectiveInvoicePaymentStatus } from '@/lib/invoice-payment-status';
 
 export const dynamic = 'force-dynamic';
 
@@ -96,24 +97,47 @@ export default async function InvoicesPage({
     && filters.minTotal > filters.maxTotal;
   const invalidDateRange = filters.from && filters.to && filters.from > filters.to;
   const usersPromise = db.users.findAll();
-  const sales = invalidPriceRange || invalidDateRange
+  const candidateSales = invalidPriceRange || invalidDateRange
     ? []
-    : await db.sales.search(filters, 500);
-  const visibleSaleIds = new Set(sales.map((sale) => sale.id));
+    : await db.sales.search({ ...filters, paymentStatus: undefined }, 500);
+  const candidateSalesById = new Map(candidateSales.map((sale) => [sale.id, sale]));
+  const visibleSaleIds = new Set(candidateSales.map((sale) => sale.id));
   const emiContracts = (await db.emi.findContracts()).filter((contract) => visibleSaleIds.has(contract.saleId));
   const emiSummaries = await Promise.all(emiContracts.map(async (contract) => {
     const [installments, earlySettlement] = await Promise.all([
       db.emi.findInstallments(contract.id),
       db.emi.findEarlySettlement(contract.id),
     ]);
+    const displayStatus = emiDisplayStatus(contract, installments, earlySettlement);
+    const sale = candidateSalesById.get(contract.saleId);
+    if (!sale) return null;
+
     return [contract.saleId, {
       contractId: contract.id,
       termMonths: contract.termMonths,
-      status: emiDisplayStatus(contract, installments, earlySettlement),
+      status: displayStatus,
       overdueAmount: emiOverdueAmount(installments),
+      paymentStatus: effectiveInvoicePaymentStatus(
+        sale,
+        {
+          status: displayStatus,
+          downPayment: contract.downPayment,
+          tradeInCredit: contract.tradeInCredit,
+          installmentAmountPaid: installments.reduce((sum, row) => sum + row.amountPaid, 0),
+        },
+      ),
     }] as const;
   }));
-  const emiBySaleId = Object.fromEntries(emiSummaries);
+  const emiBySaleId = Object.fromEntries(emiSummaries.filter((summary) => summary !== null));
+  const sales = filters.paymentStatus
+    ? candidateSales.filter((sale) => {
+      const emi = emiBySaleId[sale.id];
+      const effectiveStatus = emi
+        ? emi.paymentStatus
+        : effectiveInvoicePaymentStatus(sale);
+      return effectiveStatus === filters.paymentStatus;
+    })
+    : candidateSales;
   const users = await usersPromise;
 
   return (

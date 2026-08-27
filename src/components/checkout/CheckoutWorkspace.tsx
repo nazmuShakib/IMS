@@ -25,6 +25,10 @@ import {
 import { ScannerInput } from "@/components/search/ScannerInput";
 import { DiscardDraftControl } from "@/components/checkout/DiscardDraftControl";
 import { CustomerCombobox } from "@/components/checkout/CustomerCombobox";
+import {
+  CheckoutProductCombobox,
+  CheckoutUnitCombobox,
+} from "@/components/checkout/CheckoutItemCombobox";
 import { CreateCustomerForm } from "@/components/customers/CreateCustomerForm";
 import {
   Button,
@@ -37,18 +41,19 @@ import {
   SerialChip,
   Textarea,
 } from "@/components/ui";
-import type {
-  CartDraft,
-  Customer,
-  PaymentMethod,
-  PaymentStatus,
-  TrackingType,
-  Role,
+import {
+  PAYMENT_METHODS,
+  type CartDraft,
+  type Customer,
+  type PaymentMethod,
+  type PaymentStatus,
+  type TrackingType,
+  type Role,
 } from "@/domain/types";
 import { formatBDT, toTaka } from "@/lib/money";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { domainLabel } from "@/lib/i18n/domain";
-import { emiCheckoutFieldsSchema } from "@/schemas";
+import { emiCheckoutFieldsSchema, regularCheckoutPaymentSchema } from "@/schemas";
 import { SHOP_LOGO_DATA_URI } from "@/lib/shop-branding";
 
 export interface CheckoutProductOption {
@@ -120,6 +125,7 @@ interface StoredCheckoutDraft {
   identificationNumber: string;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
+  tradeInPayoutMethod: PaymentMethod;
   reference: string;
   note: string;
 }
@@ -385,9 +391,11 @@ export function CheckoutWorkspace({
   const [identificationNumber, setIdentificationNumber] = useState("");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("CASH");
   const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("PAID");
+  const [tradeInPayoutMethod, setTradeInPayoutMethod] = useState<PaymentMethod>("CASH");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
   const [emiErrors, setEmiErrors] = useState<Record<string, string>>({});
+  const [regularErrors, setRegularErrors] = useState<Record<string, string>>({});
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
   const [confirmingTradeInRemoval, setConfirmingTradeInRemoval] = useState(false);
   const [orderedLines, setOrderedLines] = useState(lines);
@@ -432,6 +440,7 @@ export function CheckoutWorkspace({
     setIdentificationType(customer?.identificationType ?? "");
     setIdentificationNumber(customer?.identificationNumber ?? "");
     clearEmiError('identificationType'); clearEmiError('identificationNumber');
+    setRegularErrors({});
   }
 
   const setLineOrder = useCallback((next: CheckoutLine[]) => {
@@ -490,8 +499,18 @@ export function CheckoutWorkspace({
         setEmiErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])));
         return;
       }
+    } else {
+      const parsed = regularCheckoutPaymentSchema.safeParse({
+        customerId: selectedCustomerId || null,
+        paymentStatus,
+      });
+      if (!parsed.success) {
+        setRegularErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message])));
+        return;
+      }
     }
     setEmiErrors({});
+    setRegularErrors({});
     setConfirmingCheckout(true);
   }
 
@@ -558,6 +577,7 @@ export function CheckoutWorkspace({
           setIdentificationNumber(typeof stored.identificationNumber === "string" ? stored.identificationNumber : "");
           setPaymentMethod(stored.paymentMethod ?? "CASH");
           setPaymentStatus(stored.paymentStatus ?? "PAID");
+          setTradeInPayoutMethod(stored.tradeInPayoutMethod ?? "CASH");
           setReference(typeof stored.reference === "string" ? stored.reference : "");
           setNote(typeof stored.note === "string" ? stored.note : "");
         }
@@ -597,13 +617,14 @@ export function CheckoutWorkspace({
       identificationNumber,
       paymentMethod,
       paymentStatus,
+      tradeInPayoutMethod,
       reference,
       note,
     };
     window.localStorage.setItem(storageKey, JSON.stringify(draft));
     const expiryTimer = window.setTimeout(() => void expireDraft(), LOCAL_DRAFT_TTL_MS);
     return () => window.clearTimeout(expiryTimer);
-  }, [draftHydrated, emiDownPayment, emiFirstDueDate, emiTerm, expireDraft, identificationNumber, identificationType, note, orderedLines, paymentMethod, paymentStatus, reference, saleMode, selectedCustomerId, storageKey]);
+  }, [draftHydrated, emiDownPayment, emiFirstDueDate, emiTerm, expireDraft, identificationNumber, identificationType, note, orderedLines, paymentMethod, paymentStatus, reference, saleMode, selectedCustomerId, storageKey, tradeInPayoutMethod]);
 
   useLayoutEffect(() => {
     const previous = previousLinePositionsRef.current;
@@ -690,6 +711,7 @@ export function CheckoutWorkspace({
     : null;
   const tradeInCredit = cart.tradeInDraft?.acquisitionValue
     ?? 0;
+  const tradeInCashPayout = isEmi ? 0 : Math.max(0, tradeInCredit - total);
   const downPayment = (() => { const value = Number(emiDownPayment); return Number.isFinite(value) ? Math.round(value * 100) : 0; })();
   const amountDue = Math.max(0, total - tradeInCredit - (isEmi ? downPayment : 0));
   const priceAdjustment = total - subtotal;
@@ -880,20 +902,7 @@ export function CheckoutWorkspace({
                 label={t("checkout.bulkProduct")}
                 hint={t("checkout.manualAlternative")}
               >
-                <Select name="productId" defaultValue="">
-                  <option value="" disabled>
-                    {t("stock.chooseProduct")}
-                  </option>
-                  {quantityProducts.map((product) => (
-                    <option
-                      key={product.id}
-                      value={product.id}
-                      disabled={product.onHand <= 0}
-                    >
-                      {product.sku} — {product.name} ({product.onHand})
-                    </option>
-                  ))}
-                </Select>
+                <CheckoutProductCombobox products={quantityProducts} />
               </Field>
               <Button className="mt-3" type="submit" variant="ghost">
                 {t("products.add")}
@@ -904,16 +913,7 @@ export function CheckoutWorkspace({
                 label={t("checkout.serialItem")}
                 hint={t("checkout.chooseExact")}
               >
-                <Select name="unitId" defaultValue="">
-                  <option value="" disabled>
-                    {t("checkout.chooseDevice")}
-                  </option>
-                  {units.map((unit) => (
-                    <option key={unit.id} value={unit.id}>
-                      {unit.serialNo} — {unit.sku} — {unit.productName}{unit.usedGrade ? ` — ${unit.usedGrade.replace('GRADE_', 'Grade ')}` : ''}
-                    </option>
-                  ))}
-                </Select>
+                <CheckoutUnitCombobox units={units} />
               </Field>
               <Button className="mt-3" type="submit" variant="ghost">
                 {t("checkout.addUnit")}
@@ -1057,6 +1057,7 @@ export function CheckoutWorkspace({
               <Field
                 label={t("common.customer")}
                 hint={t("checkout.customerHint")}
+                error={regularErrors.customerId ? message(regularErrors.customerId) : undefined}
               >
                 <CustomerCombobox
                   customers={customers}
@@ -1130,7 +1131,7 @@ export function CheckoutWorkspace({
                 {isEmi
                   ? <input type="hidden" name="paymentStatus" value="UNPAID" />
                   : <Field label={t("checkout.paymentStatus")}>
-                      <Select name="paymentStatus" value={paymentStatus} onChange={(event) => setPaymentStatus(event.target.value as PaymentStatus)}>
+                      <Select name="paymentStatus" value={paymentStatus} onChange={(event) => { setPaymentStatus(event.target.value as PaymentStatus); setRegularErrors({}); }}>
                         {(["PAID", "UNPAID"] as PaymentStatus[]).map((value) => (
                           <option key={value} value={value}>{domainLabel(t, value)}</option>
                         ))}
@@ -1166,6 +1167,19 @@ export function CheckoutWorkspace({
                   </Link>
                 </div>
               )}
+              {tradeInCashPayout > 0 ? (
+                <Field label={t("checkout.tradeInPayoutMethod")} hint={t("checkout.tradeInPayoutHelp", { amount: formatBDT(tradeInCashPayout) })}>
+                  <Select
+                    name="tradeInPayoutMethod"
+                    value={tradeInPayoutMethod}
+                    onChange={(event) => setTradeInPayoutMethod(event.target.value as PaymentMethod)}
+                  >
+                    {PAYMENT_METHODS.map((value) => (
+                      <option key={value} value={value}>{domainLabel(t, value)}</option>
+                    ))}
+                  </Select>
+                </Field>
+              ) : <input type="hidden" name="tradeInPayoutMethod" value={tradeInPayoutMethod} />}
               <Field label={t("common.reference")}>
                 <Input
                   name="reference"
@@ -1205,6 +1219,12 @@ export function CheckoutWorkspace({
                     <dt>{t("checkout.amountDue")}</dt>
                     <dd className="tnum">{formatBDT(amountDue)}</dd>
                   </div>}
+                  {tradeInCashPayout > 0 && (
+                    <div className="flex justify-between text-[13px] font-semibold text-out">
+                      <dt>{t("checkout.tradeInCashPayout")}</dt>
+                      <dd className="tnum">{formatBDT(tradeInCashPayout)}</dd>
+                    </div>
+                  )}
                 </>
               )}
               {isEmi && downPayment > 0 && (
@@ -1431,6 +1451,12 @@ export function CheckoutWorkspace({
                           <div className="flex justify-between gap-4 text-out">
                             <span>{t("checkout.tradeInCredit")}</span>
                             <span className="tnum">−{formatBDT(tradeInCredit)}</span>
+                          </div>
+                        )}
+                        {tradeInCashPayout > 0 && (
+                          <div className="flex justify-between gap-4 font-semibold text-out">
+                            <span>{t("checkout.tradeInCashPayout")}</span>
+                            <span className="tnum">{formatBDT(tradeInCashPayout)}</span>
                           </div>
                         )}
                         {isEmi && (

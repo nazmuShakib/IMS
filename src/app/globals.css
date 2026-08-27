@@ -244,6 +244,13 @@ html[lang="bn"] .eyebrow {
   background-clip: padding-box;
 }
 
+/* Long document previews must advertise that more content is available even
+   before the user clicks or hovers them. Keep the normal thumb subtle; the
+   shared hover rule below still strengthens it during interaction. */
+.scrollbar-hint::-webkit-scrollbar-thumb {
+  background-color: var(--color-scrollbar-thumb);
+}
+
 :where(
     .overflow-auto,
     .overflow-y-auto,
@@ -346,7 +353,9 @@ html[lang="bn"] .eyebrow {
 .command-search-input:focus,
 .command-search-input:focus-visible,
 .customer-combobox-input:focus,
-.customer-combobox-input:focus-visible {
+.customer-combobox-input:focus-visible,
+.checkout-item-combobox-input:focus,
+.checkout-item-combobox-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }
@@ -714,8 +723,38 @@ html[lang="bn"] .eyebrow {
   flex-direction: column;
   width: min(80mm, 100%);
   min-height: 0;
-  padding: 4mm;
+  padding: 0 4mm 4mm;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 8pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.emi-receipt-root[data-layout="thermal"] :is(
+  .emi-receipt-header h2,
+  .emi-receipt-header p:last-child,
+  .emi-receipt-amount span,
+  .emi-receipt-details dt,
+  .emi-receipt-details dd span,
+  .emi-receipt-products h3,
+  .emi-receipt-products span,
+  .emi-receipt-footer
+) {
+  color: #000;
+}
+
+.emi-receipt-root[data-layout="thermal"] :is(
+  .emi-receipt-details dd,
+  .emi-receipt-details dd span,
+  .emi-receipt-products span,
+  .emi-receipt-footer
+) {
+  font-weight: 400;
+}
+
+.emi-receipt-root[data-layout="thermal"][data-thermal-width="58"] .emi-receipt-document {
+  width: min(58mm, 100%);
 }
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-header {
@@ -845,13 +884,24 @@ html[lang="bn"] .eyebrow {
     max-width: 80mm;
     min-height: 0;
     height: auto;
-    margin: 0 auto;
+    margin: 0;
     border: 0;
     border-radius: 0;
-    padding: 4mm;
+    padding: 0 0 4mm;
     page: auto;
     break-inside: avoid-page;
     break-after: avoid-page;
+  }
+
+  .emi-receipt-root[data-layout="thermal"] .emi-receipt-shop-logo {
+    clip-path: inset(12.5% 0);
+    margin-top: -2mm;
+    margin-bottom: -2mm;
+  }
+
+  .emi-receipt-root[data-layout="thermal"][data-thermal-width="58"] .emi-receipt-document {
+    width: 58mm;
+    max-width: 58mm;
   }
 }
 
@@ -885,8 +935,95 @@ html[lang="bn"] .eyebrow {
   width: min(80mm, 100%);
   min-height: 0;
   aspect-ratio: auto;
-  padding: 4mm;
+  padding: 0 4mm 4mm;
+  color: #000;
+  font-family: Arial, Helvetica, sans-serif;
   font-size: 8pt;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.invoice-root[data-layout="thermal"] .tnum {
+  font-family: Arial, Helvetica, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-title > .tnum {
+  font-size: 9pt;
+  font-weight: 400;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-meta strong,
+.invoice-root[data-layout="thermal"] .invoice-meta p {
+  font-size: 8.5pt;
+  font-weight: 400;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-items td:first-child span,
+.invoice-root[data-layout="thermal"] .invoice-summary dl > div:not(.invoice-total) {
+  font-weight: 400;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-summary dl > div:not(.invoice-total) {
+  font-size: 8.5pt;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-items td:first-child strong,
+.invoice-root[data-layout="thermal"] .invoice-items td:nth-child(2) {
+  font-weight: 700;
+}
+
+.invoice-root[data-layout="thermal"] :is(
+  .invoice-header p,
+  .invoice-meta p,
+  .invoice-meta span,
+  .invoice-items td:first-child span,
+  .invoice-trade-in span,
+  .invoice-trade-in p,
+  .invoice-payment span,
+  footer
+) {
+  color: #000;
+}
+
+.invoice-root[data-layout="thermal"][data-thermal-width="58"] .invoice-document {
+  width: min(58mm, 100%);
+}
+
+.invoice-root[data-layout="thermal"] .invoice-header {
+  border-bottom-width: 0.2mm;
+  border-bottom-color: #000;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-items td {
+  border-color: #000;
+  border-width: 0;
+  border-bottom-width: 0.12mm;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-items th {
+  border: 0;
+  border-bottom: 0.12mm solid #d5dade;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-items tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-payment-badge,
+.invoice-root[data-layout="thermal"] .invoice-trade-in {
+  border: 0.12mm solid #000;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-payment {
+  border: 0;
+  border-top: 0.12mm solid #000;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-summary .invoice-total {
+  border-top-width: 0.2mm;
+  border-top-color: #000;
 }
 
 .invoice-header,
@@ -1128,7 +1265,7 @@ html[lang="bn"] .eyebrow {
 .invoice-root[data-layout="thermal"] .invoice-items th,
 .invoice-root[data-layout="thermal"] .invoice-items td {
   padding: 1.5mm 0.8mm;
-  font-size: 6.5pt;
+  font-size: 7.5pt;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-items th:nth-child(3),
@@ -1137,7 +1274,7 @@ html[lang="bn"] .eyebrow {
 }
 
 .invoice-root[data-layout="thermal"] .invoice-items td:first-child span {
-  font-size: 6.2pt;
+  font-size: 8pt;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-summary dl {
@@ -1297,12 +1434,23 @@ html[lang="bn"] .eyebrow {
     max-width: 80mm;
     min-height: 0;
     height: auto;
-    margin: 0 auto;
+    margin: 0;
     aspect-ratio: auto;
-    padding: 4mm;
+    padding: 0 0 4mm;
     page: auto;
     border: 0;
     break-inside: avoid-page;
     break-after: avoid-page;
+  }
+
+  .invoice-root[data-layout="thermal"] .invoice-shop-logo {
+    clip-path: inset(12.5% 0);
+    margin-top: -2.5mm;
+    margin-bottom: -2.5mm;
+  }
+
+  .invoice-root[data-layout="thermal"][data-thermal-width="58"] .invoice-document {
+    width: 58mm;
+    max-width: 58mm;
   }
 }

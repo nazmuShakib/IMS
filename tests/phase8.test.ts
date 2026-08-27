@@ -4,11 +4,38 @@ import { describe, expect, it } from 'vitest';
 
 import { normalizePhone } from '@/services/checkout';
 import { dhakaYear } from '@/lib/time';
-import { createCustomerSchema, createSupplierSchema } from '@/schemas';
+import {
+  createCustomerSchema,
+  createSupplierSchema,
+  regularCheckoutPaymentSchema,
+} from '@/schemas';
 
 const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
 describe('Phase 8 customer and checkout decisions', () => {
+  it('requires a saved customer for unpaid regular sales on both client and server boundaries', () => {
+    expect(regularCheckoutPaymentSchema.safeParse({
+      customerId: null,
+      paymentStatus: 'PAID',
+    }).success).toBe(true);
+    expect(regularCheckoutPaymentSchema.safeParse({
+      customerId: null,
+      paymentStatus: 'UNPAID',
+    }).success).toBe(false);
+    expect(regularCheckoutPaymentSchema.safeParse({
+      customerId: '01914df2-4eec-7ed0-9be7-36e3d303d0fc',
+      paymentStatus: 'UNPAID',
+    }).success).toBe(true);
+
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    const action = source('src/actions/checkout.ts');
+    const service = source('src/services/checkout.ts');
+    expect(workspace).toContain('regularCheckoutPaymentSchema.safeParse');
+    expect(workspace).toContain('error={regularErrors.customerId');
+    expect(action).toContain('regularCheckoutPaymentSchema.parse');
+    expect(service).toContain('regularCheckoutPaymentSchema.parse');
+  });
+
   it('normalizes customer phone numbers without inventing walk-in records', () => {
     expect(normalizePhone('+880 1712-345678')).toBe('01712345678');
     expect(normalizePhone('1712-345678')).toBe('01712345678');
@@ -288,26 +315,28 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(invoice).toContain("t('invoice.thermalLayout')");
     expect(invoice).toContain('/pdf');
     expect(invoice).toContain('flex flex-wrap items-center gap-2');
-    expect(css).toContain('@page invoice-a4');
-    expect(css).toContain('@page invoice-thermal');
+    expect(css).toContain('.invoice-root[data-layout="a4"]');
+    expect(css).toContain('.invoice-root[data-layout="thermal"]');
     expect(css).toContain('width: min(210mm, 100%)');
     expect(css).toContain('container: invoice-preview / inline-size');
-    expect(invoice).toContain('className="invoice-preview-viewport"');
+    expect(invoice).toContain('className="invoice-preview-viewport scrollbar-hint"');
     expect(invoice).toContain("aria-label={t('invoice.previewAria')}");
     expect(css).toContain('.invoice-preview-viewport');
     expect(css).toContain('overflow: auto');
     expect(css).toContain('@container invoice-preview (max-width: 767px)');
     expect(css).toContain("width: min(72mm, 100%)");
     expect(css).toContain('width: 210mm');
-    expect(css).toContain('min-height: 297mm');
+    expect(css).toContain('width: 80mm');
   });
 
-  it('filters invoices at the repository boundary instead of in the browser', () => {
+  it('filters invoices on the server instead of in the browser', () => {
     const page = source('src/app/(dashboard)/invoices/page.tsx');
     const register = source('src/components/invoices/InvoiceRegister.tsx');
     const repositories = source('src/repositories/types.ts');
     const prisma = source('src/repositories/prisma/index.ts');
-    expect(page).toContain('await db.sales.search(filters, 500)');
+    expect(page).toContain('await db.sales.search({ ...filters, paymentStatus: undefined }, 500)');
+    expect(page).toContain('effectiveInvoicePaymentStatus');
+    expect(page).toContain('effectiveStatus === filters.paymentStatus');
     expect(register).toContain('name="paymentStatus"');
     expect(register).toContain('name="paymentMethod"');
     expect(register).toContain('name="customerType"');

@@ -11,7 +11,8 @@ import { normalizeBangladeshMobile } from '@/lib/phone';
 import { db, type Repositories } from '@/repositories';
 import {
   checkoutSchema, localCheckoutLinesSchema, createCustomerSchema,
-  acceptUsedDeviceSchema, type CreateCustomerInput, type AcceptUsedDeviceInput,
+  acceptUsedDeviceSchema, regularCheckoutPaymentSchema,
+  type CreateCustomerInput, type AcceptUsedDeviceInput,
 } from '@/schemas';
 import { acceptUsedDeviceInTransaction } from '@/services/used-devices';
 import { installmentAmounts, installmentDates } from '@/services/emi';
@@ -22,6 +23,7 @@ const checkoutSubmissionSchema = checkoutSchema.extend({
   lines: localCheckoutLinesSchema,
   customerId: z.string().uuid().nullable(),
   paymentMethod: z.enum(PAYMENT_METHODS),
+  tradeInPayoutMethod: z.enum(PAYMENT_METHODS),
   paymentStatus: z.enum(PAYMENT_STATUSES),
   reference: z.string().trim().max(100).nullable(),
   note: z.string().trim().max(1000).nullable(),
@@ -153,6 +155,7 @@ export async function checkoutCart(raw: {
   lines: unknown;
   customerId: string | null;
   paymentMethod: PaymentMethod;
+  tradeInPayoutMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
   reference: string | null;
   note: string | null;
@@ -171,6 +174,13 @@ export async function checkoutCart(raw: {
     const cart = await ownedCart(tx, input.cartId, input.actorId);
     const customer = input.customerId ? await tx.customers.findById(input.customerId) : null;
     if (input.customerId && !customer?.isActive) throw new Error('The selected customer is unavailable.');
+
+    if (!input.isEmi) {
+      regularCheckoutPaymentSchema.parse({
+        customerId: customer?.id ?? null,
+        paymentStatus: input.paymentStatus,
+      });
+    }
 
     if (input.isEmi) {
       if (!customer) throw new Error('Choose a saved customer for an EMI sale.');
@@ -243,7 +253,6 @@ export async function checkoutCart(raw: {
     const subtotal = resolved.reduce((sum, row) => sum + row.item.listUnitPrice * row.item.quantity, 0);
     const total = resolved.reduce((sum, row) => sum + row.item.actualUnitPrice * row.item.quantity, 0);
     const tradeInCredit = cart.tradeInDraft?.acquisitionValue ?? 0;
-    if (tradeInCredit > total) throw new Error('Trade-in credit cannot exceed the sale total in this version.');
     if (input.isEmi && input.emiDownPayment + tradeInCredit > total) {
       throw new Error('Down payment and trade-in credit cannot exceed the EMI total.');
     }
@@ -268,6 +277,13 @@ export async function checkoutCart(raw: {
       throw new Error('The trade-in device details are incomplete.');
     }
 
+    const regularAmountDue = Math.max(0, total - tradeInCredit);
+    const tradeInCashPayout = input.isEmi ? 0 : Math.max(0, tradeInCredit - total);
+    const paymentStatus: PaymentStatus = input.isEmi
+      ? total - tradeInCredit - input.emiDownPayment > 0 ? 'UNPAID' : 'PAID'
+      : regularAmountDue === 0 ? 'PAID' : input.paymentStatus;
+    const amountPaid = !input.isEmi && paymentStatus === 'PAID' ? regularAmountDue : 0;
+
     const sale: Sale = {
       id: uuidv7(),
       invoiceNumber,
@@ -280,8 +296,9 @@ export async function checkoutCart(raw: {
       actorName: input.actorName,
       // An unpaid regular sale has not used a payment channel yet. Normalize
       // this on the trusted boundary even if a client submits CASH or CARD.
-      paymentMethod: !input.isEmi && input.paymentStatus === 'UNPAID' ? 'OTHER' : input.paymentMethod,
-      paymentStatus: input.isEmi && total - tradeInCredit - input.emiDownPayment > 0 ? 'UNPAID' : input.paymentStatus,
+      paymentMethod: !input.isEmi && paymentStatus !== 'PAID' ? 'OTHER' : input.paymentMethod,
+      paymentStatus,
+      amountPaid,
       reference: input.reference,
       note: input.note,
       subtotal,
@@ -309,6 +326,23 @@ export async function checkoutCart(raw: {
     };
     await tx.sales.create(sale);
     if (acceptedTradeIn) await tx.usedDeviceAcquisitions.attachToSale(acceptedTradeIn.acquisition.id, sale.id);
+    if (tradeInCashPayout > 0) {
+      await tx.saleSettlements.create({
+        id: uuidv7(),
+        receiptNumber: await tx.saleSettlements.nextReceiptNumber('TRADE_IN_PAYOUT', new Date(now)),
+        idempotencyKey: `${input.idempotencyKey}:trade-in-payout`,
+        saleId: sale.id,
+        type: 'TRADE_IN_PAYOUT',
+        amount: tradeInCashPayout,
+        paymentMethod: input.tradeInPayoutMethod,
+        reference: input.reference,
+        note: input.note,
+        recordedById: input.actorId,
+        recordedByName: input.actorName,
+        recordedAt: now,
+        createdAt: now,
+      });
+    }
 
     for (const [index, row] of resolved.entries()) {
       const { item, product, unit } = row;
