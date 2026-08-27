@@ -116,7 +116,7 @@ export function InvoicePaymentCollection({
   }
 
   return (
-    <section className="mb-4 rounded-[3px] border border-rule bg-card print:hidden">
+    <section className="invoice-payment-collection mb-4 rounded-[3px] border border-rule bg-card print:hidden">
       <div className="border-b border-rule px-4 py-3">
         <h2 className="text-[16px] font-semibold">{t('invoice.collectionTitle')}</h2>
         <p className="mt-1 text-[12px] text-graphite">{t('invoice.collectionHelp')}</p>

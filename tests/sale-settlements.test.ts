@@ -56,4 +56,12 @@ describe('regular invoice collections and trade-in payouts', () => {
     expect(invoice).toContain('invoice-preview-viewport scrollbar-hint');
     expect(styles).toContain('.scrollbar-hint::-webkit-scrollbar-thumb');
   });
+
+  it('keeps collection amounts independent from thermal receipt typography', () => {
+    const form = source('src/components/invoices/InvoicePaymentCollection.tsx');
+    const styles = source('src/app/globals.css');
+    expect(form).toContain('invoice-payment-collection');
+    expect(styles).toContain('.invoice-root .invoice-payment-collection .tnum');
+    expect(styles).toContain('font-family: var(--font-mono)');
+  });
 });

@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useActionState, useEffect, useState, useTransition, type CSSProperties, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -150,6 +150,7 @@ export function InvoiceView({
       className="invoice-root"
       data-layout={layout === 'a4' ? 'a4' : 'thermal'}
       data-thermal-width={layout === 'thermal58' ? '58' : '80'}
+      style={{ '--invoice-thermal-width': layout === 'thermal58' ? '58mm' : '80mm' } as CSSProperties}
     >
       <style>{`@media print { @page { size: ${layout === 'a4' ? 'A4 portrait' : 'auto'}; margin: 0; } }`}</style>
       <div className="invoice-screen-controls print:hidden">

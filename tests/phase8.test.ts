@@ -308,7 +308,7 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(migration).toContain('DROP COLUMN "unitCost"');
   });
 
-  it('provides A4/PDF and 80 mm thermal invoice output', () => {
+  it('provides A4/PDF and selectable 80 mm or 58 mm thermal invoice output', () => {
     const invoice = source('src/components/invoices/InvoiceView.tsx');
     const css = source('src/app/globals.css');
     expect(invoice).toContain("t('invoice.a4Layout')");
@@ -326,7 +326,9 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(css).toContain('@container invoice-preview (max-width: 767px)');
     expect(css).toContain("width: min(72mm, 100%)");
     expect(css).toContain('width: 210mm');
-    expect(css).toContain('width: 80mm');
+    expect(invoice).toContain("'--invoice-thermal-width': layout === 'thermal58' ? '58mm' : '80mm'");
+    expect(css).toContain('width: min(var(--invoice-thermal-width, 80mm), 100%)');
+    expect(css).toContain('width: var(--invoice-thermal-width, 80mm)');
   });
 
   it('filters invoices on the server instead of in the browser', () => {

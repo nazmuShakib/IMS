@@ -721,7 +721,7 @@ html[lang="bn"] .eyebrow {
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
   display: flex;
   flex-direction: column;
-  width: min(80mm, 100%);
+  width: min(var(--emi-thermal-width, 80mm), 100%);
   min-height: 0;
   padding: 0 4mm 4mm;
   color: #000;
@@ -751,10 +751,6 @@ html[lang="bn"] .eyebrow {
   .emi-receipt-footer
 ) {
   font-weight: 400;
-}
-
-.emi-receipt-root[data-layout="thermal"][data-thermal-width="58"] .emi-receipt-document {
-  width: min(58mm, 100%);
 }
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-header {
@@ -880,8 +876,8 @@ html[lang="bn"] .eyebrow {
   }
 
   .emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
-    width: 80mm;
-    max-width: 80mm;
+    width: var(--emi-thermal-width, 80mm);
+    max-width: var(--emi-thermal-width, 80mm);
     min-height: 0;
     height: auto;
     margin: 0;
@@ -899,10 +895,6 @@ html[lang="bn"] .eyebrow {
     margin-bottom: -2mm;
   }
 
-  .emi-receipt-root[data-layout="thermal"][data-thermal-width="58"] .emi-receipt-document {
-    width: 58mm;
-    max-width: 58mm;
-  }
 }
 
 /* Phase 8 immutable invoice preview/printing. */
@@ -932,7 +924,7 @@ html[lang="bn"] .eyebrow {
 }
 
 .invoice-root[data-layout="thermal"] .invoice-document {
-  width: min(80mm, 100%);
+  width: min(var(--invoice-thermal-width, 80mm), 100%);
   min-height: 0;
   aspect-ratio: auto;
   padding: 0 4mm 4mm;
@@ -943,10 +935,18 @@ html[lang="bn"] .eyebrow {
   print-color-adjust: exact;
 }
 
-.invoice-root[data-layout="thermal"] .tnum {
+.invoice-root[data-layout="thermal"] .invoice-document .tnum {
   font-family: Arial, Helvetica, sans-serif;
   font-variant-numeric: tabular-nums;
   letter-spacing: 0;
+}
+
+/* The collection panel is screen UI, not part of the selected print document.
+   Its amounts must retain the application typography across every layout. */
+.invoice-root .invoice-payment-collection .tnum {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-title > .tnum {
@@ -985,10 +985,6 @@ html[lang="bn"] .eyebrow {
   footer
 ) {
   color: #000;
-}
-
-.invoice-root[data-layout="thermal"][data-thermal-width="58"] .invoice-document {
-  width: min(58mm, 100%);
 }
 
 .invoice-root[data-layout="thermal"] .invoice-header {
@@ -1430,8 +1426,8 @@ html[lang="bn"] .eyebrow {
   }
 
   .invoice-root[data-layout="thermal"] .invoice-document {
-    width: 80mm;
-    max-width: 80mm;
+    width: var(--invoice-thermal-width, 80mm);
+    max-width: var(--invoice-thermal-width, 80mm);
     min-height: 0;
     height: auto;
     margin: 0;
@@ -1449,8 +1445,4 @@ html[lang="bn"] .eyebrow {
     margin-bottom: -2.5mm;
   }
 
-  .invoice-root[data-layout="thermal"][data-thermal-width="58"] .invoice-document {
-    width: 58mm;
-    max-width: 58mm;
-  }
 }

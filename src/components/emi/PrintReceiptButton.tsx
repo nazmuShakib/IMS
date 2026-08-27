@@ -15,6 +15,7 @@ export function PrintReceiptButton({ contractId, paymentId }: { contractId: stri
     if (!root) return;
     root.dataset.layout = layout === 'a4' ? 'a4' : 'thermal';
     root.dataset.thermalWidth = layout === 'thermal58' ? '58' : '80';
+    root.style.setProperty('--emi-thermal-width', layout === 'thermal58' ? '58mm' : '80mm');
   }, [layout]);
 
   function changeLayout(next: ReceiptLayout) {
