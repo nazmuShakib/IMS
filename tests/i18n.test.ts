@@ -51,6 +51,6 @@ describe('English and Bengali interface', () => {
     expect(login).toContain('<LanguageSwitcher locale={locale}');
     expect(invoice).not.toContain('LanguageSwitcher');
     expect(label).toContain('<ProductLabel');
-    expect(label).toContain('Code (SKU)');
+    expect(label).toContain('SKU: {product.sku}');
   });
 });

@@ -29,7 +29,12 @@ const START_B = 104;
 const START_C = 105;
 const CODE_B = 100;
 const STOP = 106;
-const QUIET_ZONE_MODULES = 10;
+// A 15-digit Code Set C symbol occupies 134 data modules. Nine modules on
+// either side make the complete symbol 152 modules, which maps exactly to the
+// GP-3120TUC's 304-dot (38 mm, 203-DPI) print width at two dots per module.
+// Keeping ten here would require 308 dots and force the renderer down to an
+// unreliable one-dot module on this particular media size.
+const QUIET_ZONE_MODULES = 9;
 
 export interface Code128Encoding {
   values: number[];

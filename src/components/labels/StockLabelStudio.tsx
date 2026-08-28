@@ -8,6 +8,7 @@ import {
   type LabelPrintState,
 } from '@/actions/labels';
 import { Barcode128 } from '@/components/labels/Barcode128';
+import { LabelProductCombobox } from '@/components/labels/LabelProductCombobox';
 import { ScannerInput } from '@/components/search/ScannerInput';
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import {
@@ -45,26 +46,22 @@ export interface LabelUnitOption {
 }
 
 function ProductLabel({
-  shopName,
   product,
   serialNo,
 }: {
-  shopName: string;
   product: LabelProductOption;
   serialNo?: string;
 }) {
-  const barcodeValue = serialNo ?? product.barcode ?? product.sku;
-  const descriptor = [product.brandName, product.model].filter(Boolean).join(' · ');
+  const barcodeValue = serialNo ?? product.barcode;
+  if (!barcodeValue) return null;
 
   return (
     <article className="stock-label">
       <div className="stock-label-heading">
-        <span className="stock-label-shop">{shopName}</span>
         <strong className="stock-label-name">{product.name}</strong>
       </div>
       <div className="stock-label-meta">
-        <span className="tnum">Code (SKU) {product.sku}</span>
-        {descriptor && <span>{descriptor}</span>}
+        <span className="tnum">SKU: {product.sku}</span>
       </div>
       <div className="stock-label-bars">
         <Barcode128 value={barcodeValue} />
@@ -83,7 +80,6 @@ export function StockLabelStudio({
   initialUnitIds,
   initialCopies,
   role,
-  shopName,
   resultVersion,
 }: {
   products: LabelProductOption[];
@@ -92,7 +88,6 @@ export function StockLabelStudio({
   initialUnitIds: string[];
   initialCopies: number;
   role: Role;
-  shopName: string;
   resultVersion: string;
 }) {
   const router = useRouter();
@@ -120,12 +115,13 @@ export function StockLabelStudio({
   }, [state.printNonce]);
 
   useEffect(() => {
-    setSelectedProductId(product?.id ?? '');
-    setSelected(new Set(initialUnitIds));
-    setCopies(Math.max(1, initialCopies));
-    setStatusFilter(initialUnitIds.length > 0 ? 'ALL' : 'IN_STOCK');
+    // The component key remounts the studio when the selected product, receipt,
+    // or unit changes, so the state initializers above already apply new route
+    // data. Do not reset label selections here: a successful server action also
+    // refreshes resultVersion, and clearing serial selections at that point can
+    // leave window.print() with an empty printable DOM.
     setNavigating(false);
-  }, [product?.id, initialCopies, initialUnitIds, resultVersion]);
+  }, [resultVersion]);
 
   const visibleUnits = useMemo(
     () => units.filter((unit) => statusFilter === 'ALL' || unit.status === statusFilter),
@@ -136,9 +132,10 @@ export function StockLabelStudio({
     [selected, units],
   );
   const copyCount = copies === '' ? 0 : copies;
+  const missingProductBarcode = product?.trackingType === 'QUANTITY' && !product.barcode;
   const labelCount = product?.trackingType === 'SERIAL'
     ? selectedUnits.length * copyCount
-    : product
+    : product && !missingProductBarcode
       ? copyCount
       : 0;
 
@@ -249,18 +246,14 @@ export function StockLabelStudio({
               />
             </Field>
             <Field label={t('common.product')}>
-              <Select
+              <LabelProductCombobox
+                products={products}
                 value={selectedProductId}
-                onChange={(event) => navigateToProduct(event.target.value)}
+                onChange={navigateToProduct}
                 disabled={loading}
-              >
-                <option value="" disabled>{t('stock.chooseProduct')}</option>
-                {products.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.sku} — {item.name}{item.isActive ? '' : ' (inactive)'}
-                  </option>
-                ))}
-              </Select>
+                placeholder={t('labels.productSearchPlaceholder')}
+                emptyMessage={t('labels.noProductMatch')}
+              />
             </Field>
           </div>
           {scanError && <p className="mt-2 text-[12px] text-out">{scanError}</p>}
@@ -439,6 +432,11 @@ export function StockLabelStudio({
                 </div>
               </div>
               {state.error && <p className="mt-3 text-[12px] text-out">{message(state.error)}</p>}
+              {missingProductBarcode && (
+                <p className="mt-3 text-[12px] text-out">
+                  {t('labels.productBarcodeRequired')}
+                </p>
+              )}
               {labelCount > 500 && (
                 <p className="mt-3 text-[12px] text-out">{t('labels.maxError')}</p>
               )}
@@ -459,7 +457,6 @@ export function StockLabelStudio({
                   {labels.slice(0, 12).map((label) => (
                     <ProductLabel
                       key={`preview-${label.key}`}
-                      shopName={shopName}
                       product={product}
                       serialNo={label.serialNo}
                     />
@@ -482,7 +479,6 @@ export function StockLabelStudio({
             {labels.map((label) => (
               <ProductLabel
                 key={`print-${label.key}`}
-                shopName={shopName}
                 product={product}
                 serialNo={label.serialNo}
               />

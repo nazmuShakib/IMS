@@ -332,6 +332,16 @@ describe('Phase 4 UI and API boundaries', () => {
     expect(palette).toContain("event.key === 'Escape'");
   });
 
+  it('opens an exact unit, barcode, or SKU result immediately after scanning', () => {
+    const palette = source('src/components/search/CommandPalette.tsx');
+    expect(palette).toContain('pendingScan.current = value.trim()');
+    expect(palette).toContain('unit.serialNo.toLowerCase() === scanned.toLowerCase()');
+    expect(palette).toContain("product.barcode?.toLowerCase() === scanned.toLowerCase()");
+    expect(palette).toContain('product.sku.toLowerCase() === scanned.toLowerCase()');
+    expect(palette).toContain('go(`/products/${exactProduct.id}`)');
+    expect(palette).toContain('onScan={scan}');
+  });
+
   it('automatically retries one transient first-search server failure', () => {
     const palette = source('src/components/search/CommandPalette.tsx');
     const route = source('src/app/api/search/route.ts');

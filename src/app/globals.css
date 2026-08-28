@@ -427,7 +427,7 @@ html[lang="bn"] .eyebrow {
 }
 
 /* ---------------------------------------------------------------------------
-   Stock labels. Dimensions are physical: each label is exactly 50 × 25 mm.
+   Stock labels. Dimensions are physical: each label is exactly 38 × 25 mm.
    The screen preview shares the print component so the barcode and copy count
    cannot drift from the output.
 --------------------------------------------------------------------------- */
@@ -438,7 +438,7 @@ html[lang="bn"] .eyebrow {
 
 .label-preview-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 50mm);
+  grid-template-columns: repeat(auto-fill, 38mm);
   gap: 3mm;
   min-width: max-content;
 }
@@ -447,7 +447,7 @@ html[lang="bn"] .eyebrow {
   box-sizing: border-box;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  width: 50mm;
+  width: 38mm;
   height: 25mm;
   overflow: hidden;
   border: 0.2mm solid #b8b8b8;
@@ -459,46 +459,43 @@ html[lang="bn"] .eyebrow {
 }
 
 .stock-label-heading {
-  display: flex;
   min-width: 0;
-  align-items: baseline;
-  gap: 1.5mm;
-}
-
-.stock-label-shop {
-  flex: none;
-  font-size: 5.5pt;
-  font-weight: 700;
-  text-transform: uppercase;
-  white-space: nowrap;
 }
 
 .stock-label-name {
+  display: -webkit-box;
   min-width: 0;
   overflow: hidden;
-  font-size: 7.5pt;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: 6pt;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+  white-space: normal;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 .stock-label-meta {
-  display: flex;
   min-width: 0;
-  justify-content: space-between;
-  gap: 2mm;
   overflow: hidden;
   padding-top: 0.5mm;
   font-size: 5.2pt;
   white-space: nowrap;
 }
 
-.stock-label-meta span {
+.stock-label-meta > span {
+  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .stock-label-bars {
-  min-height: 0;
+  /* Give Code 128 the full media width. Keeping it inside the label's text
+     padding compressed narrow modules to fractional dots at 203 DPI, which
+     made otherwise valid barcodes difficult or impossible to scan. The SVG's
+     built-in quiet zones still keep bars away from the physical edges. */
+  width: calc(100% + 3mm);
+  min-height: 10mm;
+  margin-inline: -1.5mm;
   padding-top: 0.8mm;
 }
 
@@ -514,7 +511,7 @@ html[lang="bn"] .eyebrow {
 }
 
 @page label-thermal {
-  size: 50mm 25mm;
+  size: 38mm 25mm;
   margin: 0;
 }
 
@@ -529,33 +526,64 @@ html[lang="bn"] .eyebrow {
     background: #fff !important;
   }
 
+  /* Remove dashboard sizing/scroll containers from label pagination. Without
+     this, Chrome creates a second blank 38 × 25 mm sheet for the hidden shell. */
+  html:has(.stock-label-print-root),
+  body:has(.stock-label-print-root) {
+    min-height: 0 !important;
+    height: auto !important;
+    margin: 0 !important;
+  }
+
+  html:has(.stock-label-print-root[data-layout="thermal"]),
+  body:has(.stock-label-print-root[data-layout="thermal"]) {
+    /* Keep the entire print document in the same named page context. If only
+       the article owns label-thermal, Chromium can append an empty default
+       portrait page after the final landscape label. */
+    page: label-thermal;
+  }
+
+  body:has(.stock-label-print-root) .min-h-screen,
+  body:has(.stock-label-print-root) .min-h-screen > div,
+  body:has(.stock-label-print-root) main,
+  body:has(.stock-label-print-root) .dashboard-content {
+    display: contents !important;
+  }
+
   .label-screen-only {
     display: none !important;
   }
 
-  .stock-label-print-root .label-print-area {
-    display: block;
-  }
-
+  .stock-label-print-root[data-layout="thermal"],
+  .stock-label-print-root[data-layout="thermal"] .label-print-area,
   .stock-label-print-root[data-layout="thermal"] .label-print-grid {
-    display: block;
+    /* Only the label itself may contribute a box to thermal pagination.
+       Chromium otherwise assigns the residual wrapper box a blank final page. */
+    display: contents !important;
   }
 
   .stock-label-print-root[data-layout="thermal"] .stock-label {
-    page: label-thermal;
-    break-after: page;
+    /* Leave a two-printer-dot rounding allowance inside the 25 mm page.
+       An exact 25 mm element can overflow the browser's fractional page box
+       and create one blank sheet after the final label. */
+    height: 24.8mm;
+    break-inside: avoid-page;
     border: 0;
   }
 
-  .stock-label-print-root[data-layout="thermal"] .stock-label:last-child {
-    break-after: auto;
+  .stock-label-print-root[data-layout="thermal"] .stock-label + .stock-label {
+    break-before: page;
   }
 
   .stock-label-print-root[data-layout="a4"] .label-print-grid {
     display: grid;
-    grid-template-columns: repeat(4, 50mm);
-    width: 200mm;
+    grid-template-columns: repeat(5, 38mm);
+    width: 190mm;
     page: label-a4;
+  }
+
+  .stock-label-print-root[data-layout="a4"] .label-print-area {
+    display: block;
   }
 
   .stock-label-print-root[data-layout="a4"] .stock-label {

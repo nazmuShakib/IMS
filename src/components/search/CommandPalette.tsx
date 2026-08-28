@@ -2,7 +2,7 @@
 
 import { Command } from 'cmdk';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { LoaderCircle, RefreshCw, Search } from 'lucide-react';
 
 import { formatBDT } from '@/lib/money';
@@ -32,7 +32,13 @@ export function CommandPalette() {
   const [error, setError] = useState('');
   const [scanRequest, setScanRequest] = useState(0);
   const immediateScan = useRef(false);
+  const pendingScan = useRef<string | null>(null);
   const { t } = useI18n();
+
+  const go = useCallback((href: string) => {
+    setOpen(false);
+    router.push(href);
+  }, [router]);
 
   useEffect(() => {
     const shortcut = (event: KeyboardEvent) => {
@@ -81,7 +87,27 @@ export function CommandPalette() {
           response = await request();
         }
         if (!response.ok) throw new Error(response.status === 401 ? 'Your session expired.' : 'Search failed.');
-        setResults((await response.json()) as SearchResponse);
+        const nextResults = (await response.json()) as SearchResponse;
+        const scanned = pendingScan.current;
+        if (scanned && scanned.toLowerCase() === query.trim().toLowerCase()) {
+          pendingScan.current = null;
+          const exactUnit = nextResults.units.find(
+            (unit) => unit.serialNo.toLowerCase() === scanned.toLowerCase(),
+          );
+          if (exactUnit) {
+            go(`/products/${exactUnit.productId}#unit-${exactUnit.id}`);
+            return;
+          }
+          const exactProduct = nextResults.products.find((product) =>
+            product.barcode?.toLowerCase() === scanned.toLowerCase()
+              || product.sku.toLowerCase() === scanned.toLowerCase(),
+          );
+          if (exactProduct) {
+            go(`/products/${exactProduct.id}`);
+            return;
+          }
+        }
+        setResults(nextResults);
       } catch (searchError) {
         if ((searchError as Error).name !== 'AbortError') {
           setResults(EMPTY);
@@ -96,16 +122,18 @@ export function CommandPalette() {
       window.clearTimeout(timer);
       controller.abort();
     };
-  }, [open, query, scanRequest]);
-
-  const go = (href: string) => {
-    setOpen(false);
-    router.push(href);
-  };
+  }, [go, open, query, scanRequest]);
 
   const retry = () => {
     immediateScan.current = true;
     setScanRequest((value) => value + 1);
+  };
+
+  const scan = (value: string) => {
+    pendingScan.current = value.trim();
+    immediateScan.current = true;
+    setQuery(value);
+    setScanRequest((current) => current + 1);
   };
 
   return (
@@ -141,8 +169,11 @@ export function CommandPalette() {
                 <ScannerInput
                   ref={inputRef}
                   value={query}
-                  onValueChange={setQuery}
-                  onScan={retry}
+                  onValueChange={(value) => {
+                    pendingScan.current = null;
+                    setQuery(value);
+                  }}
+                  onScan={scan}
                   placeholder={t('search.placeholder')}
                   className="command-search-input h-11 min-w-0 w-full border-0 bg-transparent px-0 text-[14px] outline-none placeholder:text-graphite/80"
                 />

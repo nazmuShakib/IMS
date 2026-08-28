@@ -119,6 +119,16 @@ export async function createProduct(
   const taxonomyError = await validateProductTaxonomy(input.categoryId, input.brandId);
   if (taxonomyError) return { error: taxonomyError };
 
+  const [barcodeOwner, serialOwner] = input.barcode
+    ? await Promise.all([
+        db.products.findByBarcode(input.barcode),
+        db.units.findBySerial(input.barcode),
+      ])
+    : [null, null];
+  if (barcodeOwner || serialOwner) {
+    return { fieldErrors: { barcode: 'This barcode is already assigned to a product or device.' } };
+  }
+
   let created;
   try {
     created = await db.products.create({
@@ -203,6 +213,16 @@ export async function updateProduct(
     brandId: existing.brandId,
   });
   if (taxonomyError) return { error: taxonomyError };
+
+  const [barcodeOwner, serialOwner] = input.barcode
+    ? await Promise.all([
+        db.products.findByBarcode(input.barcode),
+        db.units.findBySerial(input.barcode),
+      ])
+    : [null, null];
+  if ((barcodeOwner && barcodeOwner.id !== existing.id) || serialOwner) {
+    return { fieldErrors: { barcode: 'This barcode is already assigned to a product or device.' } };
+  }
 
   try {
     const updated = await db.products.update(id, {

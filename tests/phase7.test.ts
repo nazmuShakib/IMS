@@ -18,6 +18,12 @@ describe('Phase 7 scanner workflow', () => {
     ]) expect(source(file)).toContain('ScannerInput');
   });
 
+  it('submits the checkout add-item form when a scanner sends Enter', () => {
+    const checkout = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(checkout).toContain('ref={scannerFormRef} onSubmit={submitLocalItem}');
+    expect(checkout).toContain('onScan={() => scannerFormRef.current?.requestSubmit()}');
+  });
+
   it('appends scanned receipt identifiers without querying or duplicating units', () => {
     const stockIn = source('src/components/stock/StockInForm.tsx');
     expect(stockIn).toContain('function appendScannedSerial');

@@ -86,8 +86,11 @@ export async function recordLabelPrintAction(
     if (!canPrintNonStock && product.quantityOnHand <= 0) {
       return { error: 'STAFF may only print labels for products currently in stock.' };
     }
-    if (!isCode128Value(product.barcode ?? product.sku)) {
-      return { error: 'This product barcode or product code (SKU) contains characters Code 128 cannot encode.' };
+    if (!product.barcode) {
+      return { error: 'Add a barcode to this product before printing labels.' };
+    }
+    if (!isCode128Value(product.barcode)) {
+      return { error: 'This product barcode contains characters Code 128 cannot encode.' };
     }
   }
 

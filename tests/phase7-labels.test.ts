@@ -17,11 +17,29 @@ describe('Phase 7.5 Code 128 labels', () => {
 
   it('includes quiet zones and rejects values scanners cannot reproduce', () => {
     const encoded = encodeCode128('SKU-100');
-    expect(encoded.modules.startsWith('0000000000')).toBe(true);
-    expect(encoded.modules.endsWith('0000000000')).toBe(true);
+    expect(encoded.modules.startsWith('000000000')).toBe(true);
+    expect(encoded.modules.endsWith('000000000')).toBe(true);
     expect(isCode128Value('IMEI-123')).toBe(true);
     expect(isCode128Value('পণ্য')).toBe(false);
     expect(() => encodeCode128('পণ্য')).toThrow(/printable ASCII/);
+  });
+
+  it('fits a 14-digit serial at exactly two 203-DPI printer dots per module', () => {
+    const encoded = encodeCode128('35643104817547');
+    expect(encoded.modules).toHaveLength(130);
+    expect(Math.floor(304 / encoded.modules.length)).toBe(2);
+  });
+
+  it('fits a 15-digit serial at exactly two 203-DPI printer dots per module', () => {
+    const encoded = encodeCode128('352386045293914');
+    expect(encoded.modules).toHaveLength(152);
+    expect(Math.floor(304 / encoded.modules.length)).toBe(2);
+  });
+
+  it('identifies long alphanumeric SKUs that cannot retain two-dot modules', () => {
+    const encoded = encodeCode128('ANK-NANO-45W');
+    expect(encoded.modules).toHaveLength(185);
+    expect(Math.floor(304 / encoded.modules.length)).toBe(1);
   });
 });
 
@@ -46,11 +64,50 @@ describe('Phase 7.5 stock-label invariants', () => {
   it('uses existing identifiers and exact physical print dimensions', () => {
     const studio = source('src/components/labels/StockLabelStudio.tsx');
     const css = source('src/app/globals.css');
-    expect(studio).toContain('serialNo ?? product.barcode ?? product.sku');
-    expect(css).toContain('width: 50mm');
+    expect(studio).toContain('serialNo ?? product.barcode');
+    expect(studio).not.toContain('serialNo ?? product.barcode ?? product.sku');
+    expect(css).toContain('width: 38mm');
     expect(css).toContain('height: 25mm');
+    expect(css).toContain('size: 38mm 25mm');
+    expect(css).toContain('grid-template-columns: repeat(5, 38mm)');
     expect(css).toContain('@page label-thermal');
     expect(css).toContain('@page label-a4');
+    expect(css).toContain('body:has(.stock-label-print-root) .min-h-screen');
+    expect(css).toContain('body:has(.stock-label-print-root) .dashboard-content');
+    expect(css).toContain('body:has(.stock-label-print-root[data-layout="thermal"])');
+    expect(css).toContain('page: label-thermal');
+    expect(css.match(/page: label-thermal/g)).toHaveLength(1);
+    expect(css).toContain('.stock-label + .stock-label');
+    expect(css).toContain('height: 24.8mm');
+    expect(css).toContain('.stock-label-print-root[data-layout="thermal"] .label-print-area');
+    expect(css).toContain('.stock-label-print-root[data-layout="thermal"] .label-print-grid');
+    expect(css).toContain('display: contents !important');
+    expect(css).not.toContain('break-after: page');
+  });
+
+  it('keeps compact label text without repeating shop or catalog metadata', () => {
+    const studio = source('src/components/labels/StockLabelStudio.tsx');
+    const css = source('src/app/globals.css');
+    expect(studio).toContain('<strong className="stock-label-name">{product.name}</strong>');
+    expect(studio).toContain('SKU: {product.sku}');
+    expect(studio).not.toContain('stock-label-shop');
+    expect(studio).not.toContain('product.brandName, product.model');
+    expect(studio).toContain('<Barcode128 value={barcodeValue} />');
+    expect(studio).toContain('serialNo ? `S/N ${serialNo}` : barcodeValue');
+    const barcode = source('src/components/labels/Barcode128.tsx');
+    expect(barcode).toContain('Math.floor(LABEL_WIDTH_DOTS / modules.length)');
+    expect(barcode).toContain('data-module-dots={moduleDots}');
+    expect(barcode).toContain('physicalWidthMm.toFixed(3)');
+    expect(css).toContain('width: calc(100% + 3mm)');
+    expect(css).toContain('min-height: 10mm');
+    expect(css).toContain('margin-inline: -1.5mm');
+    expect(css).toContain('font-size: 6pt');
+    expect(css).toContain('-webkit-line-clamp: 2');
+    expect(studio).toContain('Do not reset label selections here');
+    expect(studio).not.toContain('setSelected(new Set(initialUnitIds));');
+    expect(studio).toContain('<LabelProductCombobox');
+    expect(studio).toContain("product?.trackingType === 'QUANTITY' && !product.barcode");
+    expect(source('src/actions/labels.ts')).toContain('Add a barcode to this product before printing labels.');
   });
 
   it('connects stock receipt and scanner workflows to label printing', () => {
@@ -92,8 +149,9 @@ describe('Phase 7.5 stock-label invariants', () => {
     const studio = source('src/components/labels/StockLabelStudio.tsx');
     const page = source('src/app/(dashboard)/stock/labels/page.tsx');
     expect(page).toContain('initialCopies = Math.max(1, receipt.quantity)');
-    expect(studio).toContain('setCopies(Math.max(1, initialCopies))');
-    expect(studio).toContain('setSelected(new Set(initialUnitIds))');
+    expect(studio).toContain("useState<number | ''>(Math.max(1, initialCopies))");
+    expect(studio).toContain('useState(() => new Set(initialUnitIds))');
+    expect(page).toContain("key={`${selectedProductId ?? 'none'}-${params.receipt ?? ''}-${params.unit ?? ''}`}");
   });
 
   it('allows the label quantity to be cleared while entering a replacement value', () => {

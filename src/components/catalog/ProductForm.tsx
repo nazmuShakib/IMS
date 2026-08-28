@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useState } from 'react';
+import { useActionState, useRef, useState } from 'react';
 import Link from 'next/link';
 import type { Brand, Category, Product } from '@/domain/types';
 import { parseBDT, toTaka } from '@/lib/money';
@@ -8,6 +8,7 @@ import type { ActionState } from '@/actions/catalog';
 import { Button, Card, Field, HelpTerm, Input, MonoInput, Select, Textarea } from '@/components/ui';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { productStaffDiscountFieldsSchema } from '@/schemas';
+import { generateNumericProductBarcode } from '@/lib/product-barcode';
 
 type Action = (prev: ActionState, fd: FormData) => Promise<ActionState>;
 
@@ -29,6 +30,7 @@ export function ProductForm({
   const err = (k: string) => state.fieldErrors?.[k];
   const editing = Boolean(product);
   const [staffDiscountError, setStaffDiscountError] = useState<string>();
+  const barcodeRef = useRef<HTMLInputElement>(null);
 
   const validateStaffDiscount = (value: string, salePrice?: string): boolean => {
     if (!canManageStaffDiscount) return true;
@@ -88,8 +90,31 @@ export function ProductForm({
             />
           </Field>
 
-          <Field label={t('common.barcode')} error={err('barcode')}>
-            <MonoInput name="barcode" defaultValue={product?.barcode ?? ''} />
+          <Field
+            label={t('common.barcode')}
+            error={err('barcode')}
+            hint={t('products.generatedBarcodeHelp')}
+          >
+            <div className="flex gap-2">
+              <MonoInput
+                ref={barcodeRef}
+                name="barcode"
+                defaultValue={product?.barcode ?? ''}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                className="shrink-0"
+                onClick={() => {
+                  if (!barcodeRef.current) return;
+                  barcodeRef.current.value = generateNumericProductBarcode();
+                  barcodeRef.current.focus();
+                  barcodeRef.current.select();
+                }}
+              >
+                {t('products.generateBarcode')}
+              </Button>
+            </div>
           </Field>
 
           <div className="sm:col-span-2">

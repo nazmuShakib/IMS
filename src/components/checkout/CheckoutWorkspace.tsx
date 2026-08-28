@@ -400,6 +400,7 @@ export function CheckoutWorkspace({
   const [confirmingTradeInRemoval, setConfirmingTradeInRemoval] = useState(false);
   const [orderedLines, setOrderedLines] = useState(lines);
   const orderedLinesRef = useRef(lines);
+  const scannerFormRef = useRef<HTMLFormElement>(null);
   const cartLinesRef = useRef<HTMLDivElement>(null);
   const previousLinePositionsRef = useRef<Map<string, DOMRect> | null>(null);
   const lineAnimationsRef = useRef<Map<string, Animation>>(new Map());
@@ -874,7 +875,7 @@ export function CheckoutWorkspace({
       <section>
         <Card className="mb-4 p-4">
           <p className="eyebrow mb-4">{t("checkout.addItems")}</p>
-          <form onSubmit={submitLocalItem}>
+          <form ref={scannerFormRef} onSubmit={submitLocalItem}>
             <Field
               label={
                 <HelpTerm description={t("term.trackingHelp")}>
@@ -889,6 +890,7 @@ export function CheckoutWorkspace({
                 autoComplete="off"
                 defaultValue={initialIdentifier}
                 placeholder={t("checkout.scanPlaceholder")}
+                onScan={() => scannerFormRef.current?.requestSubmit()}
               />
             </Field>
             <Button className="mt-3" type="submit">

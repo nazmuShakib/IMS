@@ -3,7 +3,7 @@
 Phases 0–8 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
 Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
 financial reports with CSV/PDF export, scanner workflows, and Warranty/RMA. Full
-spec in `PLAN.md`. Stock labels support 50 × 25 mm thermal and A4 adhesive-sheet
+spec in `PLAN.md`. Stock labels support 38 × 25 mm thermal and A4 adhesive-sheet
 printing without duplicating inventory identifiers.
 Phase 8 adds reusable customers, discardable server-persisted carts, transactional multi-item
 checkout, payment status/method snapshots, and immutable A4/PDF/80 mm invoices.
@@ -168,7 +168,7 @@ src/proxy.ts             coarse cookie redirect (not authorization)
     custody changes do not move stock; only a manager-approved return, write-off,
     or replacement writes linked ledger movements.
 11. Receive stock and use **Print labels** from the success message, or open
-    **Stock → Print labels** to scan, select, preview, and reprint 50 × 25 mm
+    **Stock → Print labels** to scan, select, preview, and reprint 38 × 25 mm
     Code 128 labels.
 12. Open **Checkout**, scan or manually select several products, choose one saved
     customer or walk-in, record payment details, adjust selling prices if needed,
