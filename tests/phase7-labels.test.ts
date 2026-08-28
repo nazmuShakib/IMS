@@ -106,6 +106,9 @@ describe('Phase 7.5 stock-label invariants', () => {
     expect(studio).toContain('Do not reset label selections here');
     expect(studio).not.toContain('setSelected(new Set(initialUnitIds));');
     expect(studio).toContain('<LabelProductCombobox');
+    const productCombobox = source('src/components/labels/LabelProductCombobox.tsx');
+    expect(productCombobox).toContain('label-product-combobox-input');
+    expect(css).toContain('.label-product-combobox-input:focus-visible');
     expect(studio).toContain("product?.trackingType === 'QUANTITY' && !product.barcode");
     expect(source('src/actions/labels.ts')).toContain('Add a barcode to this product before printing labels.');
   });

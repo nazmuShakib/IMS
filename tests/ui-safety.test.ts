@@ -63,6 +63,10 @@ describe('sign-out confirmation', () => {
     expect(control).toContain('z-[100]');
     expect(control).toContain('window.innerWidth - document.documentElement.clientWidth');
     expect(control).toContain('document.body.style.paddingRight');
+    expect(control).toContain('setSigningOut(true)');
+    expect(control).toContain('aria-busy={signingOut}');
+    expect(control).toContain('animate-spin');
+    expect(control).toContain("t('auth.signingOut')");
     expect(source('src/app/globals.css')).toContain('scrollbar-gutter: stable');
   });
 });

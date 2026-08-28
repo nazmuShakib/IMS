@@ -8,6 +8,9 @@ printing without duplicating inventory identifiers.
 Phase 8 adds reusable customers, discardable server-persisted carts, transactional multi-item
 checkout, payment status/method snapshots, and immutable A4/PDF/80 mm invoices.
 
+For shop-PC printer installation and verification, see
+[Windows printer setup](docs/windows-printer-setup.md).
+
 ## Requirements
 
 - **Node.js 22 LTS** (https://nodejs.org). Next.js 16 needs 20.9+; 22 is recommended.

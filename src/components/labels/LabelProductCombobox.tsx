@@ -100,7 +100,7 @@ export function LabelProductCombobox({
             ? `${listboxId}-option-${activeIndex}`
             : undefined}
           disabled={disabled}
-          className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-graphite/80 disabled:cursor-not-allowed disabled:opacity-50"
+          className="label-product-combobox-input h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-[13px] text-ink outline-none placeholder:text-graphite/80 disabled:cursor-not-allowed disabled:opacity-50"
           value={open ? query : selected ? `${selected.sku} — ${selected.name}` : ''}
           placeholder={placeholder}
           onFocus={openList}

@@ -355,7 +355,9 @@ html[lang="bn"] .eyebrow {
 .customer-combobox-input:focus,
 .customer-combobox-input:focus-visible,
 .checkout-item-combobox-input:focus,
-.checkout-item-combobox-input:focus-visible {
+.checkout-item-combobox-input:focus-visible,
+.label-product-combobox-input:focus,
+.label-product-combobox-input:focus-visible {
   outline: none !important;
   box-shadow: none !important;
 }
