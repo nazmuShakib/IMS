@@ -913,6 +913,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     refurbishmentExpenses: {
+      async findAll() {
+        return (await client.refurbishmentExpense.findMany({
+          orderBy: { createdAt: 'asc' },
+        })).map(refurbishmentExpense);
+      },
       async findByUnit(unitId) {
         return (await client.refurbishmentExpense.findMany({
           where: { unitId },
@@ -1050,7 +1055,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             } : {}),
           },
           orderBy,
-          take: Math.max(1, Math.min(limit, 2_000)),
+          take: limit === null ? undefined : Math.max(1, Math.min(limit, 2_000)),
         })).map(operatingExpense);
       },
       async findById(id) {

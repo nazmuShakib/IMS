@@ -167,6 +167,7 @@ export interface UsedDeviceAcquisitionRepository {
 }
 
 export interface RefurbishmentExpenseRepository {
+  findAll(): Promise<RefurbishmentExpense[]>;
   findByUnit(unitId: string): Promise<RefurbishmentExpense[]>;
   create(value: RefurbishmentExpense): Promise<RefurbishmentExpense>;
 }
@@ -212,7 +213,7 @@ export interface OperatingExpenseFilters {
 
 export interface OperatingExpenseRepository {
   nextExpenseNumber(now: Date): Promise<string>;
-  findAll(filters?: OperatingExpenseFilters, limit?: number): Promise<OperatingExpense[]>;
+  findAll(filters?: OperatingExpenseFilters, limit?: number | null): Promise<OperatingExpense[]>;
   findById(id: string): Promise<OperatingExpense | null>;
   create(value: OperatingExpense): Promise<OperatingExpense>;
   update(id: string, patch: Pick<OperatingExpense,

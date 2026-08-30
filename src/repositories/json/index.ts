@@ -724,6 +724,10 @@ const usedDeviceAcquisitions: UsedDeviceAcquisitionRepository = {
 };
 
 const refurbishmentExpenses: RefurbishmentExpenseRepository = {
+  async findAll() {
+    return (await readAll<RefurbishmentExpense>('refurbishment-expenses'))
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
   async findByUnit(unitId) {
     return (await readAll<RefurbishmentExpense>('refurbishment-expenses'))
       .filter((item) => item.unitId === unitId)
@@ -841,7 +845,7 @@ const operatingExpenses: OperatingExpenseRepository = {
       if (filters?.order === 'amount-asc') return a.amount - b.amount;
       return b.expenseDate.localeCompare(a.expenseDate) || b.createdAt.localeCompare(a.createdAt);
     });
-    return rows.slice(0, Math.max(1, Math.min(limit, 2_000)));
+    return limit === null ? rows : rows.slice(0, Math.max(1, Math.min(limit, 2_000)));
   },
   async findById(id) {
     return (await readAll<OperatingExpense>('operating-expenses')).find((item) => item.id === id) ?? null;
