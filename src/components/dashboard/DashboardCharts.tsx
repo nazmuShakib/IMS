@@ -41,16 +41,18 @@ function AccessibleChartTable<T extends { date: string }>({ caption, rows, colum
   columns: Array<{ label: string; value: (row: T) => React.ReactNode }>;
 }) {
   return (
-    <table className="sr-only">
-      <caption>{caption}</caption>
-      <thead><tr><th scope="col">Date</th>{columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}</tr></thead>
-      <tbody>{rows.map((row) => (
-        <tr key={row.date}>
-          <th scope="row">{chartDate(row.date)}</th>
-          {columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}
-        </tr>
-      ))}</tbody>
-    </table>
+    <div className="sr-only">
+      <table>
+        <caption>{caption}</caption>
+        <thead><tr><th scope="col">Date</th>{columns.map((column) => <th key={column.label} scope="col">{column.label}</th>)}</tr></thead>
+        <tbody>{rows.map((row) => (
+          <tr key={row.date}>
+            <th scope="row">{chartDate(row.date)}</th>
+            {columns.map((column) => <td key={column.label}>{column.value(row)}</td>)}
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
   );
 }
 

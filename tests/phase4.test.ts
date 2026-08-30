@@ -303,6 +303,8 @@ describe('Phase 4 dashboard', () => {
     expect(charts).toContain('domain={[operationsAxisMinimum, operationsAxisMaximum]}');
     expect(charts).toContain('outwardNiceAxisDomain');
     expect(charts).toContain('<AccessibleChartTable');
+    expect(charts).toContain('<div className="sr-only">');
+    expect(charts).not.toContain('<table className="sr-only">');
     expect(charts).toContain('aria-hidden="true"');
     expect(charts).toContain("dot={period === 'day'}");
     expect(charts).not.toContain('Math.abs(Number(value)).toLocaleString');
