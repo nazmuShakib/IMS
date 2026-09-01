@@ -26,6 +26,7 @@ import type {
   EmiPaymentAllocation,
   EmiEarlySettlement,
   SaleSettlement,
+  AuditLog,
 } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import type {
@@ -49,6 +50,7 @@ import type {
   OperatingExpenseRepository,
   EmiRepository,
   SaleSettlementRepository,
+  AuditLogRepository,
 } from '@/repositories/types';
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
@@ -161,6 +163,20 @@ const users: UserRepository = {
       await writeAll('users', [...rows, row]);
       return row;
     });
+  },
+};
+
+const auditLogs: AuditLogRepository = {
+  async findByEntity(entity, entityId) {
+    return (await readAll<AuditLog>('audit-logs'))
+      .filter((item) => item.entity === entity && item.entityId === entityId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  },
+  async create(value) {
+    const rows = await readAll<AuditLog>('audit-logs');
+    if (rows.some((item) => item.id === value.id)) throw new Error('Audit log identifier already exists.');
+    await writeAll('audit-logs', [...rows, value]);
+    return value;
   },
 };
 
@@ -510,6 +526,10 @@ const carts: CartRepository = {
   },
   async findById(id) {
     return (await readAll<CartDraft>('cart-drafts')).find((item) => item.id === id) ?? null;
+  },
+  async findByIdForUpdate(id) {
+    // jsonRepositories.transaction already holds the process-wide write lock.
+    return this.findById(id);
   },
   async create(value) {
     const rows = await readAll<CartDraft>('cart-drafts');
@@ -914,6 +934,7 @@ export const jsonRepositories: Repositories = {
   warranties,
   customers,
   carts,
+  auditLogs,
   sales,
   saleSettlements,
   usedDeviceAcquisitions,
