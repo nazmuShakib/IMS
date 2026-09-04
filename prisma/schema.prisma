@@ -139,6 +139,7 @@ enum PaymentStatus {
 enum SaleSettlementType {
   CUSTOMER_COLLECTION
   TRADE_IN_PAYOUT
+  TRADE_IN_PAYOUT_RECOVERY
 }
 
 enum PaymentMethod {

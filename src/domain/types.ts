@@ -109,7 +109,7 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['PAID', 'PARTIALLY_PAID', 'UNPAID'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 export type SaleStatus = 'COMPLETED' | 'VOIDED';
-export const SALE_SETTLEMENT_TYPES = ['CUSTOMER_COLLECTION', 'TRADE_IN_PAYOUT'] as const;
+export const SALE_SETTLEMENT_TYPES = ['CUSTOMER_COLLECTION', 'TRADE_IN_PAYOUT', 'TRADE_IN_PAYOUT_RECOVERY'] as const;
 export type SaleSettlementType = (typeof SALE_SETTLEMENT_TYPES)[number];
 
 export const CUSTOMER_IDENTIFICATION_TYPES = ['NID', 'PASSPORT', 'BIRTH_CERTIFICATE'] as const;

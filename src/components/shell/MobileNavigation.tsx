@@ -9,6 +9,8 @@ import { NavigationLinks } from '@/components/shell/NavigationLinks';
 import { Badge } from '@/components/ui';
 import type { Role } from '@/domain/types';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import Image from 'next/image';
+import { TOPBAR_LOGO_SRC } from '@/lib/shop-branding';
 
 export function MobileNavigation({
   role,
@@ -73,9 +75,8 @@ export function MobileNavigation({
             className="mobile-navigation-panel absolute inset-y-0 left-0 flex w-[min(88vw,21rem)] flex-col bg-sidebar shadow-2xl"
           >
             <div className="flex items-center justify-between border-b border-sidebar-border px-4 py-4">
-              <Link href="/" onClick={() => setOpen(false)} className="block">
-                <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
-                <span className="eyebrow mt-0.5 block">{t('shell.shop')}</span>
+              <Link href="/" onClick={() => setOpen(false)} className="block" aria-label={t('nav.dashboard')}>
+                <Image src={TOPBAR_LOGO_SRC} alt="Irfan Gadget & Mobile" width={1055} height={345} priority unoptimized className="h-auto w-[145px]" />
               </Link>
               <button
                 type="button"

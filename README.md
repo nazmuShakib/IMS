@@ -1,4 +1,4 @@
-# Electronics Shop — Inventory Management System
+# Irfan Gadget & Mobile — Inventory Management System
 
 Phases 0–8 complete: the PostgreSQL inventory layer, catalog UI, stock operations,
 Better Auth/RBAC/audit logging, dashboard, command-palette search, and protected
@@ -40,7 +40,8 @@ Use Node.js 22 and configure these variables for the Production environment:
 - `DATABASE_URL_UNPOOLED` — the direct Neon connection string
 - `BETTER_AUTH_SECRET` — at least 32 high-entropy characters
 - `BETTER_AUTH_URL` — the exact production HTTPS origin
-- `SHOP_NAME` — name printed on stock labels (defaults to `Electronics Shop`)
+- `SHOP_NAME` — name printed on stock labels and invoices (defaults to `Irfan Gadget & Mobile`)
+- `SHOP_LOGO_DATA_URI` — optional invoice-logo override as a `data:` URI; the bundled logo is used when omitted
 - `SHOP_ADDRESS`, `SHOP_PHONE`, `INVOICE_POLICY` — optional invoice details
 
 Run committed Prisma migrations separately with `npm run db:deploy`; do not run

@@ -4,6 +4,7 @@ import { invoiceToPdf } from '@/lib/invoice-pdf';
 import { hasPermission } from '@/lib/permissions';
 import { getOptionalSession } from '@/lib/session';
 import { db } from '@/repositories';
+import { bundledInvoiceLogoDataUri } from '@/lib/server-shop-branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,8 +20,11 @@ export async function GET(
   const { id } = await params;
   const sale = await db.sales.findById(id);
   if (!sale) return NextResponse.json({ error: 'Invoice not found' }, { status: 404 });
-  const items = await db.sales.findItems(sale.id);
-  const emiContract = await db.emi.findContractBySale(sale.id);
+  const [items, emiContract, settlements] = await Promise.all([
+    db.sales.findItems(sale.id),
+    db.emi.findContractBySale(sale.id),
+    db.saleSettlements.findBySale(sale.id),
+  ]);
   const [emiInstallments, emiEarlySettlement] = emiContract
     ? await Promise.all([
         db.emi.findInstallments(emiContract.id),
@@ -28,7 +32,8 @@ export async function GET(
       ])
     : [[], null];
   const content = await invoiceToPdf(sale, items, {
-    name: process.env.SHOP_NAME?.trim() || 'Electronics Shop',
+    name: process.env.SHOP_NAME?.trim() || 'Irfan Gadget & Mobile',
+    logoDataUri: process.env.SHOP_LOGO_DATA_URI?.trim() || await bundledInvoiceLogoDataUri(),
     address: process.env.SHOP_ADDRESS?.trim() || null,
     phone: process.env.SHOP_PHONE?.trim() || null,
     policy: process.env.INVOICE_POLICY?.trim() || null,
@@ -36,7 +41,7 @@ export async function GET(
     contract: emiContract,
     installments: emiInstallments,
     earlySettlement: emiEarlySettlement,
-  } : null);
+  } : null, settlements);
   return new Response(new Uint8Array(content), {
     headers: {
       'Content-Type': 'application/pdf',

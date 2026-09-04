@@ -12,6 +12,7 @@ const collectInvoicePaymentSchema = z.object({
   note: z.string().trim().max(1000).nullable(),
   actorId: z.string().min(1),
   actorName: z.string().min(1),
+  auditIp: z.string().trim().max(255).nullable(),
   idempotencyKey: z.string().min(8).max(160),
 });
 
@@ -29,6 +30,9 @@ export async function collectInvoicePayment(raw: z.input<typeof collectInvoicePa
   return db.transaction(async (tx) => {
     const replay = await tx.saleSettlements.findByIdempotencyKey(input.idempotencyKey);
     if (replay) {
+      if (replay.saleId !== input.saleId || replay.type !== 'CUSTOMER_COLLECTION') {
+        throw new Error('This payment request is already bound to another invoice. Refresh and try again.');
+      }
       const replaySale = await tx.sales.findById(replay.saleId);
       if (!replaySale) throw new Error('The invoice for this receipt no longer exists.');
       const collectible = regularInvoiceCollectible(replaySale);
@@ -76,6 +80,24 @@ export async function collectInvoicePayment(raw: z.input<typeof collectInvoicePa
     };
     await tx.saleSettlements.create(settlement);
     await tx.sales.updatePayment(sale.id, previousPaid, { amountPaid, paymentStatus, paymentMethod });
+    await tx.auditLogs.create({
+      id: uuidv7(),
+      actorId: input.actorId,
+      action: 'sale.payment.collect',
+      entity: 'SaleSettlement',
+      entityId: settlement.id,
+      before: null,
+      after: {
+        saleId: sale.id,
+        receiptNumber: settlement.receiptNumber,
+        amount: settlement.amount,
+        amountPaid,
+        amountDue: collectible - amountPaid,
+        paymentStatus,
+      },
+      ip: input.auditIp,
+      createdAt: now,
+    });
     return { settlement, amountPaid, amountDue: collectible - amountPaid, paymentStatus };
-  });
+  }, { isolationLevel: 'Serializable' });
 }

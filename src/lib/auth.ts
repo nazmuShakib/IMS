@@ -9,7 +9,7 @@ import { prisma } from '@/lib/prisma';
 import { isBangladeshMobile } from '@/lib/phone';
 
 export const auth = betterAuth({
-  appName: 'Electronics Shop Inventory',
+  appName: 'Irfan Gadget & Mobile Inventory',
   baseURL: process.env.BETTER_AUTH_URL,
   secret: process.env.BETTER_AUTH_SECRET,
   database: prismaAdapter(prisma, {

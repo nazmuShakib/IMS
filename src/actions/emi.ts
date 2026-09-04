@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 import { writeAudit } from '@/lib/audit';
+import { actionErrorMessage } from '@/lib/action-error';
 import { getSession, requireCapability } from '@/lib/session';
 import { translateActionMessage } from '@/lib/i18n/action-messages';
 import type { Locale } from '@/lib/i18n/config';
@@ -13,7 +14,7 @@ export interface EmiActionState { error?: string; ok?: string; fieldErrors?: Rec
 const str = (fd: FormData, key: string) => typeof fd.get(key) === 'string' ? String(fd.get(key)).trim() : '';
 const failure = (error: unknown, locale: Locale): EmiActionState => error instanceof z.ZodError
   ? { error: translateActionMessage(locale, error.issues[0]?.message ?? 'Invalid input.'), fieldErrors: Object.fromEntries(error.issues.map((issue) => [String(issue.path[0]), translateActionMessage(locale, issue.message)])) }
-  : { error: translateActionMessage(locale, error instanceof Error ? error.message : 'Something went wrong.') };
+  : { error: translateActionMessage(locale, actionErrorMessage(error, 'Something went wrong.')) };
 
 export async function recordEmiPaymentAction(_state: EmiActionState, fd: FormData): Promise<EmiActionState> {
   const actor = await requireCapability('RECORD_EMI_PAYMENT');

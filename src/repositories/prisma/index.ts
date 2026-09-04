@@ -14,6 +14,7 @@ import type {
   Customer,
   CartDraft,
   Sale,
+  PaymentStatus,
   SaleItem,
   SaleSettlement,
   InvoiceItem,
@@ -35,7 +36,7 @@ import type {
 import { prisma } from '@/lib/prisma';
 import type { Paisa } from '@/lib/money';
 import { dhakaYear } from '@/lib/time';
-import type { Repositories } from '@/repositories/types';
+import type { Repositories, SaleFilters } from '@/repositories/types';
 
 type Client = Prisma.TransactionClient;
 
@@ -168,6 +169,71 @@ function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sa
     completedAt: iso(row.completedAt),
     createdAt: iso(row.createdAt),
     voidedAt: row.voidedAt ? iso(row.voidedAt) : null,
+  };
+}
+
+function effectivePaymentWhere(paymentStatus: PaymentStatus): Prisma.SaleWhereInput {
+  const regularSale: Prisma.SaleWhereInput = {
+    emiContract: { is: null },
+    paymentStatus,
+  };
+  const openEmiWithPayment: Prisma.EmiContractWhereInput = {
+    status: { in: ['ACTIVE', 'OVERDUE'] },
+    OR: [
+      { downPayment: { gt: 0 } },
+      { tradeInCredit: { gt: 0 } },
+      { installments: { some: { amountPaid: { gt: 0 } } } },
+    ],
+  };
+  const openEmiWithoutPayment: Prisma.EmiContractWhereInput = {
+    status: { in: ['ACTIVE', 'OVERDUE'] },
+    downPayment: 0,
+    tradeInCredit: 0,
+    installments: { none: { amountPaid: { gt: 0 } } },
+  };
+
+  return {
+    status: 'COMPLETED',
+    OR: paymentStatus === 'PAID'
+      ? [regularSale, { emiContract: { is: { status: 'PAID' } } }]
+      : paymentStatus === 'PARTIALLY_PAID'
+        ? [regularSale, { emiContract: { is: openEmiWithPayment } }]
+        : [regularSale, { emiContract: { is: openEmiWithoutPayment } }],
+  };
+}
+
+function saleSearchWhere(filters: SaleFilters): Prisma.SaleWhereInput {
+  const query = filters.query?.trim();
+  const and: Prisma.SaleWhereInput[] = [];
+  if (query) {
+    and.push({
+      OR: [
+        { invoiceNumber: { contains: query, mode: 'insensitive' } },
+        { customerName: { contains: query, mode: 'insensitive' } },
+        { customerPhone: { contains: query } },
+        { reference: { contains: query, mode: 'insensitive' } },
+        { actorName: { contains: query, mode: 'insensitive' } },
+      ],
+    });
+  }
+  if (filters.paymentStatus) and.push(effectivePaymentWhere(filters.paymentStatus));
+
+  return {
+    status: filters.status,
+    completedAt: filters.from || filters.to
+      ? { gte: filters.from, lte: filters.to }
+      : undefined,
+    customerId: filters.customerType === 'WALK_IN'
+      ? null
+      : filters.customerType === 'REGISTERED'
+        ? { not: null }
+        : undefined,
+    actorId: filters.actorId,
+    paymentMethod: filters.paymentMethod,
+    total: filters.minTotal !== undefined || filters.maxTotal !== undefined
+      ? { gte: filters.minTotal, lte: filters.maxTotal }
+      : undefined,
+    AND: and.length > 0 ? and : undefined,
   };
 }
 
@@ -732,7 +798,11 @@ function createRepositories(client: Client, transact?: Repositories['transaction
     saleSettlements: {
       async nextReceiptNumber(type, now) {
         const year = dhakaYear(now);
-        const prefix = type === 'CUSTOMER_COLLECTION' ? 'IPR' : 'TIP';
+        const prefix = type === 'CUSTOMER_COLLECTION'
+          ? 'IPR'
+          : type === 'TRADE_IN_PAYOUT'
+            ? 'TIP'
+            : 'TIR';
         const sequence = await client.documentSequence.upsert({
           where: { key: `${prefix}:${year}` },
           create: { key: `${prefix}:${year}`, value: 1 },
@@ -780,37 +850,15 @@ function createRepositories(client: Client, transact?: Repositories['transaction
           orderBy: { voidedAt: 'desc' },
         })).map(sale);
       },
-      async search(filters, limit = 200) {
-        const query = filters.query?.trim();
+      async count(filters) {
+        return client.sale.count({ where: saleSearchWhere(filters) });
+      },
+      async search(filters, limit = 200, offset = 0) {
         return (await client.sale.findMany({
-          where: {
-            status: filters.status,
-            completedAt: filters.from || filters.to
-              ? { gte: filters.from, lte: filters.to }
-              : undefined,
-            customerId: filters.customerType === 'WALK_IN'
-              ? null
-              : filters.customerType === 'REGISTERED'
-                ? { not: null }
-                : undefined,
-            actorId: filters.actorId,
-            paymentStatus: filters.paymentStatus,
-            paymentMethod: filters.paymentMethod,
-            total: filters.minTotal !== undefined || filters.maxTotal !== undefined
-              ? { gte: filters.minTotal, lte: filters.maxTotal }
-              : undefined,
-            ...(query ? {
-              OR: [
-                { invoiceNumber: { contains: query, mode: 'insensitive' } },
-                { customerName: { contains: query, mode: 'insensitive' } },
-                { customerPhone: { contains: query } },
-                { reference: { contains: query, mode: 'insensitive' } },
-                { actorName: { contains: query, mode: 'insensitive' } },
-              ],
-            } : {}),
-          },
+          where: saleSearchWhere(filters),
           orderBy: { completedAt: 'desc' },
-          take: Math.max(1, Math.min(limit, 500)),
+          skip: Math.max(0, offset),
+          take: limit === null ? undefined : Math.max(1, Math.min(limit, 500)),
         })).map(sale);
       },
       async findById(id) {
@@ -851,9 +899,9 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         if (result.count !== 1) throw new Error('The invoice payment changed. Refresh and try again.');
         return sale(await client.sale.findUniqueOrThrow({ where: { id } }));
       },
-      async markVoided(id, patch) {
+      async markVoided(id, expectedAmountPaid, patch) {
         const result = await client.sale.updateMany({
-          where: { id, status: 'COMPLETED' },
+          where: { id, status: 'COMPLETED', amountPaid: expectedAmountPaid },
           data: {
             ...patch,
             voidedAt: patch.voidedAt ? new Date(patch.voidedAt) : null,
@@ -1154,6 +1202,13 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return `RCPT-${year}-${String(sequence.value).padStart(6, '0')}`;
       },
       async findContracts() { return (await client.emiContract.findMany({ orderBy: { createdAt: 'desc' } })).map(emiContract); },
+      async findContractsBySales(saleIds) {
+        if (saleIds.length === 0) return [];
+        return (await client.emiContract.findMany({
+          where: { saleId: { in: saleIds } },
+          orderBy: { createdAt: 'desc' },
+        })).map(emiContract);
+      },
       async findContractById(id) { const row = await client.emiContract.findUnique({ where: { id } }); return row ? emiContract(row) : null; },
       async findContractBySale(saleId) { const row = await client.emiContract.findUnique({ where: { saleId } }); return row ? emiContract(row) : null; },
       async createContract(value) {
@@ -1163,6 +1218,13 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return emiContract(await client.emiContract.update({ where: { id }, data: { ...patch, completedAt: patch.completedAt ? new Date(patch.completedAt) : patch.completedAt, voidedAt: patch.voidedAt ? new Date(patch.voidedAt) : patch.voidedAt, updatedAt: patch.updatedAt ? new Date(patch.updatedAt) : undefined } }));
       },
       async findInstallments(contractId) { return (await client.emiInstallment.findMany({ where: { contractId }, orderBy: { sequence: 'asc' } })).map(emiInstallment); },
+      async findInstallmentsByContracts(contractIds) {
+        if (contractIds.length === 0) return [];
+        return (await client.emiInstallment.findMany({
+          where: { contractId: { in: contractIds } },
+          orderBy: [{ contractId: 'asc' }, { sequence: 'asc' }],
+        })).map(emiInstallment);
+      },
       async createInstallment(value) { return emiInstallment(await client.emiInstallment.create({ data: { ...value, dueDate: new Date(value.dueDate), paidAt: value.paidAt ? new Date(value.paidAt) : null, createdAt: new Date(value.createdAt), updatedAt: new Date(value.updatedAt) } })); },
       async updateInstallment(id, patch) { return emiInstallment(await client.emiInstallment.update({ where: { id }, data: { ...patch, paidAt: patch.paidAt ? new Date(patch.paidAt) : patch.paidAt, updatedAt: patch.updatedAt ? new Date(patch.updatedAt) : undefined } })); },
       async findPayments(contractId) { return (await client.emiPayment.findMany({ where: { contractId }, orderBy: { paidAt: 'desc' } })).map(emiPayment); },
@@ -1180,6 +1242,12 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       async findAllocations(paymentId) { return (await client.emiPaymentAllocation.findMany({ where: { paymentId }, orderBy: { createdAt: 'asc' } })).map(emiAllocation); },
       async createAllocation(value) { return emiAllocation(await client.emiPaymentAllocation.create({ data: { ...value, createdAt: new Date(value.createdAt) } })); },
       async findEarlySettlement(contractId) { const row = await client.emiEarlySettlement.findUnique({ where: { contractId } }); return row ? emiSettlement(row) : null; },
+      async findEarlySettlementsByContracts(contractIds) {
+        if (contractIds.length === 0) return [];
+        return (await client.emiEarlySettlement.findMany({
+          where: { contractId: { in: contractIds } },
+        })).map(emiSettlement);
+      },
       async createEarlySettlement(value) { return emiSettlement(await client.emiEarlySettlement.create({ data: { ...value, approvedAt: new Date(value.approvedAt) } })); },
     },
     transaction: transact ?? ((fn) => fn(repositories)),
@@ -1195,6 +1263,7 @@ export const prismaRepositories = createRepositories(
     {
       maxWait: options?.maxWait ?? 5_000,
       timeout: options?.timeout ?? 15_000,
+      isolationLevel: options?.isolationLevel,
     },
   ),
 );

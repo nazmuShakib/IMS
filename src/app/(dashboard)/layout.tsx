@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import Image from 'next/image';
 import { getSession } from '@/lib/session';
 import { Badge } from '@/components/ui';
 import { SignOutControl } from '@/components/auth/SignOutControl';
@@ -8,6 +9,7 @@ import { NavigationLinks } from '@/components/shell/NavigationLinks';
 import { I18nProvider } from '@/components/i18n/I18nProvider';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { translate } from '@/lib/i18n/messages';
+import { TOPBAR_LOGO_SRC } from '@/lib/shop-branding';
 
 export const dynamic = 'force-dynamic'; // JSON repos read from disk per request
 
@@ -20,10 +22,9 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="flex min-h-screen">
       {/* --- Sidebar ---------------------------------------------------- */}
       <aside className="desktop-sidebar hidden w-56 shrink-0 flex-col overflow-hidden border-r border-sidebar-border bg-sidebar print:hidden md:sticky md:top-0 md:flex md:h-screen md:self-start">
-        <div className="border-b border-sidebar-border px-4 py-4">
-          <Link href="/" className="block">
-            <span className="text-[13px] font-semibold tracking-[-0.01em]">{t('shell.inventory')}</span>
-            <span className="eyebrow mt-0.5 block">{t('shell.shop')}</span>
+        <div className="border-b border-sidebar-border px-4 py-3">
+          <Link href="/" className="block" aria-label={t('nav.dashboard')}>
+            <Image src={TOPBAR_LOGO_SRC} alt="Irfan Gadget & Mobile" width={1055} height={345} priority unoptimized className="h-auto w-[150px]" />
           </Link>
         </div>
 

@@ -9,6 +9,7 @@ import { useI18n } from '@/components/i18n/I18nProvider';
 import { Button, Input, Select, Textarea } from '@/components/ui';
 import { PAYMENT_METHODS, type PaymentMethod, type Sale, type SaleSettlement } from '@/domain/types';
 import { domainLabel } from '@/lib/i18n/domain';
+import { regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
 import { formatBDT } from '@/lib/money';
 import { invoicePaymentCollectionFieldsSchema } from '@/schemas';
 
@@ -19,7 +20,7 @@ type CollectionFields = {
   note: string;
 };
 
-const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-BD', {
+const formatDateTime = (value: string, locale: 'en' | 'bn') => new Intl.DateTimeFormat(locale === 'bn' ? 'bn-BD' : 'en-BD', {
   timeZone: 'Asia/Dhaka',
   dateStyle: 'medium',
   timeStyle: 'short',
@@ -29,15 +30,17 @@ const formatDateTime = (value: string) => new Intl.DateTimeFormat('en-BD', {
 export function InvoicePaymentCollection({
   sale,
   settlements,
+  canCollect,
 }: {
   sale: Sale;
   settlements: SaleSettlement[];
+  canCollect: boolean;
 }) {
   const router = useRouter();
-  const { t, message } = useI18n();
+  const { locale, t, message } = useI18n();
   const collectible = Math.max(0, sale.total - sale.tradeInCredit);
   const amountPaid = sale.amountPaid ?? 0;
-  const due = Math.max(0, collectible - amountPaid);
+  const due = regularInvoiceAmountDue(sale);
   const [state, action, pending] = useActionState(collectInvoicePaymentAction, {});
   const [fields, setFields] = useState<CollectionFields>({
     amount: due ? (due / 100).toFixed(2) : '',
@@ -79,7 +82,13 @@ export function InvoicePaymentCollection({
     () => [...settlements].sort((a, b) => b.recordedAt.localeCompare(a.recordedAt)),
     [settlements],
   );
-  const hasTradeInPayout = orderedSettlements.some((entry) => entry.type === 'TRADE_IN_PAYOUT');
+  const hasNonCustomerSettlement = orderedSettlements.some((entry) => entry.type !== 'CUSTOMER_COLLECTION');
+
+  function settlementLabel(entry: SaleSettlement): string {
+    if (entry.type === 'TRADE_IN_PAYOUT') return t('invoice.tradeInCashPayout');
+    if (entry.type === 'TRADE_IN_PAYOUT_RECOVERY') return t('invoice.tradeInCashRecovery');
+    return t('invoice.customerPayment');
+  }
 
   function updateField<K extends keyof CollectionFields>(key: K, value: CollectionFields[K]) {
     setFields((current) => ({ ...current, [key]: value }));
@@ -131,13 +140,13 @@ export function InvoicePaymentCollection({
           <p className="eyebrow">{t('invoice.paidAmount')}</p>
           <p className="tnum mt-1 text-[18px] font-semibold text-ok">{formatBDT(amountPaid)}</p>
         </div>
-        <div className="rounded-[3px] border border-out/30 bg-out/5 p-3">
+        <div className={`rounded-[3px] border p-3 ${due > 0 ? 'border-out/30 bg-out/5' : 'border-rule bg-plate/40'}`}>
           <p className="eyebrow">{t('invoice.dueAmount')}</p>
-          <p className="tnum mt-1 text-[18px] font-semibold text-out">{formatBDT(due)}</p>
+          <p className={`tnum mt-1 text-[18px] font-semibold ${due > 0 ? 'text-out' : 'text-ink'}`}>{formatBDT(due)}</p>
         </div>
       </div>
 
-      {sale.status === 'COMPLETED' && due > 0 && (
+      {canCollect && sale.status === 'COMPLETED' && due > 0 && (
         <div className="border-t border-rule p-4">
           <div className="grid gap-3 md:grid-cols-2">
             <label className="block">
@@ -173,13 +182,13 @@ export function InvoicePaymentCollection({
 
       {orderedSettlements.length > 0 && (
         <div className="border-t border-rule">
-          <div className="px-4 py-3"><h3 className="text-[14px] font-semibold">{t(hasTradeInPayout ? 'invoice.paymentHistory' : 'invoice.customerPaymentHistory')}</h3></div>
+          <div className="px-4 py-3"><h3 className="text-[14px] font-semibold">{t(hasNonCustomerSettlement ? 'invoice.paymentHistory' : 'invoice.customerPaymentHistory')}</h3></div>
           <div className="overflow-x-auto">
-            <table className={`w-full text-center text-[12px] ${hasTradeInPayout ? 'min-w-[660px]' : 'min-w-[520px]'}`}>
+            <table className={`w-full text-center text-[12px] ${hasNonCustomerSettlement ? 'min-w-[660px]' : 'min-w-[520px]'}`}>
               <thead className="border-y border-rule bg-plate/60">
                 <tr>
                   <th className="px-3 py-2">{t('invoice.date')}</th>
-                  {hasTradeInPayout && <th className="px-3 py-2">{t('invoice.type')}</th>}
+                  {hasNonCustomerSettlement && <th className="px-3 py-2">{t('invoice.type')}</th>}
                   <th className="px-3 py-2">{t('invoice.amount')}</th>
                   <th className="px-3 py-2">{t('invoice.method')}</th>
                   <th className="px-3 py-2">{t('invoice.recordedBy')}</th>
@@ -188,8 +197,11 @@ export function InvoicePaymentCollection({
               <tbody>
                 {orderedSettlements.map((entry) => (
                   <tr key={entry.id} className="border-b border-rule last:border-b-0">
-                    <td className="px-3 py-2.5">{formatDateTime(entry.recordedAt)}</td>
-                    {hasTradeInPayout && <td className={`px-3 py-2.5 font-medium ${entry.type === 'TRADE_IN_PAYOUT' ? 'text-out' : 'text-ok'}`}>{entry.type === 'TRADE_IN_PAYOUT' ? t('invoice.tradeInCashPayout') : t('invoice.customerPayment')}</td>}
+                    <td className="px-3 py-2.5">
+                      <span className="block">{formatDateTime(entry.recordedAt, locale)}</span>
+                      <span className="tnum mt-0.5 block text-[10px] text-graphite">{entry.receiptNumber}</span>
+                    </td>
+                    {hasNonCustomerSettlement && <td className={`px-3 py-2.5 font-medium ${entry.type === 'TRADE_IN_PAYOUT' ? 'text-out' : entry.type === 'TRADE_IN_PAYOUT_RECOVERY' ? 'text-signal' : 'text-ok'}`}>{settlementLabel(entry)}</td>}
                     <td className="tnum px-3 py-2.5">{formatBDT(entry.amount)}</td>
                     <td className="px-3 py-2.5">{domainLabel(t, entry.paymentMethod)}</td>
                     <td className="px-3 py-2.5">{entry.recordedByName}</td>
@@ -202,7 +214,7 @@ export function InvoicePaymentCollection({
       )}
 
       {showConfirm && (
-        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/55 p-3" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) setShowConfirm(false); }}>
+        <div className="fixed inset-0 z-[110] grid place-items-center bg-black/55 p-3" role="dialog" aria-modal="true" aria-labelledby="payment-confirm-title" onKeyDown={(event) => { if (event.key === 'Escape' && !pending) setShowConfirm(false); }} onMouseDown={(event) => { if (event.target === event.currentTarget && !pending) setShowConfirm(false); }}>
           <form action={action} onSubmit={validateSubmission} noValidate className="w-full max-w-md rounded-[4px] border border-rule bg-card shadow-2xl">
             <input type="hidden" name="saleId" value={sale.id} />
             <input type="hidden" name="idempotencyKey" value={idempotencyKey} />
@@ -210,16 +222,16 @@ export function InvoicePaymentCollection({
             <input type="hidden" name="paymentMethod" value={fields.paymentMethod} />
             <input type="hidden" name="reference" value={fields.reference} />
             <input type="hidden" name="note" value={fields.note} />
-            <div className="border-b border-rule p-5"><h2 className="text-[18px] font-semibold">{t('invoice.confirmCollectionTitle')}</h2><p className="mt-2 text-[13px] text-graphite">{t('invoice.confirmCollectionHelp', { amount: formatBDT(Math.round(Number(fields.amount || 0) * 100)), invoice: sale.invoiceNumber })}</p></div>
+            <div className="border-b border-rule p-5"><h2 id="payment-confirm-title" className="text-[18px] font-semibold">{t('invoice.confirmCollectionTitle')}</h2><p className="mt-2 text-[13px] text-graphite">{t('invoice.confirmCollectionHelp', { amount: formatBDT(Math.round(Number(fields.amount || 0) * 100)), invoice: sale.invoiceNumber })}</p></div>
             <div className="flex justify-end gap-2 p-4"><Button type="button" variant="ghost" disabled={pending} onClick={() => setShowConfirm(false)}>{t('invoice.keepEditing')}</Button><Button type="submit" disabled={pending}>{pending ? t('invoice.recording') : t('invoice.yesRecordPayment')}</Button></div>
           </form>
         </div>
       )}
 
       {result && (
-        <div className="fixed inset-0 z-[120] grid place-items-center bg-black/55 p-3" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) setResult(null); }}>
+        <div className="fixed inset-0 z-[120] grid place-items-center bg-black/55 p-3" role="dialog" aria-modal="true" aria-labelledby="payment-result-title" onKeyDown={(event) => { if (event.key === 'Escape') setResult(null); }} onMouseDown={(event) => { if (event.target === event.currentTarget) setResult(null); }}>
           <div className="w-full max-w-md rounded-[4px] border border-rule bg-card shadow-2xl">
-            <div className="p-5">{result.tone === 'success' ? <CircleCheck className="h-9 w-9 text-ok" /> : <TriangleAlert className="h-9 w-9 text-out" />}<h2 className="mt-3 text-[18px] font-semibold">{result.tone === 'success' ? t('invoice.paymentRecorded') : t('invoice.paymentFailed')}</h2><p className="mt-2 text-[13px] text-graphite">{result.message}</p></div>
+            <div className="p-5">{result.tone === 'success' ? <CircleCheck className="h-9 w-9 text-ok" /> : <TriangleAlert className="h-9 w-9 text-out" />}<h2 id="payment-result-title" className="mt-3 text-[18px] font-semibold">{result.tone === 'success' ? t('invoice.paymentRecorded') : t('invoice.paymentFailed')}</h2><p className="mt-2 text-[13px] text-graphite">{result.message}</p></div>
             <div className="flex justify-end border-t border-rule p-4"><Button type="button" onClick={() => setResult(null)}>{t('invoice.close')}</Button></div>
           </div>
         </div>

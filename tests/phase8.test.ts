@@ -501,6 +501,8 @@ describe('Phase 8 stock and invoice invariants', () => {
   it('provides A4/PDF and selectable 80 mm or 58 mm thermal invoice output', () => {
     const invoice = source('src/components/invoices/InvoiceView.tsx');
     const css = source('src/app/globals.css');
+    const pdf = source('src/lib/invoice-pdf.tsx');
+    const thermalRoute = source('src/app/api/invoices/[id]/thermal-pdf/route.ts');
     expect(invoice).toContain("t('invoice.a4Layout')");
     expect(invoice).toContain("t('invoice.thermalLayout')");
     expect(invoice).toContain('/pdf');
@@ -519,6 +521,9 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(invoice).toContain("'--invoice-thermal-width': layout === 'thermal58' ? '58mm' : '80mm'");
     expect(css).toContain('width: min(var(--invoice-thermal-width, 80mm), 100%)');
     expect(css).toContain('width: var(--invoice-thermal-width, 80mm)');
+    expect(pdf).toContain('Ref: ${sale.reference}');
+    expect(thermalRoute).toContain("'Content-Disposition': `attachment;");
+    expect(css).not.toContain('clip-path: inset(12.5%)');
   });
 
   it('filters invoices on the server instead of in the browser', () => {
@@ -526,9 +531,11 @@ describe('Phase 8 stock and invoice invariants', () => {
     const register = source('src/components/invoices/InvoiceRegister.tsx');
     const repositories = source('src/repositories/types.ts');
     const prisma = source('src/repositories/prisma/index.ts');
-    expect(page).toContain('await db.sales.search({ ...filters, paymentStatus: undefined }, 500)');
-    expect(page).toContain('effectiveInvoicePaymentStatus');
-    expect(page).toContain('effectiveStatus === filters.paymentStatus');
+    expect(page).toContain('await db.sales.count(filters)');
+    expect(page).toContain('await db.sales.search(filters, pageSize, (page - 1) * pageSize)');
+    expect(page).toContain('findContractsBySales');
+    expect(page).toContain('findInstallmentsByContracts');
+    expect(page).not.toContain('matchingSales.slice');
     expect(register).toContain('name="paymentStatus"');
     expect(register).toContain('name="paymentMethod"');
     expect(register).toContain('name="customerType"');
@@ -545,6 +552,10 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(register).toContain('router.refresh()');
     expect(source('src/app/(dashboard)/invoices/loading.tsx')).toContain('Loading invoices…');
     expect(repositories).toContain('search(filters: SaleFilters');
+    expect(repositories).toContain('count(filters: SaleFilters)');
+    expect(prisma).toContain('client.sale.count({ where: saleSearchWhere(filters) })');
+    expect(prisma).toContain('skip: Math.max(0, offset)');
+    expect(prisma).toContain("installments: { some: { amountPaid: { gt: 0 } } }");
     expect(prisma).toContain('{ invoiceNumber: { contains: query');
     expect(prisma).toContain("filters.customerType === 'WALK_IN'");
     expect(prisma).toContain('total: filters.minTotal');

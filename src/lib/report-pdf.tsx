@@ -17,7 +17,7 @@ const styles = StyleSheet.create({
 function ReportDocument({ report }: { report: ReportResult }) {
   const matrix = reportExportMatrix(report);
   return (
-    <Document title={report.title} author="Electronics Shop IMS">
+    <Document title={report.title} author="Irfan Gadget & Mobile IMS">
       <Page size="A4" orientation={matrix.headers.length > 6 ? 'landscape' : 'portrait'} style={styles.page} wrap>
         <Text style={styles.title}>{report.title}</Text>
         <Text style={styles.subtitle}>{report.description}</Text>

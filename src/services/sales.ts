@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 import type { PaymentMethod, Role, Sale, StockMovement } from '@/domain/types';
 import { emiVoidRefundAmount } from '@/lib/emi-summary';
+import { uuidv7 } from '@/lib/ids';
 import { db } from '@/repositories';
 import { voidInvoiceFieldsSchema } from '@/schemas';
 import { correctMovementInTransaction } from '@/services/stock';
@@ -61,6 +62,9 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
 
     const emiContract = await tx.emi.findContractBySale(sale.id);
     const emiPayments = emiContract ? await tx.emi.findPayments(emiContract.id) : [];
+    if (emiPayments.some((payment) => payment.status === 'ACTIVE')) {
+      throw new Error('An EMI invoice cannot be voided after installment collection has started.');
+    }
     const refundAmount = emiContract
       ? emiVoidRefundAmount(emiContract, emiPayments)
       : Math.max(0, sale.amountPaid ?? 0);
@@ -142,17 +146,28 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
     }
 
     const now = new Date().toISOString();
-    if (emiContract) {
-      for (const payment of emiPayments) {
-        if (payment.status !== 'ACTIVE') continue;
-        await tx.emi.updatePayment(payment.id, {
-          status: 'REVERSED',
-          reversedAt: now,
-          reverseReason: input.reason,
-        });
-      }
+    const settlements = await tx.saleSettlements.findBySale(sale.id);
+    const payoutRecoveries = settlements.filter((entry) => entry.type === 'TRADE_IN_PAYOUT_RECOVERY');
+    const payoutsToRecover = settlements.filter((entry) => entry.type === 'TRADE_IN_PAYOUT');
+    for (const [index, payout] of payoutsToRecover.entries()) {
+      if (payoutRecoveries.some((recovery) => recovery.reference === payout.receiptNumber)) continue;
+      await tx.saleSettlements.create({
+        id: uuidv7(),
+        receiptNumber: await tx.saleSettlements.nextReceiptNumber('TRADE_IN_PAYOUT_RECOVERY', new Date(now)),
+        idempotencyKey: `${input.idempotencyKey}:trade-in-payout-recovery:${index + 1}`,
+        saleId: sale.id,
+        type: 'TRADE_IN_PAYOUT_RECOVERY',
+        amount: payout.amount,
+        paymentMethod: payout.paymentMethod,
+        reference: payout.receiptNumber,
+        note: `Recovered during invoice void: ${input.reason}`,
+        recordedById: input.actorId,
+        recordedByName: input.actorName,
+        recordedAt: now,
+        createdAt: now,
+      });
     }
-    const voided = await tx.sales.markVoided(sale.id, {
+    const voided = await tx.sales.markVoided(sale.id, sale.amountPaid ?? 0, {
       status: 'VOIDED',
       voidedAt: now,
       voidedById: input.actorId,
@@ -169,5 +184,5 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
       }
     }
     return voided;
-  });
+  }, { isolationLevel: 'Serializable' });
 }

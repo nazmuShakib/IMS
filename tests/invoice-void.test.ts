@@ -85,7 +85,7 @@ describe('invoice void safeguards', () => {
     )).not.toThrow();
   });
 
-  it('refunds an EMI down payment and every active installment receipt', () => {
+  it('refunds only the EMI down payment before installment collection starts', () => {
     expect(emiVoidRefundAmount(
       { downPayment: 100_000 },
       [
@@ -93,7 +93,7 @@ describe('invoice void safeguards', () => {
         { amount: 250_000, status: 'ACTIVE' },
         { amount: 300_000, status: 'REVERSED' },
       ],
-    )).toBe(850_000);
+    )).toBe(100_000);
   });
 
   it('uses one transaction and correction movements for stock and finance integrity', () => {
@@ -103,8 +103,29 @@ describe('invoice void safeguards', () => {
     expect(service).toContain("status: 'VOIDED'");
     expect(service).toContain('findBySale(sale.id)');
     expect(service).toContain('warranties.findAll({ unitId: unit.id })');
-    expect(service).toContain("status: 'REVERSED'");
-    expect(service).toContain('updatePayment(payment.id');
+    expect(service).toContain("payment.status === 'ACTIVE'");
+    expect(service).toContain('cannot be voided after installment collection has started');
+    expect(service).toContain("type: 'TRADE_IN_PAYOUT_RECOVERY'");
+    expect(service).toContain('recovery.reference === payout.receiptNumber');
+    expect(service).toContain('tx.sales.markVoided(sale.id, sale.amountPaid ?? 0');
+    expect(service).toContain("{ isolationLevel: 'Serializable' }");
+  });
+
+  it('backfills recoveries for trade-in payouts on historical voids', () => {
+    const migration = source('prisma/migrations/20260903142000_backfill_trade_in_payout_recoveries/migration.sql');
+    expect(migration).toContain("payout.\"type\" = 'TRADE_IN_PAYOUT'");
+    expect(migration).toContain("sale.\"status\" = 'VOIDED'");
+    expect(migration).toContain("recovery.\"type\" = 'TRADE_IN_PAYOUT_RECOVERY'");
+    expect(migration).toContain('ON CONFLICT ("idempotencyKey") DO NOTHING');
+  });
+
+  it('reports payout recovery only from immutable recovery settlements', () => {
+    const pdf = source('src/lib/invoice-pdf.tsx');
+    const route = source('src/app/api/invoices/[id]/pdf/route.ts');
+    expect(pdf).toContain("entry.type === 'TRADE_IN_PAYOUT_RECOVERY'");
+    expect(pdf).toContain('recoveredTradeInPayout(settlements)');
+    expect(route).toContain('db.saleSettlements.findBySale(sale.id)');
+    expect(route).toContain('}, emiContract ? {');
   });
 
   it('blocks individual sale movement reversal and requires confirmation in the UI', () => {
@@ -116,7 +137,7 @@ describe('invoice void safeguards', () => {
     expect(invoice).toContain('value={voidFields.reason}');
     expect(invoice).toContain('checked={voidFields.confirmed}');
     expect(invoice).toContain('name="confirmed"');
-    expect(invoice).toContain('Reason for voiding');
+    expect(invoice).toContain("t('invoice.voidReason')");
     expect(invoice).toContain('fieldErrors?.reason');
     expect(invoice).toContain('fieldErrors?.refundMethod');
     expect(invoice).toContain('fieldErrors?.confirmed');

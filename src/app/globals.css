@@ -1074,10 +1074,14 @@ html[lang="bn"] .eyebrow {
 
 .invoice-shop-logo {
   display: block;
-  width: 34mm;
+  width: 42mm;
   max-width: 100%;
   height: auto;
   object-fit: contain;
+}
+
+.invoice-served-by-thermal {
+  display: none;
 }
 
 .invoice-header h1 {
@@ -1254,6 +1258,7 @@ html[lang="bn"] .eyebrow {
 
 .invoice-root[data-layout="thermal"] .invoice-header {
   display: block;
+  padding-bottom: 2mm;
   text-align: center;
 }
 
@@ -1262,7 +1267,7 @@ html[lang="bn"] .eyebrow {
 }
 
 .invoice-root[data-layout="thermal"] .invoice-shop-logo {
-  width: 30mm;
+  width: 36mm;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-header h1 {
@@ -1278,6 +1283,27 @@ html[lang="bn"] .eyebrow {
   font-size: 11pt;
 }
 
+.invoice-root[data-layout="thermal"] .invoice-served-by-thermal {
+  display: grid;
+  justify-items: end;
+  margin-top: 2mm;
+  text-align: right;
+  font-size: 8.5pt;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-served-by-thermal strong {
+  font-weight: 700;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-served-by-thermal span {
+  margin-top: 0.5mm;
+  font-weight: 400;
+}
+
+.invoice-root[data-layout="thermal"] .invoice-served-by-standard {
+  display: none;
+}
+
 .invoice-root[data-layout="thermal"] .invoice-meta {
   display: block;
   padding: 3mm 0;
@@ -1286,6 +1312,16 @@ html[lang="bn"] .eyebrow {
 .invoice-root[data-layout="thermal"] .invoice-meta > div {
   width: 100%;
   margin-bottom: 3mm;
+}
+
+.invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-meta {
+  display: flex;
+  gap: 4mm;
+}
+
+.invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-meta > div {
+  width: calc(50% - 2mm);
+  margin-bottom: 0;
 }
 
 .invoice-root[data-layout="thermal"] .invoice-items th,
@@ -1467,12 +1503,6 @@ html[lang="bn"] .eyebrow {
     border: 0;
     break-inside: avoid-page;
     break-after: avoid-page;
-  }
-
-  .invoice-root[data-layout="thermal"] .invoice-shop-logo {
-    clip-path: inset(12.5% 0);
-    margin-top: -2.5mm;
-    margin-bottom: -2.5mm;
   }
 
 }

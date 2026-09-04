@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { requestAuditIp, writeAudit } from '@/lib/audit';
+import { actionErrorMessage } from '@/lib/action-error';
 import { requireCapability } from '@/lib/session';
 import { db } from '@/repositories';
 import {
@@ -72,7 +73,7 @@ function str(fd: FormData, key: string): string | null {
 
 function message(error: unknown): string {
   if (error instanceof z.ZodError) return error.issues[0]?.message ?? 'Invalid input.';
-  return error instanceof Error ? error.message : 'Something went wrong.';
+  return actionErrorMessage(error, 'Something went wrong.');
 }
 
 export async function discardCartAction(

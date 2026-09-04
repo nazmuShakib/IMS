@@ -33,6 +33,25 @@ const bnMessages: Record<string, string> = {
   'Cart item not found.': 'কার্টের পণ্য পাওয়া যায়নি।',
   'Invoice not found.': 'ইনভয়েস পাওয়া যায়নি।',
   'Invoice voided. Inventory and financial records were reversed together.': 'ইনভয়েস বাতিল হয়েছে। স্টক ও আর্থিক রেকর্ড একসঙ্গে বিপরীত এন্ট্রি দিয়ে সমন্বয় করা হয়েছে।',
+  'Enter the amount received.': 'প্রাপ্ত টাকার পরিমাণ লিখুন।',
+  'Choose the payment method.': 'পরিশোধের মাধ্যম নির্বাচন করুন।',
+  'Review the payment details.': 'পরিশোধের তথ্যগুলো যাচাই করুন।',
+  'This payment request is already bound to another invoice. Refresh and try again.': 'এই পরিশোধের অনুরোধটি অন্য একটি ইনভয়েসের সঙ্গে যুক্ত। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+  'The invoice for this receipt no longer exists.': 'এই রসিদের ইনভয়েসটি আর পাওয়া যাচ্ছে না।',
+  'Payments cannot be recorded against a voided invoice.': 'বাতিল ইনভয়েসে পরিশোধ রেকর্ড করা যাবে না।',
+  'Use the EMI contract to record installment payments.': 'কিস্তির পরিশোধ রেকর্ড করতে EMI চুক্তি ব্যবহার করুন।',
+  'This invoice is already fully paid.': 'এই ইনভয়েসের সম্পূর্ণ টাকা ইতিমধ্যে পরিশোধ করা হয়েছে।',
+  'The received amount cannot exceed the invoice due amount.': 'প্রাপ্ত টাকা ইনভয়েসের বকেয়া টাকার বেশি হতে পারবে না।',
+  'The invoice payment changed. Refresh and try again.': 'ইনভয়েসের পরিশোধের তথ্য পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+  'The payment could not be recorded.': 'পরিশোধটি রেকর্ড করা যায়নি।',
+  'The invoice changed during this request. Refresh and try again.': 'অনুরোধ চলাকালে ইনভয়েসটি পরিবর্তিত হয়েছে। পেজটি রিফ্রেশ করে আবার চেষ্টা করুন।',
+  'This invoice has already been voided.': 'এই ইনভয়েসটি ইতিমধ্যে বাতিল করা হয়েছে।',
+  'An EMI invoice cannot be voided after installment collection has started.': 'কিস্তি সংগ্রহ শুরু হওয়ার পর EMI ইনভয়েস বাতিল করা যাবে না।',
+  'Choose how the customer was refunded.': 'ক্রেতাকে কীভাবে টাকা ফেরত দেওয়া হয়েছে তা নির্বাচন করুন।',
+  'This invoice has no sale lines and cannot be voided safely.': 'এই ইনভয়েসে কোনো বিক্রয় লাইন নেই, তাই নিরাপদে বাতিল করা যাবে না।',
+  'This invoice is no longer eligible to be voided.': 'এই ইনভয়েসটি আর বাতিল করার উপযুক্ত নয়।',
+  'The reason must not exceed 1000 characters.': 'কারণটি সর্বোচ্চ ১০০০ অক্ষরের হতে পারবে।',
+  'Confirm that you verified the invoice, refund, and physical items.': 'ইনভয়েস, ফেরত টাকা ও পণ্য যাচাই করেছেন বলে নিশ্চিত করুন।',
   'The selected customer is unavailable.': 'নির্বাচিত ক্রেতাকে পাওয়া যাচ্ছে না।',
   'The selected category is unavailable.': 'নির্বাচিত ক্যাটাগরিটি ব্যবহার করা যাচ্ছে না।',
   'The selected brand is unavailable.': 'নির্বাচিত ব্র্যান্ডটি ব্যবহার করা যাচ্ছে না।',
@@ -170,6 +189,18 @@ export function translateActionMessage(locale: Locale, value: string): string {
   if (match) return `${match[1]} ব্যয় হালনাগাদ হয়েছে।`;
   match = value.match(/^Voided (EXP-.+)\.$/);
   if (match) return `${match[1]} ব্যয় বাতিল করা হয়েছে।`;
+  match = value.match(/^Payment recorded\. Receipt (.+)\.$/);
+  if (match) return `পরিশোধ রেকর্ড হয়েছে। রসিদ ${match[1]}।`;
+  match = value.match(/^Invoice line (.+) is not linked to a valid sale movement\.$/);
+  if (match) return `${match[1]} ইনভয়েস লাইনটি সঠিক বিক্রয় স্টক মুভমেন্টের সঙ্গে যুক্ত নয়।`;
+  match = value.match(/^The stock movement for (.+) has already been reversed\.$/);
+  if (match) return `${match[1]}-এর স্টক মুভমেন্ট ইতিমধ্যে বিপরীত করা হয়েছে।`;
+  match = value.match(/^Device (.+) is no longer in its original sold state\.$/);
+  if (match) return `ডিভাইস ${match[1]} আর আগের বিক্রি হওয়া অবস্থায় নেই।`;
+  match = value.match(/^Device (.+) has warranty history\. Resolve that workflow before voiding\.$/);
+  if (match) return `ডিভাইস ${match[1]}-এর ওয়ারেন্টি ইতিহাস আছে। বাতিল করার আগে সেই কাজটি সম্পন্ন করুন।`;
+  match = value.match(/^Device (.+) has later inventory activity and cannot be restored automatically\.$/);
+  if (match) return `ডিভাইস ${match[1]}-এর পরবর্তী স্টক কার্যক্রম আছে, তাই স্বয়ংক্রিয়ভাবে ফিরিয়ে আনা যাবে না।`;
   match = value.match(/^STAFF may not sell this item below (.+)\.$/);
   if (match) return `কর্মীরা এই পণ্যটি ${match[1]}-এর কমে বিক্রি করতে পারবেন না।`;
   match = value.match(/^(.+) must be at least (.+) for STAFF\.$/);

@@ -6,7 +6,7 @@ import { LOCALE_COOKIE, normalizeLocale } from '@/lib/i18n/config';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'Inventory — Electronics Shop',
+  title: 'Inventory — Irfan Gadget & Mobile',
   description: 'Stock, products and device numbers for a single-location electronics shop.',
 };
 

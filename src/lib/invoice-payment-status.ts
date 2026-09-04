@@ -1,4 +1,4 @@
-import type { EmiDisplayStatus } from '@/lib/emi-summary';
+import { emiOutstanding, type EmiDisplayStatus } from '@/lib/emi-summary';
 import type { PaymentStatus, SaleStatus } from '@/domain/types';
 
 export interface InvoiceEmiPaymentState {
@@ -6,6 +6,24 @@ export interface InvoiceEmiPaymentState {
   downPayment: number;
   tradeInCredit: number;
   installmentAmountPaid: number;
+}
+
+export function regularInvoiceAmountDue(sale: {
+  status: SaleStatus;
+  total: number;
+  tradeInCredit: number;
+  amountPaid?: number | null;
+}): number {
+  if (sale.status === 'VOIDED') return 0;
+  const collectible = Math.max(0, sale.total - sale.tradeInCredit);
+  return Math.max(0, collectible - (sale.amountPaid ?? 0));
+}
+
+export function emiInvoiceAmountDue(
+  sale: { status: SaleStatus },
+  installments: Array<{ amountDue: number; amountPaid: number }>,
+): number {
+  return sale.status === 'VOIDED' ? 0 : emiOutstanding(installments);
 }
 
 /**

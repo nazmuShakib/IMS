@@ -43,6 +43,7 @@ import type {
   CustomerRepository,
   CartRepository,
   SaleRepository,
+  SaleFilters,
   UsedDeviceAcquisitionRepository,
   RefurbishmentExpenseRepository,
   SupplierReturnRepository,
@@ -553,6 +554,65 @@ const carts: CartRepository = {
   },
 };
 
+async function matchingSales(filters: SaleFilters): Promise<Sale[]> {
+  const query = filters.query?.trim().toLowerCase();
+  const rows = await readAll<Sale>('sales');
+  const effectivePaymentBySale = new Map<string, Sale['paymentStatus'] | null>();
+
+  if (filters.paymentStatus) {
+    const [contracts, installments] = await Promise.all([
+      readAll<EmiContract>('emi-contracts'),
+      readAll<EmiInstallment>('emi-installments'),
+    ]);
+    const contractBySale = new Map(contracts.map((contract) => [contract.saleId, contract]));
+    const installmentPaidByContract = new Map<string, number>();
+    for (const installment of installments) {
+      installmentPaidByContract.set(
+        installment.contractId,
+        (installmentPaidByContract.get(installment.contractId) ?? 0) + installment.amountPaid,
+      );
+    }
+    for (const row of rows) {
+      const contract = contractBySale.get(row.id);
+      if (row.status === 'VOIDED' || contract?.status === 'VOIDED') {
+        effectivePaymentBySale.set(row.id, null);
+      } else if (!contract) {
+        effectivePaymentBySale.set(row.id, row.paymentStatus);
+      } else if (contract.status === 'PAID') {
+        effectivePaymentBySale.set(row.id, 'PAID');
+      } else {
+        const paid = contract.downPayment + contract.tradeInCredit
+          + (installmentPaidByContract.get(contract.id) ?? 0);
+        effectivePaymentBySale.set(row.id, paid > 0 ? 'PARTIALLY_PAID' : 'UNPAID');
+      }
+    }
+  }
+
+  return rows
+    .filter((item) => (
+      (!filters.status || item.status === filters.status)
+      && (!filters.from || new Date(item.completedAt) >= filters.from)
+      && (!filters.to || new Date(item.completedAt) <= filters.to)
+      && (
+        !filters.customerType
+        || (filters.customerType === 'WALK_IN' ? item.customerId === null : item.customerId !== null)
+      )
+      && (!filters.actorId || item.actorId === filters.actorId)
+      && (!filters.paymentStatus || effectivePaymentBySale.get(item.id) === filters.paymentStatus)
+      && (!filters.paymentMethod || item.paymentMethod === filters.paymentMethod)
+      && (filters.minTotal === undefined || item.total >= filters.minTotal)
+      && (filters.maxTotal === undefined || item.total <= filters.maxTotal)
+      && (!query || [
+        item.invoiceNumber,
+        item.customerName,
+        item.customerPhone,
+        item.reference,
+        item.actorName,
+      ].some((value) => value?.toLowerCase().includes(query)))
+    ))
+    .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+}
+
 const sales: SaleRepository = {
   async nextInvoiceNumber(now) {
     const year = dhakaYear(now);
@@ -576,32 +636,13 @@ const sales: SaleRepository = {
         && new Date(item.voidedAt) <= to)
       .sort((a, b) => (b.voidedAt ?? '').localeCompare(a.voidedAt ?? ''));
   },
-  async search(filters, limit = 200) {
-    const query = filters.query?.trim().toLowerCase();
-    return (await readAll<Sale>('sales'))
-      .filter((item) => (
-        (!filters.status || item.status === filters.status)
-        && (!filters.from || new Date(item.completedAt) >= filters.from)
-        && (!filters.to || new Date(item.completedAt) <= filters.to)
-        && (
-          !filters.customerType
-          || (filters.customerType === 'WALK_IN' ? item.customerId === null : item.customerId !== null)
-        )
-        && (!filters.actorId || item.actorId === filters.actorId)
-        && (!filters.paymentStatus || item.paymentStatus === filters.paymentStatus)
-        && (!filters.paymentMethod || item.paymentMethod === filters.paymentMethod)
-        && (filters.minTotal === undefined || item.total >= filters.minTotal)
-        && (filters.maxTotal === undefined || item.total <= filters.maxTotal)
-        && (!query || [
-          item.invoiceNumber,
-          item.customerName,
-          item.customerPhone,
-          item.reference,
-          item.actorName,
-        ].some((value) => value?.toLowerCase().includes(query)))
-      ))
-      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
-      .slice(0, Math.max(1, Math.min(limit, 500)));
+  async count(filters) {
+    return (await matchingSales(filters)).length;
+  },
+  async search(filters, limit = 200, offset = 0) {
+    const rows = await matchingSales(filters);
+    const start = Math.max(0, offset);
+    return rows.slice(start, limit === null ? undefined : start + Math.max(1, Math.min(limit, 500)));
   },
   async findById(id) {
     return (await readAll<Sale>('sales')).find((item) => item.id === id) ?? null;
@@ -632,9 +673,11 @@ const sales: SaleRepository = {
     await writeAll('sales', copy);
     return updated;
   },
-  async markVoided(id, patch) {
+  async markVoided(id, expectedAmountPaid, patch) {
     const rows = await readAll<Sale>('sales');
-    const index = rows.findIndex((item) => item.id === id && item.status === 'COMPLETED');
+    const index = rows.findIndex((item) => item.id === id
+      && item.status === 'COMPLETED'
+      && (item.amountPaid ?? 0) === expectedAmountPaid);
     if (index < 0) throw new Error('This invoice is no longer eligible to be voided.');
     const updated = { ...rows[index]!, ...patch };
     const copy = [...rows]; copy[index] = updated;
@@ -674,7 +717,11 @@ const sales: SaleRepository = {
 const saleSettlements: SaleSettlementRepository = {
   async nextReceiptNumber(type, now) {
     const year = dhakaYear(now);
-    const prefix = type === 'CUSTOMER_COLLECTION' ? 'IPR' : 'TIP';
+    const prefix = type === 'CUSTOMER_COLLECTION'
+      ? 'IPR'
+      : type === 'TRADE_IN_PAYOUT'
+        ? 'TIP'
+        : 'TIR';
     const sequencePrefix = `${prefix}-${year}-`;
     const next = (await readAll<SaleSettlement>('sale-settlements')).reduce((max, item) =>
       item.receiptNumber.startsWith(sequencePrefix)
@@ -906,11 +953,23 @@ const emi: EmiRepository = {
     return `${prefix}${String(next).padStart(6, '0')}`;
   },
   async findContracts() { return (await readAll<EmiContract>('emi-contracts')).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async findContractsBySales(saleIds) {
+    const selected = new Set(saleIds);
+    return (await readAll<EmiContract>('emi-contracts'))
+      .filter((row) => selected.has(row.saleId))
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  },
   async findContractById(id) { return (await readAll<EmiContract>('emi-contracts')).find((row) => row.id === id) ?? null; },
   async findContractBySale(saleId) { return (await readAll<EmiContract>('emi-contracts')).find((row) => row.saleId === saleId) ?? null; },
   async createContract(value) { await writeAll('emi-contracts', [...await readAll<EmiContract>('emi-contracts'), value]); return value; },
   async updateContract(id, patch) { const rows = await readAll<EmiContract>('emi-contracts'); const index = rows.findIndex((row) => row.id === id); if (index < 0) throw new Error('EMI contract not found.'); const value = { ...rows[index]!, ...patch }; const copy = [...rows]; copy[index] = value; await writeAll('emi-contracts', copy); return value; },
   async findInstallments(contractId) { return (await readAll<EmiInstallment>('emi-installments')).filter((row) => row.contractId === contractId).sort((a, b) => a.sequence - b.sequence); },
+  async findInstallmentsByContracts(contractIds) {
+    const selected = new Set(contractIds);
+    return (await readAll<EmiInstallment>('emi-installments'))
+      .filter((row) => selected.has(row.contractId))
+      .sort((a, b) => a.contractId.localeCompare(b.contractId) || a.sequence - b.sequence);
+  },
   async createInstallment(value) { await writeAll('emi-installments', [...await readAll<EmiInstallment>('emi-installments'), value]); return value; },
   async updateInstallment(id, patch) { const rows = await readAll<EmiInstallment>('emi-installments'); const index = rows.findIndex((row) => row.id === id); if (index < 0) throw new Error('Installment not found.'); const value = { ...rows[index]!, ...patch }; const copy = [...rows]; copy[index] = value; await writeAll('emi-installments', copy); return value; },
   async findPayments(contractId) { return (await readAll<EmiPayment>('emi-payments')).filter((row) => row.contractId === contractId).sort((a, b) => b.paidAt.localeCompare(a.paidAt)); },
@@ -920,6 +979,10 @@ const emi: EmiRepository = {
   async findAllocations(paymentId) { return (await readAll<EmiPaymentAllocation>('emi-payment-allocations')).filter((row) => row.paymentId === paymentId); },
   async createAllocation(value) { await writeAll('emi-payment-allocations', [...await readAll<EmiPaymentAllocation>('emi-payment-allocations'), value]); return value; },
   async findEarlySettlement(contractId) { return (await readAll<EmiEarlySettlement>('emi-early-settlements')).find((row) => row.contractId === contractId) ?? null; },
+  async findEarlySettlementsByContracts(contractIds) {
+    const selected = new Set(contractIds);
+    return (await readAll<EmiEarlySettlement>('emi-early-settlements')).filter((row) => selected.has(row.contractId));
+  },
   async createEarlySettlement(value) { await writeAll('emi-early-settlements', [...await readAll<EmiEarlySettlement>('emi-early-settlements'), value]); return value; },
 };
 

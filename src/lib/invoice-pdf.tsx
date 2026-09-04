@@ -1,8 +1,8 @@
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 
-import type { EmiContract, EmiEarlySettlement, EmiInstallment, InvoiceItem, Sale } from '@/domain/types';
+import type { EmiContract, EmiEarlySettlement, EmiInstallment, InvoiceItem, Sale, SaleSettlement } from '@/domain/types';
 import { emiDisplayStatus } from '@/lib/emi-summary';
-import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
+import { emiInvoiceAmountDue, regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
 
 const styles = StyleSheet.create({
   page: { padding: 34, fontFamily: 'Helvetica', fontSize: 9, color: '#14181d' },
@@ -15,7 +15,8 @@ const styles = StyleSheet.create({
     paddingBottom: 6,
     marginBottom: 10,
   },
-  logo: { width: 96, height: 64, objectFit: 'contain', objectPosition: 'left top', marginBottom: 3 },
+  logo: { width: 120, height: 68, objectFit: 'contain', objectPosition: 'left top', marginBottom: 3 },
+  shopName: { fontSize: 18, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
   titleBox: { alignItems: 'flex-end' },
   title: { fontSize: 24, lineHeight: 1, fontFamily: 'Helvetica-Bold', textAlign: 'right' },
   paymentBadge: {
@@ -59,8 +60,9 @@ const thermalStyles = StyleSheet.create({
   page58: { paddingHorizontal: 5 },
   page80: { paddingHorizontal: 6 },
   logo: { objectFit: 'contain', objectPosition: 'center', alignSelf: 'center' },
-  logo58: { width: 96, height: 56 },
-  logo80: { width: 118, height: 69 },
+  logo58: { width: 110, height: 61 },
+  logo80: { width: 140, height: 77 },
+  shopName: { fontSize: 12, fontFamily: 'Helvetica-Bold', textAlign: 'center', marginBottom: 2 },
   title: { marginTop: 3, fontSize: 11.5, fontFamily: 'Helvetica-Bold', textAlign: 'center' },
   centered: { textAlign: 'center' },
   muted: { color: '#000000', fontSize: 6.3, marginTop: 1.2 },
@@ -68,6 +70,13 @@ const thermalStyles = StyleSheet.create({
   divider: { borderBottomWidth: 0.5, borderBottomColor: '#d5dade', marginVertical: 7 },
   label: { color: '#000000', fontSize: 6, fontFamily: 'Helvetica-Bold', textTransform: 'uppercase', marginBottom: 1 },
   section: { marginBottom: 1 },
+  metaRow: { flexDirection: 'row', columnGap: 8 },
+  metaColumn: { width: '50%' },
+  metaDate58: { marginTop: 4 },
+  servedBy: { alignItems: 'flex-end', marginTop: 4 },
+  servedByLabel: { fontFamily: 'Helvetica-Bold', fontSize: 6.3 },
+  servedByName: { fontSize: 6.3, marginTop: 1.2 },
+  headerDivider: { marginTop: 3 },
   itemHeader: { flexDirection: 'row', backgroundColor: '#e9ecee', color: '#000000', borderBottomWidth: 0.5, borderBottomColor: '#d5dade', paddingVertical: 3, paddingHorizontal: 2, fontFamily: 'Helvetica-Bold', fontSize: 6.2 },
   itemHeaderName: { width: '67%' },
   itemHeaderQty: { width: '10%', textAlign: 'right' },
@@ -111,13 +120,19 @@ function wrappedLines(value: string | null | undefined, characters: number): num
   return value.split(/\r?\n/).reduce((count, line) => count + Math.max(1, Math.ceil(line.length / characters)), 0);
 }
 
+function recoveredTradeInPayout(settlements: SaleSettlement[]): number {
+  return settlements
+    .filter((entry) => entry.type === 'TRADE_IN_PAYOUT_RECOVERY')
+    .reduce((sum, entry) => sum + entry.amount, 0);
+}
+
 function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { installments: EmiInstallment[] } | null, widthMm: 58 | 80): number {
   // React PDF will create another logical page when the content is even a few
   // points taller than this value. Keep a deliberate safety allowance so a
   // receipt remains one continuous roll page instead of moving its totals to a
   // second sheet. The narrower layout also wraps metadata more frequently.
   const chars = widthMm === 58 ? 29 : 44;
-  let height = widthMm === 58 ? 112 : 100;
+  let height = widthMm === 58 ? 115 : 103;
   for (const item of items) {
     const identity = `Code (SKU) ${item.sku}${item.serialNo ? ` / Device no. ${item.serialNo}` : ''}`;
     height += 9;
@@ -128,6 +143,7 @@ function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { install
     if (item.warrantyDays || item.warrantyMonths) height += 3.2;
   }
   if (sale.tradeInDetails) height += 20 + wrappedLines(sale.tradeInDetails.productName, chars) * 3.2;
+  if (sale.reference) height += wrappedLines(`Ref: ${sale.reference}`, chars) * 3;
   if (emi) height += 20 + Math.ceil(emi.installments.length / (widthMm === 58 ? 2 : 3)) * 4.2;
   if (sale.note) height += 8 + wrappedLines(sale.note, chars) * 3.2;
   if (sale.status === 'VOIDED') height += 15 + wrappedLines(sale.voidReason, chars) * 3.2;
@@ -139,33 +155,36 @@ function InvoiceDocument({
   items,
   shop,
   emi,
+  settlements,
 }: {
   sale: Sale;
   items: InvoiceItem[];
-  shop: { name: string; address: string | null; phone: string | null; policy: string | null };
+  shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null };
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null;
+  settlements: SaleSettlement[];
 }) {
   const collectibleTotal = Math.max(0, sale.total - sale.tradeInCredit);
   const paidAmount = Math.min(collectibleTotal, Math.max(0, sale.amountPaid ?? 0));
-  const amountDue = Math.max(0, collectibleTotal - paidAmount);
+  const amountDue = regularInvoiceAmountDue(sale);
+  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
   const tradeInCashPayout = Math.max(0, sale.tradeInCredit - sale.total);
+  const tradeInCashRecovered = recoveredTradeInPayout(settlements);
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
-  const invoicePaymentStatus = rawEmiStatus
-    ? rawEmiStatus === 'PAID' || rawEmiStatus === 'SETTLED_EARLY' ? 'PAID' : 'ACTIVE'
-    : sale.paymentStatus;
   const paymentBadge = sale.status === 'VOIDED'
     ? null
     : rawEmiStatus
-      ? `EMI / ${invoicePaymentStatus}`
-      : invoicePaymentStatus === 'UNPAID'
+      ? `EMI / ${rawEmiStatus.replaceAll('_', ' ')}`
+      : sale.paymentStatus === 'UNPAID'
         ? 'UNPAID'
-        : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus.replaceAll('_', ' ')}`;
+        : `${sale.paymentMethod.replaceAll('_', ' ')} / ${sale.paymentStatus.replaceAll('_', ' ')}`;
   return (
     <Document title={sale.invoiceNumber} author={shop.name}>
       <Page size="A4" style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Image src={SHOP_LOGO_DATA_URI} style={styles.logo} />
+            {shop.logoDataUri
+              ? <Image src={shop.logoDataUri} style={styles.logo} />
+              : <Text style={styles.shopName}>{shop.name}</Text>}
             {shop.address && <Text style={styles.muted}>{shop.address}</Text>}
             {shop.phone && <Text style={styles.muted}>{shop.phone}</Text>}
           </View>
@@ -223,7 +242,7 @@ function InvoiceDocument({
           {emi ? (
             <>
               <View style={styles.summaryRow}><Text>Down payment</Text><Text>{money(emi.contract.downPayment)}</Text></View>
-              <View style={[styles.summaryRow, styles.total]}><Text>Outstanding</Text><Text>{money(emi.contract.financedAmount)}</Text></View>
+              <View style={[styles.summaryRow, styles.total]}><Text>Outstanding</Text><Text>{money(emiAmountDue)}</Text></View>
             </>
           ) : (
             <>
@@ -279,6 +298,7 @@ function InvoiceDocument({
                 {sale.voidedAt ? dateTime(sale.voidedAt) : 'Recorded'}
                 {sale.voidedByName ? ` by ${sale.voidedByName}` : ''}. Reason: {sale.voidReason ?? 'Not recorded'}.
                 {' '}Refund: {money(sale.refundAmount ?? 0)}{sale.refundMethod ? ` via ${sale.refundMethod.replaceAll('_', ' ')}` : ''}.
+                {tradeInCashRecovered > 0 ? ` Trade-in cash recovered: ${money(tradeInCashRecovered)}.` : ''}
               </Text>
             </View>
           )}
@@ -299,24 +319,26 @@ function ThermalInvoiceDocument({
   shop,
   emi,
   widthMm,
+  settlements,
 }: {
   sale: Sale;
   items: InvoiceItem[];
-  shop: { name: string; address: string | null; phone: string | null; policy: string | null };
+  shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null };
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null;
   widthMm: 58 | 80;
+  settlements: SaleSettlement[];
 }) {
   const collectibleTotal = Math.max(0, sale.total - sale.tradeInCredit);
   const paidAmount = Math.min(collectibleTotal, Math.max(0, sale.amountPaid ?? 0));
-  const amountDue = Math.max(0, collectibleTotal - paidAmount);
+  const amountDue = regularInvoiceAmountDue(sale);
+  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
-  const paymentStatus = rawEmiStatus
-    ? rawEmiStatus === 'PAID' || rawEmiStatus === 'SETTLED_EARLY' ? 'PAID' : 'ACTIVE'
-    : sale.paymentStatus;
   const badge = sale.status === 'VOIDED'
     ? null
-    : rawEmiStatus ? `EMI / ${paymentStatus}` : paymentStatus === 'UNPAID' ? 'UNPAID' : `${sale.paymentMethod.replaceAll('_', ' ')} / ${paymentStatus}`;
+    : rawEmiStatus ? `EMI / ${rawEmiStatus.replaceAll('_', ' ')}` : sale.paymentStatus === 'UNPAID' ? 'UNPAID' : `${sale.paymentMethod.replaceAll('_', ' ')} / ${sale.paymentStatus.replaceAll('_', ' ')}`;
   const heightMm = thermalInvoiceHeightMm(sale, items, emi, widthMm);
+  const tradeInCashPayout = Math.max(0, sale.tradeInCredit - sale.total);
+  const tradeInCashRecovered = recoveredTradeInPayout(settlements);
 
   return <Document title={sale.invoiceNumber} author={shop.name}>
     <Page
@@ -324,23 +346,30 @@ function ThermalInvoiceDocument({
       style={[thermalStyles.page, widthMm === 58 ? thermalStyles.page58 : thermalStyles.page80]}
       wrap={false}
     >
-      <Image
-        src={SHOP_LOGO_DATA_URI}
-        style={[thermalStyles.logo, widthMm === 58 ? thermalStyles.logo58 : thermalStyles.logo80]}
-      />
+      {shop.logoDataUri
+        ? <Image src={shop.logoDataUri} style={[thermalStyles.logo, widthMm === 58 ? thermalStyles.logo58 : thermalStyles.logo80]} />
+        : <Text style={thermalStyles.shopName}>{shop.name}</Text>}
       <Text style={[thermalStyles.title, sale.status === 'VOIDED' ? thermalStyles.voided : {}]}>
         {sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}
       </Text>
       <Text style={[thermalStyles.muted, thermalStyles.centered]}>{sale.invoiceNumber}</Text>
       {badge && <Text style={thermalStyles.badge}>{badge}</Text>}
-      <View style={thermalStyles.divider} />
-      <View style={thermalStyles.section}>
-        <Text style={thermalStyles.label}>Customer</Text>
-        <Text>{sale.customerName ?? 'Walk-in customer'}</Text>
-        {sale.customerPhone && <Text style={thermalStyles.muted}>{sale.customerPhone}</Text>}
-        <Text style={[thermalStyles.label, { marginTop: 4 }]}>Date</Text>
-        <Text>{dateTime(sale.completedAt)}</Text>
-        <Text style={thermalStyles.muted}>Served by {sale.actorName}</Text>
+      <View style={thermalStyles.servedBy}>
+        <Text style={thermalStyles.servedByLabel}>Served By</Text>
+        <Text style={thermalStyles.servedByName}>{sale.actorName}</Text>
+      </View>
+      <View style={[thermalStyles.divider, thermalStyles.headerDivider]} />
+      <View style={[thermalStyles.section, widthMm === 80 ? thermalStyles.metaRow : {}]}>
+        <View style={widthMm === 80 ? thermalStyles.metaColumn : {}}>
+          <Text style={thermalStyles.label}>Customer</Text>
+          <Text>{sale.customerName ?? 'Walk-in customer'}</Text>
+          {sale.customerPhone && <Text style={thermalStyles.muted}>{sale.customerPhone}</Text>}
+        </View>
+        <View style={[widthMm === 80 ? thermalStyles.metaColumn : {}, widthMm === 58 ? thermalStyles.metaDate58 : {}]}>
+          <Text style={thermalStyles.label}>Date</Text>
+          <Text>{dateTime(sale.completedAt)}</Text>
+          {sale.reference && <Text style={thermalStyles.muted}>Ref: {sale.reference}</Text>}
+        </View>
       </View>
       <View style={thermalStyles.divider} />
       <View style={thermalStyles.itemHeader}>
@@ -368,7 +397,7 @@ function ThermalInvoiceDocument({
       <View style={thermalStyles.summary} wrap={false}>
         {emi ? <>
           <View style={thermalStyles.line}><Text>Down payment</Text><Text>{money(emi.contract.downPayment)}</Text></View>
-          <View style={thermalStyles.totalLine}><Text>Outstanding</Text><Text>{money(emi.contract.financedAmount)}</Text></View>
+          <View style={thermalStyles.totalLine}><Text>Outstanding</Text><Text>{money(emiAmountDue)}</Text></View>
           <View style={thermalStyles.box} wrap={false}>
             <Text style={thermalStyles.label}>Payment plan</Text>
             <Text>{emi.contract.termMonths} monthly installments</Text>
@@ -377,6 +406,7 @@ function ThermalInvoiceDocument({
         </> : <>
           <View style={thermalStyles.totalLine}><Text>Total</Text><Text>{money(sale.total)}</Text></View>
           {sale.tradeInCredit > 0 && <View style={thermalStyles.line}><Text>Trade-in credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>}
+          {tradeInCashPayout > 0 && <View style={thermalStyles.line}><Text>Trade-in cash payout</Text><Text>{money(tradeInCashPayout)}</Text></View>}
           {collectibleTotal > 0 && <View style={thermalStyles.line}><Text>Paid amount</Text><Text>{money(paidAmount)}</Text></View>}
           {collectibleTotal > 0 && <View style={thermalStyles.totalLine}><Text>Amount due</Text><Text>{money(amountDue)}</Text></View>}
         </>}
@@ -384,7 +414,11 @@ function ThermalInvoiceDocument({
       {sale.note && <View style={thermalStyles.box}><Text style={thermalStyles.label}>Note</Text><Text>{sale.note}</Text></View>}
       {sale.status === 'VOIDED' && <View style={thermalStyles.box}>
         <Text style={[thermalStyles.label, thermalStyles.voided]}>Voided</Text>
-        <Text style={thermalStyles.voided}>{sale.voidReason ?? 'Reason not recorded'}</Text>
+        <Text style={thermalStyles.voided}>
+          {sale.voidedAt ? dateTime(sale.voidedAt) : 'Recorded'}{sale.voidedByName ? ` by ${sale.voidedByName}` : ''}.
+          {' '}Reason: {sale.voidReason ?? 'Not recorded'}. Refund: {money(sale.refundAmount ?? 0)}{sale.refundMethod ? ` via ${sale.refundMethod.replaceAll('_', ' ')}` : ''}.
+          {tradeInCashRecovered > 0 ? ` Trade-in cash recovered: ${money(tradeInCashRecovered)}.` : ''}
+        </Text>
       </View>}
       {shop.policy && <Text style={[thermalStyles.muted, { marginTop: 7 }]}>{shop.policy}</Text>}
     </Page>
@@ -394,18 +428,20 @@ function ThermalInvoiceDocument({
 export async function invoiceToPdf(
   sale: Sale,
   items: InvoiceItem[],
-  shop: { name: string; address: string | null; phone: string | null; policy: string | null },
+  shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null },
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null = null,
+  settlements: SaleSettlement[] = [],
 ): Promise<Buffer> {
-  return renderToBuffer(<InvoiceDocument sale={sale} items={items} shop={shop} emi={emi} />);
+  return renderToBuffer(<InvoiceDocument sale={sale} items={items} shop={shop} emi={emi} settlements={settlements} />);
 }
 
 export async function invoiceToThermalPdf(
   sale: Sale,
   items: InvoiceItem[],
-  shop: { name: string; address: string | null; phone: string | null; policy: string | null },
+  shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null },
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null,
   widthMm: 58 | 80,
+  settlements: SaleSettlement[] = [],
 ): Promise<Buffer> {
-  return renderToBuffer(<ThermalInvoiceDocument sale={sale} items={items} shop={shop} emi={emi} widthMm={widthMm} />);
+  return renderToBuffer(<ThermalInvoiceDocument sale={sale} items={items} shop={shop} emi={emi} widthMm={widthMm} settlements={settlements} />);
 }

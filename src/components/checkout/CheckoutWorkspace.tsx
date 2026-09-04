@@ -61,7 +61,6 @@ import { formatBDT, toTaka } from "@/lib/money";
 import { useI18n } from "@/components/i18n/I18nProvider";
 import { domainLabel } from "@/lib/i18n/domain";
 import { emiCheckoutFieldsSchema, regularCheckoutPaymentSchema } from "@/schemas";
-import { SHOP_LOGO_DATA_URI } from "@/lib/shop-branding";
 
 export interface CheckoutProductOption {
   id: string;
@@ -393,6 +392,7 @@ function CartLineEditor({
 export function CheckoutWorkspace({
   cart,
   shopName,
+  shopLogoDataUri,
   initialIdentifier,
   lines,
   products,
@@ -402,6 +402,7 @@ export function CheckoutWorkspace({
 }: {
   cart: CartDraft;
   shopName: string;
+  shopLogoDataUri: string | null;
   initialIdentifier?: string;
   lines: CheckoutLine[];
   products: CheckoutProductOption[];
@@ -1579,15 +1580,11 @@ export function CheckoutWorkspace({
                     <article className="mx-auto max-w-3xl rounded-[3px] border border-rule bg-card p-4 sm:p-6">
                       <header className="flex items-start justify-between gap-4 border-b border-ink pb-4">
                         <div>
-                          <h3 className="sr-only">{shopName}</h3>
-                          <Image
-                            src={SHOP_LOGO_DATA_URI}
-                            alt={shopName}
-                            width={600}
-                            height={400}
-                            unoptimized
-                            className="h-auto w-[120px] sm:w-[150px]"
-                          />
+                          {shopLogoDataUri ? (
+                            <Image src={shopLogoDataUri} alt={shopName} width={600} height={400} unoptimized className="h-auto w-[120px] sm:w-[150px]" />
+                          ) : (
+                            <h3 className="text-[20px] font-semibold tracking-[-0.01em]">{shopName}</h3>
+                          )}
                           <p className="mt-1 text-[11px] uppercase tracking-[0.14em] text-graphite">
                             {t("checkout.invoicePreview")}
                           </p>

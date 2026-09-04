@@ -12,13 +12,15 @@ import { Button } from '@/components/ui';
 import { PAYMENT_METHODS, type EmiContract, type EmiEarlySettlement, type EmiInstallment, type EmiPayment, type InvoiceItem, type Sale, type SaleSettlement } from '@/domain/types';
 import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
+import { domainLabel } from '@/lib/i18n/domain';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
 import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
-import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
 import { thermalPageHeightMm } from '@/lib/thermal-print-page';
+import { emiInvoiceAmountDue, regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
 
 export interface InvoiceShop {
   name: string;
+  logoDataUri: string | null;
   address: string | null;
   phone: string | null;
   policy: string | null;
@@ -45,6 +47,7 @@ export function InvoiceView({
   items,
   shop,
   canVoid,
+  canCollectPayment,
   emi,
   settlements,
 }: {
@@ -52,6 +55,7 @@ export function InvoiceView({
   items: InvoiceItem[];
   shop: InvoiceShop;
   canVoid: boolean;
+  canCollectPayment: boolean;
   settlements: SaleSettlement[];
   emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null; payments: EmiPayment[] } | null;
 }) {
@@ -114,21 +118,29 @@ export function InvoiceView({
     };
   }, [layout]);
 
-  const activeEmiPayments = emi?.payments.filter((payment) => payment.status === 'ACTIVE') ?? [];
   const refundAmount = emi
     ? emiVoidRefundAmount(emi.contract, emi.payments)
     : Math.max(0, sale.amountPaid ?? 0);
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
-  const invoicePaymentStatus = rawEmiStatus
-    ? rawEmiStatus === 'PAID' || rawEmiStatus === 'SETTLED_EARLY' ? 'PAID' : 'ACTIVE'
-    : sale.paymentStatus;
   const paymentBadge = sale.status === 'VOIDED'
     ? null
     : rawEmiStatus
-      ? `EMI / ${invoicePaymentStatus}`
-      : invoicePaymentStatus === 'UNPAID'
+      ? `EMI / ${rawEmiStatus.replaceAll('_', ' ')}`
+      : sale.paymentStatus === 'UNPAID'
         ? 'UNPAID'
-      : `${sale.paymentMethod.replaceAll('_', ' ')} / ${invoicePaymentStatus.replaceAll('_', ' ')}`;
+      : `${sale.paymentMethod.replaceAll('_', ' ')} / ${sale.paymentStatus.replaceAll('_', ' ')}`;
+  const tradeInPayoutRecorded = settlements
+    .filter((entry) => entry.type === 'TRADE_IN_PAYOUT')
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const tradeInPayoutRecovered = settlements
+    .filter((entry) => entry.type === 'TRADE_IN_PAYOUT_RECOVERY')
+    .reduce((sum, entry) => sum + entry.amount, 0);
+  const tradeInPayoutToRecover = Math.max(0, tradeInPayoutRecorded - tradeInPayoutRecovered);
+  const regularAmountDue = regularInvoiceAmountDue(sale);
+  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
+  const pdfHref = layout === 'a4'
+    ? `/api/invoices/${sale.id}/pdf`
+    : `/api/invoices/${sale.id}/thermal-pdf?width=${layout === 'thermal58' ? 58 : 80}`;
   const printPageSize = layout === 'a4'
     ? 'A4 portrait'
     : `${layout === 'thermal58' ? 58 : 80}mm ${thermalPageHeight}mm`;
@@ -191,14 +203,14 @@ export function InvoiceView({
             <p className="text-[11px] text-graphite">{t('invoice.reprintHelp')}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-          <Link
-            href="/invoices"
-            className="inline-flex h-9 items-center rounded-[3px] border border-slate-600 bg-slate-600 px-3.5 text-[13px] font-medium text-white transition-colors hover:border-slate-800 hover:bg-slate-800"
-          >
-            {t('invoice.backToInvoices')}
-          </Link>
-          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              href="/invoices"
+              className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3.5 text-[13px] font-medium transition-colors hover:bg-plate"
+            >
+              {t('invoice.backToInvoices')}
+            </Link>
             <select
+              aria-label={t('invoice.layout')}
               value={layout}
               onChange={(event) => setLayout(event.target.value as 'a4' | 'thermal80' | 'thermal58')}
               className="h-9 rounded-[3px] border border-rule bg-card px-2.5 text-[13px]"
@@ -211,39 +223,34 @@ export function InvoiceView({
               {printPending ? t('invoice.preparing') : t('invoice.print')}
             </Button>
             <a
-              href={`/api/invoices/${sale.id}/pdf`}
+              href={pdfHref}
               className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3.5 text-[13px] font-medium"
             >
               {t('invoice.downloadPdf')}
             </a>
-          </div>
-          {canVoid && (
-            <Button type="button" variant="danger" onClick={openVoidDialog}>
-              {t('invoice.voidInvoice')}
-            </Button>
-          )}
+            {canVoid && (
+              <Button type="button" variant="danger" onClick={openVoidDialog}>
+                {t('invoice.voidInvoice')}
+              </Button>
+            )}
           </div>
         </div>
         {printError && <p className="mb-3 text-[12px] text-out">{message(printError)}</p>}
       </div>
 
       {!emi && (sale.status === 'COMPLETED' || settlements.length > 0) && (
-        <InvoicePaymentCollection sale={sale} settlements={settlements} />
+        <InvoicePaymentCollection sale={sale} settlements={settlements} canCollect={canCollectPayment} />
       )}
 
       <div className="invoice-preview-viewport scrollbar-hint" tabIndex={0} aria-label={t('invoice.previewAria')}>
-        <article ref={invoiceDocumentRef} className="invoice-document">
+        <article ref={invoiceDocumentRef} className="invoice-document" lang="en">
           <header className="invoice-header">
             <div className="invoice-shop-brand">
-              <h1 className="sr-only">{shop.name}</h1>
-              <Image
-                className="invoice-shop-logo"
-                src={SHOP_LOGO_DATA_URI}
-                alt={shop.name}
-                width={600}
-                height={400}
-                unoptimized
-              />
+              {shop.logoDataUri ? (
+                <Image className="invoice-shop-logo" src={shop.logoDataUri} alt={shop.name} width={600} height={400} unoptimized />
+              ) : (
+                <h1>{shop.name}</h1>
+              )}
               {shop.address && <p>{shop.address}</p>}
               {shop.phone && <p>{shop.phone}</p>}
             </div>
@@ -251,6 +258,10 @@ export function InvoiceView({
               <strong>{sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}</strong>
               <span className="tnum">{sale.invoiceNumber}</span>
               {paymentBadge && <span className="invoice-payment-badge">{paymentBadge}</span>}
+            </div>
+            <div className="invoice-served-by-thermal">
+              <strong>Served By</strong>
+              <span>{sale.actorName}</span>
             </div>
           </header>
 
@@ -263,7 +274,7 @@ export function InvoiceView({
             <div>
               <span>Date</span>
               <strong>{dateTime(sale.completedAt)}</strong>
-              <p>Served by {sale.actorName}</p>
+              <p className="invoice-served-by-standard">Served by {sale.actorName}</p>
               {sale.reference && <p>Ref: {sale.reference}</p>}
             </div>
           </section>
@@ -313,7 +324,7 @@ export function InvoiceView({
               {emi ? (
                 <>
                   <div><dt>Down payment</dt><dd className="tnum">{formatBDT(emi.contract.downPayment)}</dd></div>
-                  <div className="invoice-total"><dt>Outstanding</dt><dd className="tnum">{formatBDT(emi.contract.financedAmount)}</dd></div>
+                  <div className="invoice-total"><dt>Outstanding</dt><dd className="tnum">{formatBDT(emiAmountDue)}</dd></div>
                 </>
               ) : (
                 <>
@@ -329,7 +340,7 @@ export function InvoiceView({
                   {Math.max(0, sale.total - sale.tradeInCredit) > 0 && (
                     <>
                       <div><dt>Paid amount</dt><dd className="tnum">{formatBDT(sale.amountPaid ?? 0)}</dd></div>
-                      <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(Math.max(0, sale.total - sale.tradeInCredit - (sale.amountPaid ?? 0)))}</dd></div>
+                      <div className="invoice-total"><dt>Amount due</dt><dd className="tnum">{formatBDT(regularAmountDue)}</dd></div>
                     </>
                   )}
                 </>
@@ -339,7 +350,7 @@ export function InvoiceView({
 
           {emi && (
             <section className="invoice-trade-in">
-              <span>{t('emi.schedule')}</span>
+              <span>Installment schedule</span>
               <p>{emi.installments.map((row) => `#${row.sequence} ${new Date(row.dueDate).toLocaleDateString('en-GB')} ${formatBDT(row.amountDue)}`).join(' · ')}</p>
             </section>
           )}
@@ -347,9 +358,9 @@ export function InvoiceView({
           {(emi || sale.note || sale.status === 'VOIDED') && <section className="invoice-payment">
             {emi ? (
               <div>
-                <p><span>{t('emi.paymentPlanLabel')}</span> {t('checkout.shopManagedEmi')}</p>
+                <p><span>Payment plan:</span> Shop-managed EMI</p>
                 <p><span>Installments:</span> {emi.contract.termMonths} monthly installments</p>
-                <p><span>{t('checkout.firstInstallmentDate')}:</span> {dateOnly(emi.contract.firstDueDate)}</p>
+                <p><span>First installment date:</span> {dateOnly(emi.contract.firstDueDate)}</p>
               </div>
             ) : null}
             {sale.note && <p><span>Note:</span> {sale.note}</p>}
@@ -376,6 +387,7 @@ export function InvoiceView({
           role="dialog"
           aria-modal="true"
           aria-labelledby="void-invoice-title"
+          onKeyDown={(event) => { if (event.key === 'Escape' && !voidPending) setShowVoid(false); }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget && !voidPending) setShowVoid(false);
           }}
@@ -384,20 +396,20 @@ export function InvoiceView({
             <input type="hidden" name="saleId" value={sale.id} />
             <input type="hidden" name="idempotencyKey" value={voidKey} />
             <div className="border-b border-rule p-5">
-              <h2 id="void-invoice-title" className="text-[18px] font-semibold text-out">Void {sale.invoiceNumber}?</h2>
+              <h2 id="void-invoice-title" className="text-[18px] font-semibold text-out">{t('invoice.voidTitle', { invoice: sale.invoiceNumber })}</h2>
               <p className="mt-2 text-[13px] text-graphite">
-                This reverses the complete sale. Sold stock will be restored, financial metrics will receive opposing entries, and this invoice will remain permanently marked VOIDED.
+                {t('invoice.voidHelp')}
               </p>
             </div>
             <div className="space-y-4 p-5">
               <div className="rounded-[3px] border border-out/30 bg-out/5 p-3 text-[13px]">
-                <p><strong>{items.length}</strong> invoice line{items.length === 1 ? '' : 's'} will be reversed.</p>
-                {emi && <p className="mt-1"><strong>{activeEmiPayments.length}</strong> active installment receipt{activeEmiPayments.length === 1 ? '' : 's'} will be marked REVERSED.</p>}
-                {sale.tradeInDetails && <p className="mt-1">The trade-in device must be returned to the customer and will leave available inventory.</p>}
-                <p className="mt-1">Refund to record: <strong>{formatBDT(refundAmount)}</strong></p>
+                <p>{t('invoice.voidLines', { count: items.length })}</p>
+                {sale.tradeInDetails && <p className="mt-1">{t('invoice.voidTradeIn')}</p>}
+                {tradeInPayoutToRecover > 0 && <p className="mt-1">{t('invoice.voidPayoutRecovery', { amount: formatBDT(tradeInPayoutToRecover) })}</p>}
+                <p className="mt-1">{t('invoice.voidRefund', { amount: formatBDT(refundAmount) })}</p>
               </div>
               <label className="block">
-                <span className="eyebrow mb-1.5 block">Reason for voiding</span>
+                <span className="eyebrow mb-1.5 block">{t('invoice.voidReason')}</span>
                 <textarea
                   name="reason"
                   value={voidFields.reason}
@@ -407,7 +419,7 @@ export function InvoiceView({
                   maxLength={1000}
                   autoFocus
                   className="min-h-24 w-full rounded-[3px] border border-rule bg-card px-3 py-2 text-[13px] outline-none focus:border-signal"
-                  placeholder="For example, wrong device or incorrect selling price"
+                  placeholder={t('invoice.voidReasonPlaceholder')}
                 />
                 {(clientVoidErrors.reason ?? (!hideServerVoidErrors ? voidState.fieldErrors?.reason : undefined)) && (
                   <span className="mt-1 block text-[12px] text-out">{clientVoidErrors.reason ?? voidState.fieldErrors?.reason}</span>
@@ -415,7 +427,7 @@ export function InvoiceView({
               </label>
               {refundAmount > 0 && (
                 <label className="block">
-                  <span className="eyebrow mb-1.5 block">Refund method</span>
+                  <span className="eyebrow mb-1.5 block">{t('invoice.voidRefundMethod')}</span>
                   <select
                     name="refundMethod"
                     required
@@ -424,7 +436,7 @@ export function InvoiceView({
                     className="h-10 w-full rounded-[3px] border border-rule bg-card px-3 text-[13px]"
                   >
                     {PAYMENT_METHODS.map((method) => (
-                      <option key={method} value={method}>{method.replaceAll('_', ' ')}</option>
+                      <option key={method} value={method}>{domainLabel(t, method)}</option>
                     ))}
                   </select>
                   {(clientVoidErrors.refundMethod ?? (!hideServerVoidErrors ? voidState.fieldErrors?.refundMethod : undefined)) && (
@@ -443,7 +455,7 @@ export function InvoiceView({
                     required
                     className="mt-0.5"
                   />
-                  <span>I have verified the invoice, customer refund, and physical items. I understand this action cannot be undone by deleting records.</span>
+                  <span>{t(tradeInPayoutToRecover > 0 ? 'invoice.voidConfirmWithRecovery' : 'invoice.voidConfirm')}</span>
                 </label>
                 {(clientVoidErrors.confirmed ?? (!hideServerVoidErrors ? voidState.fieldErrors?.confirmed : undefined)) && (
                   <p className="mt-1 text-[12px] text-out">{clientVoidErrors.confirmed ?? voidState.fieldErrors?.confirmed}</p>
@@ -452,9 +464,9 @@ export function InvoiceView({
               {!hideServerVoidErrors && voidState.error && <p className="text-[12px] text-out">{message(voidState.error)}</p>}
             </div>
             <div className="flex flex-wrap justify-end gap-2 border-t border-rule p-4">
-              <Button type="button" variant="ghost" onClick={() => setShowVoid(false)} disabled={voidPending}>Cancel</Button>
+              <Button type="button" variant="ghost" onClick={() => setShowVoid(false)} disabled={voidPending}>{t('common.cancel')}</Button>
               <Button type="submit" variant="danger" disabled={voidPending}>
-                {voidPending ? 'Voiding invoice…' : 'Confirm complete void'}
+                {voidPending ? t('invoice.voiding') : t('invoice.confirmVoid')}
               </Button>
             </div>
           </form>
@@ -467,6 +479,7 @@ export function InvoiceView({
           role="dialog"
           aria-modal="true"
           aria-labelledby="void-result-title"
+          onKeyDown={(event) => { if (event.key === 'Escape') setVoidResult(null); }}
           onMouseDown={(event) => {
             if (event.target === event.currentTarget) setVoidResult(null);
           }}

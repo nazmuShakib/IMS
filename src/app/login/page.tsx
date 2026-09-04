@@ -4,6 +4,8 @@ import { cookies } from 'next/headers';
 import { LanguageSwitcher } from '@/components/i18n/LanguageSwitcher';
 import { LOCALE_COOKIE, normalizeLocale } from '@/lib/i18n/config';
 import { translate } from '@/lib/i18n/messages';
+import Image from 'next/image';
+import { TOPBAR_LOGO_SRC } from '@/lib/shop-branding';
 
 export default async function LoginPage({
   searchParams,
@@ -19,7 +21,7 @@ export default async function LoginPage({
       <div className="w-full max-w-sm">
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
-            <p className="eyebrow">{t('shell.shop')}</p>
+            <Image src={TOPBAR_LOGO_SRC} alt="Irfan Gadget & Mobile" width={1055} height={345} priority unoptimized className="h-auto w-[170px]" />
             <h1 className="mt-1 text-[24px] font-semibold">{t('auth.signInTitle')}</h1>
           </div>
           <LanguageSwitcher locale={locale} compact />

@@ -234,7 +234,8 @@ export interface SaleRepository {
   nextInvoiceNumber(now: Date): Promise<string>;
   findAll(limit?: number): Promise<Sale[]>;
   findVoidedByDateRange(from: Date, to: Date): Promise<Sale[]>;
-  search(filters: SaleFilters, limit?: number): Promise<Sale[]>;
+  count(filters: SaleFilters): Promise<number>;
+  search(filters: SaleFilters, limit?: number | null, offset?: number): Promise<Sale[]>;
   findById(id: string): Promise<Sale | null>;
   findByInvoiceNumber(invoiceNumber: string): Promise<Sale | null>;
   findByIdempotencyKey(key: string): Promise<Sale | null>;
@@ -243,6 +244,7 @@ export interface SaleRepository {
   updatePayment(id: string, expectedAmountPaid: Paisa, patch: Pick<Sale, 'amountPaid' | 'paymentStatus' | 'paymentMethod'>): Promise<Sale>;
   markVoided(
     id: string,
+    expectedAmountPaid: Paisa,
     patch: Pick<Sale, 'status' | 'voidedAt' | 'voidedById' | 'voidedByName' | 'voidReason' | 'refundAmount' | 'refundMethod' | 'voidIdempotencyKey'>,
   ): Promise<Sale>;
   createItem(value: SaleItem): Promise<SaleItem>;
@@ -260,11 +262,13 @@ export interface EmiRepository {
   nextContractNumber(now: Date): Promise<string>;
   nextReceiptNumber(now: Date): Promise<string>;
   findContracts(): Promise<EmiContract[]>;
+  findContractsBySales(saleIds: string[]): Promise<EmiContract[]>;
   findContractById(id: string): Promise<EmiContract | null>;
   findContractBySale(saleId: string): Promise<EmiContract | null>;
   createContract(value: EmiContract): Promise<EmiContract>;
   updateContract(id: string, patch: Partial<Pick<EmiContract, 'status' | 'completedAt' | 'voidedAt' | 'updatedAt'>>): Promise<EmiContract>;
   findInstallments(contractId: string): Promise<EmiInstallment[]>;
+  findInstallmentsByContracts(contractIds: string[]): Promise<EmiInstallment[]>;
   createInstallment(value: EmiInstallment): Promise<EmiInstallment>;
   updateInstallment(id: string, patch: Partial<Pick<EmiInstallment, 'amountDue' | 'amountPaid' | 'status' | 'paidAt' | 'updatedAt'>>): Promise<EmiInstallment>;
   findPayments(contractId: string): Promise<EmiPayment[]>;
@@ -274,6 +278,7 @@ export interface EmiRepository {
   findAllocations(paymentId: string): Promise<EmiPaymentAllocation[]>;
   createAllocation(value: EmiPaymentAllocation): Promise<EmiPaymentAllocation>;
   findEarlySettlement(contractId: string): Promise<EmiEarlySettlement | null>;
+  findEarlySettlementsByContracts(contractIds: string[]): Promise<EmiEarlySettlement[]>;
   createEarlySettlement(value: EmiEarlySettlement): Promise<EmiEarlySettlement>;
 }
 
@@ -332,6 +337,7 @@ export interface WarrantyRepository {
 export interface TransactionOptions {
   maxWait?: number;
   timeout?: number;
+  isolationLevel?: 'Serializable';
 }
 
 export type Transactor = <T>(

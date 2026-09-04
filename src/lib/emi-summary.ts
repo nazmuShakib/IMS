@@ -17,17 +17,16 @@ export function emiOutstanding(
 }
 
 /**
- * Cash that must be returned when an EMI invoice is voided. Trade-in credit is
- * deliberately excluded because that device is returned through the stock
- * correction workflow instead of being treated as cash paid by the customer.
+ * Cash that must be returned when an eligible EMI invoice is voided. An EMI
+ * invoice becomes ineligible for automatic voiding as soon as an installment
+ * receipt exists, so only the original down payment can be refunded here.
+ * Trade-in credit is excluded because the device is returned through stock.
  */
 export function emiVoidRefundAmount(
   contract: Pick<EmiContract, 'downPayment'>,
-  payments: Pick<EmiPayment, 'amount' | 'status'>[],
+  _payments: Pick<EmiPayment, 'amount' | 'status'>[],
 ): number {
-  return contract.downPayment + payments
-    .filter((payment) => payment.status === 'ACTIVE')
-    .reduce((sum, payment) => sum + payment.amount, 0);
+  return contract.downPayment;
 }
 
 export function emiOverdueAmount(

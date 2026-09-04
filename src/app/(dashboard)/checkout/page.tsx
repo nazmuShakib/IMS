@@ -4,6 +4,7 @@ import { getSession, requirePageCapability } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { db } from '@/repositories';
 import { getOrCreateCart } from '@/services/checkout';
+import { INVOICE_LOGO_SRC } from '@/lib/shop-branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,7 +38,8 @@ export default async function CheckoutPage({
       <CheckoutWorkspace
         key={serial || 'checkout'}
         cart={cart}
-        shopName={process.env.SHOP_NAME?.trim() || 'Electronics Shop'}
+        shopName={process.env.SHOP_NAME?.trim() || 'Irfan Gadget & Mobile'}
+        shopLogoDataUri={process.env.SHOP_LOGO_DATA_URI?.trim() || INVOICE_LOGO_SRC}
         initialIdentifier={serial}
         lines={[]}
         products={products.map((product) => ({

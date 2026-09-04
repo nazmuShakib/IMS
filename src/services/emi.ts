@@ -121,7 +121,7 @@ export async function recordEmiPayment(raw: {
     }
     if (payment.amount === outstanding) await tx.emi.updateContract(contract.id, { status: 'PAID', completedAt: now, updatedAt: now });
     return payment;
-  });
+  }, { isolationLevel: 'Serializable' });
 }
 
 export async function settleEmiEarly(raw: {
@@ -182,7 +182,7 @@ export async function settleEmiEarly(raw: {
     }
     await tx.emi.updateContract(contract.id, { status: 'PAID', completedAt: now, updatedAt: now });
     return payment;
-  });
+  }, { isolationLevel: 'Serializable' });
 }
 
 export async function refreshEmiStatuses(repositories: Repositories = db): Promise<void> {

@@ -59,6 +59,7 @@ export default async function InvoicesPage({
   const paymentMethod = one(raw, 'paymentMethod');
   const minTotal = one(raw, 'minTotal');
   const maxTotal = one(raw, 'maxTotal');
+  const requestedPage = Math.max(1, Number.parseInt(one(raw, 'page'), 10) || 1);
   const confirmedFilters: InvoiceFilterValues = {
     q: query,
     status,
@@ -96,20 +97,35 @@ export default async function InvoicesPage({
     && filters.maxTotal !== undefined
     && filters.minTotal > filters.maxTotal;
   const invalidDateRange = filters.from && filters.to && filters.from > filters.to;
+  const pageSize = 50;
   const usersPromise = db.users.findAll();
-  const candidateSales = invalidPriceRange || invalidDateRange
+  const totalCount = invalidPriceRange || invalidDateRange
+    ? 0
+    : await db.sales.count(filters);
+  const pageCount = Math.max(1, Math.ceil(totalCount / pageSize));
+  const page = Math.min(requestedPage, pageCount);
+  const sales = invalidPriceRange || invalidDateRange
     ? []
-    : await db.sales.search({ ...filters, paymentStatus: undefined }, 500);
-  const candidateSalesById = new Map(candidateSales.map((sale) => [sale.id, sale]));
-  const visibleSaleIds = new Set(candidateSales.map((sale) => sale.id));
-  const emiContracts = (await db.emi.findContracts()).filter((contract) => visibleSaleIds.has(contract.saleId));
-  const emiSummaries = await Promise.all(emiContracts.map(async (contract) => {
-    const [installments, earlySettlement] = await Promise.all([
-      db.emi.findInstallments(contract.id),
-      db.emi.findEarlySettlement(contract.id),
-    ]);
+    : await db.sales.search(filters, pageSize, (page - 1) * pageSize);
+  const saleById = new Map(sales.map((sale) => [sale.id, sale]));
+  const emiContracts = await db.emi.findContractsBySales(sales.map((sale) => sale.id));
+  const contractIds = emiContracts.map((contract) => contract.id);
+  const [allInstallments, earlySettlements] = await Promise.all([
+    db.emi.findInstallmentsByContracts(contractIds),
+    db.emi.findEarlySettlementsByContracts(contractIds),
+  ]);
+  const installmentsByContract = new Map<string, typeof allInstallments>();
+  for (const row of allInstallments) {
+    const rows = installmentsByContract.get(row.contractId);
+    if (rows) rows.push(row);
+    else installmentsByContract.set(row.contractId, [row]);
+  }
+  const earlySettlementByContract = new Map(earlySettlements.map((row) => [row.contractId, row]));
+  const emiSummaries = emiContracts.map((contract) => {
+    const installments = installmentsByContract.get(contract.id) ?? [];
+    const earlySettlement = earlySettlementByContract.get(contract.id) ?? null;
     const displayStatus = emiDisplayStatus(contract, installments, earlySettlement);
-    const sale = candidateSalesById.get(contract.saleId);
+    const sale = saleById.get(contract.saleId);
     if (!sale) return null;
 
     return [contract.saleId, {
@@ -127,17 +143,8 @@ export default async function InvoicesPage({
         },
       ),
     }] as const;
-  }));
+  });
   const emiBySaleId = Object.fromEntries(emiSummaries.filter((summary) => summary !== null));
-  const sales = filters.paymentStatus
-    ? candidateSales.filter((sale) => {
-      const emi = emiBySaleId[sale.id];
-      const effectiveStatus = emi
-        ? emi.paymentStatus
-        : effectiveInvoicePaymentStatus(sale);
-      return effectiveStatus === filters.paymentStatus;
-    })
-    : candidateSales;
   const users = await usersPromise;
 
   return (
@@ -145,7 +152,7 @@ export default async function InvoicesPage({
       <PageHeader
         title={t('invoices.title')}
         count={t('invoices.summary', {
-          count: `${sales.length}${sales.length === 500 ? '+' : ''}`,
+          count: totalCount,
           kind: t(hasFilters ? 'invoices.matching' : 'invoices.recent'),
         })}
         action={<Link href="/checkout" className="rounded-[3px] bg-signal px-3.5 py-2 text-[13px] font-medium text-white">{t('invoices.newCheckout')}</Link>}
@@ -159,6 +166,9 @@ export default async function InvoicesPage({
         invalidDateRange={Boolean(invalidDateRange)}
         invalidPriceRange={invalidPriceRange}
         resultVersion={crypto.randomUUID()}
+        page={page}
+        pageCount={pageCount}
+        totalCount={totalCount}
       />
     </>
   );

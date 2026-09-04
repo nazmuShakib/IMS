@@ -3,7 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { writeAudit } from '@/lib/audit';
+import { requestAuditIp } from '@/lib/audit';
+import { actionErrorMessage } from '@/lib/action-error';
 import { requireCapability } from '@/lib/session';
 import { invoicePaymentCollectionFieldsSchema, type InvoicePaymentCollectionFieldsInput } from '@/schemas';
 import { collectInvoicePayment } from '@/services/sale-settlements';
@@ -29,7 +30,7 @@ export async function collectInvoicePaymentAction(
   _previous: InvoiceCollectionActionState,
   formData: FormData,
 ): Promise<InvoiceCollectionActionState> {
-  const actor = await requireCapability('VIEW_INVOICES');
+  const actor = await requireCapability('RECORD_INVOICE_PAYMENT');
   const parsed = formSchema.safeParse({
     saleId: value(formData, 'saleId'),
     idempotencyKey: value(formData, 'idempotencyKey'),
@@ -52,6 +53,7 @@ export async function collectInvoicePaymentAction(
   }
 
   try {
+    const auditIp = await requestAuditIp();
     const result = await collectInvoicePayment({
       saleId: parsed.data.saleId,
       amount: parsed.data.amount,
@@ -61,20 +63,7 @@ export async function collectInvoicePaymentAction(
       idempotencyKey: parsed.data.idempotencyKey,
       actorId: actor.id,
       actorName: actor.name,
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'sale.payment.collect',
-      entity: 'SaleSettlement',
-      entityId: result.settlement.id,
-      after: {
-        saleId: parsed.data.saleId,
-        receiptNumber: result.settlement.receiptNumber,
-        amount: result.settlement.amount,
-        amountPaid: result.amountPaid,
-        amountDue: result.amountDue,
-        paymentStatus: result.paymentStatus,
-      },
+      auditIp,
     });
     revalidatePath('/');
     revalidatePath('/invoices');
@@ -85,6 +74,6 @@ export async function collectInvoicePaymentAction(
       receiptNumber: result.settlement.receiptNumber,
     };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'The payment could not be recorded.' };
+    return { error: actionErrorMessage(error, 'The payment could not be recorded.') };
   }
 }

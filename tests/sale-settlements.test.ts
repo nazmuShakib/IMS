@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { regularInvoiceCollectible } from '@/services/sale-settlements';
+import { actionErrorMessage } from '@/lib/action-error';
 
 function source(path: string): string {
   return readFileSync(resolve(process.cwd(), path), 'utf8');
@@ -47,11 +48,31 @@ describe('regular invoice collections and trade-in payouts', () => {
     expect(migration).not.toContain('"tradeInCredit" <= "total"');
   });
 
-  it('keeps audit receipt numbers internal and only shows type for mixed payout histories', () => {
+  it('shows immutable receipt numbers and types for mixed payout/recovery histories', () => {
     const history = source('src/components/invoices/InvoicePaymentCollection.tsx');
     expect(history).toContain("entry.type === 'TRADE_IN_PAYOUT'");
-    expect(history).toContain("hasTradeInPayout && <th");
-    expect(history).not.toContain('{entry.receiptNumber}');
+    expect(history).toContain("entry.type === 'TRADE_IN_PAYOUT_RECOVERY'");
+    expect(history).toContain("hasNonCustomerSettlement && <th");
+    expect(history).toContain('{entry.receiptNumber}');
+  });
+
+  it('commits the payment, invoice balance, and audit entry atomically', () => {
+    const service = source('src/services/sale-settlements.ts');
+    const action = source('src/actions/sale-settlements.ts');
+    expect(service).toContain('return db.transaction(async (tx) =>');
+    expect(service).toContain('await tx.auditLogs.create');
+    expect(service).toContain("replay.saleId !== input.saleId");
+    expect(service).toContain("{ isolationLevel: 'Serializable' }");
+    expect(service).toContain('tx.sales.updatePayment(sale.id, previousPaid');
+    expect(action).toContain("requireCapability('RECORD_INVOICE_PAYMENT')");
+  });
+
+  it('turns a transaction serialization conflict into an actionable form error', () => {
+    expect(actionErrorMessage({ code: 'P2034' }, 'fallback')).toBe(
+      'The invoice changed during this request. Refresh and try again.',
+    );
+    expect(actionErrorMessage(new Error('Specific message'), 'fallback')).toBe('Specific message');
+    expect(actionErrorMessage(null, 'fallback')).toBe('fallback');
   });
 
   it('keeps a subtle invoice scrollbar visible before interaction', () => {
