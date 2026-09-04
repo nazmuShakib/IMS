@@ -296,7 +296,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toContain('shrink-0 touch-none');
     expect(workspace).toContain('data-cart-line-id={line.id}');
     expect(workspace).not.toContain('closest(\n                          "input, button, select, textarea, a, label"');
-    expect(workspace).toContain('t("checkout.positionOf"');
+    expect(workspace).not.toContain('t("checkout.positionOf"');
     expect(workspace).toContain('t("checkout.movedPosition"');
     expect(workspace).toContain('window.addEventListener("pointermove", move, true)');
     expect(workspace).toContain('element.animate(');
@@ -306,6 +306,13 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace).toContain("prefers-reduced-motion: reduce");
     expect(workspace).toMatch(/event\.key === ["']ArrowUp["']/);
     expect(workspace).toMatch(/event\.key === ["']ArrowDown["']/);
+  });
+
+  it('labels serialized-unit warranties according to whether the phone is used', () => {
+    const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
+    expect(workspace).toContain("t(line.usedGrade ? 'used.warrantyDuration' : 'stock.warrantyDuration')");
+    expect(workspace.match(/className="mt-1 text-\[11px\] text-charcoal"/g)).toHaveLength(2);
+    expect(workspace.match(/className="flex justify-between text-charcoal"/g)).toHaveLength(2);
   });
 
   it('keeps high-frequency checkout controls visible and scanner feedback recoverable', () => {

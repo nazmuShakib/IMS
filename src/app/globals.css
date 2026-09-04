@@ -13,6 +13,7 @@
 
 @theme {
   --color-ink: #111820; /* primary text */
+  --color-charcoal: #2d3944; /* strong secondary text */
   --color-graphite: #46535f; /* accessible secondary text */
   --color-plate: #e5e9ec; /* application canvas */
   --color-card: #ffffff;

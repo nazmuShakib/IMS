@@ -152,8 +152,6 @@ function CartLineEditor({
   dragging,
   dragDisabled,
   highlighted,
-  position,
-  lineCount,
   onChange,
   onRemove,
   onValidityChange,
@@ -165,8 +163,6 @@ function CartLineEditor({
   dragging: boolean;
   dragDisabled: boolean;
   highlighted: boolean;
-  position: number;
-  lineCount: number;
   onChange: (lineId: string, patch: Pick<CheckoutLine, "quantity" | "actualUnitPrice">) => void;
   onRemove: (lineId: string) => void;
   onValidityChange: (lineId: string, valid: boolean) => void;
@@ -241,20 +237,17 @@ function CartLineEditor({
           </button>
           <div className="min-w-0">
             <p className="text-[13px] font-medium">{line.productName}</p>
-            <p className="tnum text-[11px] text-graphite">{line.sku}</p>
-            <p className="mt-1 text-[10px] text-graphite">
-              {t("checkout.positionOf", { position, count: lineCount })}
-            </p>
+            <p className="tnum text-[11px] text-charcoal">{line.sku}</p>
           {line.usedGrade && <p className="mt-1 text-[11px] font-medium text-signal">{line.usedGrade === 'REFURBISHED' ? t('used.refurbished') : `${t('used.usedPhone')} · ${line.usedGrade.replace('GRADE_', `${t('used.grade')} `)}`}</p>}
           {(line.warrantyDays || line.warrantyMonths) && (
-            <p className="mt-1 text-[11px] text-graphite">
-              {t('used.warrantyDuration')}: {line.warrantyDays
+            <p className="mt-1 text-[11px] text-charcoal">
+              {t(line.usedGrade ? 'used.warrantyDuration' : 'stock.warrantyDuration')}: {line.warrantyDays
                 ? `${line.warrantyDays} ${line.warrantyDays === 1 ? t('used.warrantyDay') : t('used.warrantyDays')}`
                 : `${line.warrantyMonths} ${line.warrantyMonths === 1 ? t('used.warrantyMonth') : t('used.warrantyMonths')}`}
             </p>
           )}
           {line.knownDefects && <p className="mt-1 max-w-xl text-[11px] text-out">{t('used.knownDefects')}: {line.knownDefects}</p>}
-          <p className="mt-1 text-[11px] text-graphite">
+          <p className="mt-1 text-[11px] text-charcoal">
             {t("checkout.listPrice", { price: formatBDT(line.listUnitPrice) })}
           </p>
           </div>
@@ -1189,14 +1182,12 @@ export function CheckoutWorkspace({
             </p>
           ) : (
             <div ref={cartLinesRef}>
-              {orderedLines.map((line, lineIndex) => (
+              {orderedLines.map((line) => (
                 <CartLineEditor
                   key={line.id}
                   line={line}
                   dragging={draggingId === line.id}
                   highlighted={highlightedLineId === line.id}
-                  position={lineIndex + 1}
-                  lineCount={orderedLines.length}
                   dragDisabled={
                     orderedLines.length < 2
                   }
@@ -1435,13 +1426,13 @@ export function CheckoutWorkspace({
             </div>
             <div className="bg-gradient-to-b from-card/75 to-plate/30 p-3.5">
             <dl className="space-y-2 text-[13px]">
-              <div className="flex justify-between text-graphite">
+              <div className="flex justify-between text-charcoal">
                 <dt>{t("checkout.listSubtotal")}</dt>
-                <dd className="tnum font-medium text-ink">{formatBDT(subtotal)}</dd>
+                <dd className="tnum font-medium text-charcoal">{formatBDT(subtotal)}</dd>
               </div>
-              <div className="flex justify-between text-graphite">
+              <div className="flex justify-between text-charcoal">
                 <dt>{t("checkout.priceAdjustment")}</dt>
-                <dd className={`tnum font-medium ${priceAdjustment > 0 ? "text-ok" : priceAdjustment < 0 ? "text-out" : "text-graphite"}`}>
+                <dd className={`tnum font-medium ${priceAdjustment > 0 ? "text-ok" : priceAdjustment < 0 ? "text-out" : "text-charcoal"}`}>
                   {priceAdjustment > 0 ? "+" : ""}{formatBDT(priceAdjustment)}
                 </dd>
               </div>
