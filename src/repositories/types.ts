@@ -258,10 +258,18 @@ export interface SaleSettlementRepository {
   create(value: SaleSettlement): Promise<SaleSettlement>;
 }
 
+export interface OpenEmiSchedule {
+  contract: EmiContract;
+  installments: EmiInstallment[];
+  customer: Pick<Customer, 'id' | 'name' | 'phone'> | null;
+  sale: Pick<Sale, 'id' | 'invoiceNumber'> | null;
+}
+
 export interface EmiRepository {
   nextContractNumber(now: Date): Promise<string>;
   nextReceiptNumber(now: Date): Promise<string>;
   findContracts(): Promise<EmiContract[]>;
+  findOpenSchedules(): Promise<OpenEmiSchedule[]>;
   findContractsBySales(saleIds: string[]): Promise<EmiContract[]>;
   findContractById(id: string): Promise<EmiContract | null>;
   findContractBySale(saleId: string): Promise<EmiContract | null>;

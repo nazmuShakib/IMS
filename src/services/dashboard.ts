@@ -1,8 +1,9 @@
-import type { Product, ProductUnit, Role, StockMovement, User } from '@/domain/types';
+import type { EmiInstallment, Product, ProductUnit, Role, StockMovement, User } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import { canSeeCosts } from '@/lib/permissions';
 import { db } from '@/repositories';
 import type { Repositories } from '@/repositories';
+import { installmentStatusForDate } from '@/services/emi';
 
 const DAY_MS = 86_400_000;
 
@@ -70,6 +71,27 @@ export interface DailyFinancialPoint {
   revenue: Paisa;
   margin: Paisa;
   refunds: Paisa;
+}
+
+export interface DashboardInstallmentRow {
+  installmentId: string;
+  contractId: string;
+  contractNumber: string;
+  invoiceNumber: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  sequence: number;
+  termMonths: number;
+  dueDate: string;
+  remainingAmount: Paisa;
+  status: EmiInstallment['status'];
+}
+
+export interface DashboardEmiSnapshot {
+  openContractCount: number;
+  outstandingAmount: Paisa;
+  overdueContractCount: number;
+  installmentsByPeriod: Record<DashboardPeriodKey, DashboardInstallmentRow[]>;
 }
 
 interface DashboardCommon {
@@ -165,6 +187,94 @@ function periodBounds(now: Date, period: DashboardPeriod) {
   const currentStart = monthStartDhaka(now);
   const previousStart = previousMonthStart(currentStart);
   return { currentStart, previousStart, previousEnd: currentStart };
+}
+
+function upcomingPeriodEnd(today: Date, period: DashboardPeriod): Date {
+  if (period === 'day') return new Date(today.getTime() + DAY_MS);
+  if (period === 'week') {
+    const dayOfWeek = new Date(`${dhakaDateKey(today)}T00:00:00Z`).getUTCDay();
+    const daysUntilFriday = (5 - dayOfWeek + 7) % 7 || 7;
+    return new Date(today.getTime() + daysUntilFriday * DAY_MS);
+  }
+  const [year = today.getUTCFullYear(), month = today.getUTCMonth() + 1] = dhakaDateKey(today)
+    .split('-')
+    .map(Number);
+  const next = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
+  return new Date(`${next.year}-${String(next.month).padStart(2, '0')}-01T00:00:00+06:00`);
+}
+
+export async function getDashboardEmiSnapshot(
+  now = new Date(),
+  repositories: Repositories = db,
+): Promise<DashboardEmiSnapshot> {
+  const schedules = (await repositories.emi.findOpenSchedules()).filter((schedule) => (
+    schedule.contract.status === 'ACTIVE' || schedule.contract.status === 'OVERDUE'
+  ));
+  const today = startOfDhakaDay(now);
+  const todayKey = dhakaDateKey(today);
+  const ends = Object.fromEntries(PERIODS.map((period) => [
+    period,
+    upcomingPeriodEnd(today, period),
+  ])) as Record<DashboardPeriodKey, Date>;
+  const installmentsByPeriod: Record<DashboardPeriodKey, DashboardInstallmentRow[]> = {
+    day: [],
+    week: [],
+    month: [],
+  };
+
+  for (const schedule of schedules) {
+    const nextInstallment = [...schedule.installments]
+      .filter((installment) => (
+        installment.status !== 'PAID'
+        && installment.status !== 'VOIDED'
+        && installment.amountPaid < installment.amountDue
+      ))
+      .sort((left, right) => (
+        left.dueDate.localeCompare(right.dueDate) || left.sequence - right.sequence
+      ))[0];
+    if (!nextInstallment) continue;
+
+    const dueAt = new Date(nextInstallment.dueDate);
+    // A contract whose true next payment is overdue stays in the dedicated
+    // overdue workflow; do not skip ahead to a later scheduled installment.
+    if (dueAt < today) continue;
+
+    const row: DashboardInstallmentRow = {
+      installmentId: nextInstallment.id,
+      contractId: schedule.contract.id,
+      contractNumber: schedule.contract.contractNumber,
+      invoiceNumber: schedule.sale?.invoiceNumber ?? null,
+      customerName: schedule.customer?.name ?? null,
+      customerPhone: schedule.customer?.phone ?? null,
+      sequence: nextInstallment.sequence,
+      termMonths: schedule.contract.termMonths,
+      dueDate: nextInstallment.dueDate,
+      remainingAmount: Math.max(0, nextInstallment.amountDue - nextInstallment.amountPaid),
+      status: installmentStatusForDate(nextInstallment, todayKey),
+    };
+    for (const period of PERIODS) {
+      if (dueAt < ends[period]) installmentsByPeriod[period].push(row);
+    }
+  }
+
+  const compareRows = (left: DashboardInstallmentRow, right: DashboardInstallmentRow) => (
+    left.dueDate.localeCompare(right.dueDate)
+    || left.contractNumber.localeCompare(right.contractNumber)
+    || left.sequence - right.sequence
+  );
+  for (const period of PERIODS) installmentsByPeriod[period].sort(compareRows);
+
+  return {
+    openContractCount: schedules.length,
+    outstandingAmount: schedules.reduce((total, schedule) => total + schedule.installments.reduce(
+      (sum, installment) => sum + (installment.status === 'VOIDED'
+        ? 0
+        : Math.max(0, installment.amountDue - installment.amountPaid)),
+      0,
+    ), 0),
+    overdueContractCount: schedules.filter((schedule) => schedule.contract.status === 'OVERDUE').length,
+    installmentsByPeriod,
+  };
 }
 
 function movementFinancials(

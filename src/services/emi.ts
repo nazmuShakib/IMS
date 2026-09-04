@@ -26,7 +26,7 @@ export function installmentStatusForDate(
   today: string,
 ): EmiInstallment['status'] {
   if (installment.amountPaid >= installment.amountDue) return 'PAID';
-  const dueDay = installment.dueDate.slice(0, 10);
+  const dueDay = dhakaDateKey(new Date(installment.dueDate));
   if (dueDay < today) return 'OVERDUE';
   if (dueDay === today && installment.amountPaid === 0) return 'DUE';
   if (installment.amountPaid > 0) return 'PARTIAL';
@@ -188,9 +188,7 @@ export async function settleEmiEarly(raw: {
 export async function refreshEmiStatuses(repositories: Repositories = db): Promise<void> {
   const now = new Date();
   const today = dhakaDateKey(now);
-  for (const contract of await repositories.emi.findContracts()) {
-    if (!['ACTIVE', 'OVERDUE'].includes(contract.status)) continue;
-    const installments = await repositories.emi.findInstallments(contract.id);
+  for (const { contract, installments } of await repositories.emi.findOpenSchedules()) {
     let overdue = false;
     for (const row of installments) {
       const status = installmentStatusForDate(row, today);

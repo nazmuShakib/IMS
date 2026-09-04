@@ -1202,6 +1202,23 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return `RCPT-${year}-${String(sequence.value).padStart(6, '0')}`;
       },
       async findContracts() { return (await client.emiContract.findMany({ orderBy: { createdAt: 'desc' } })).map(emiContract); },
+      async findOpenSchedules() {
+        const rows = await client.emiContract.findMany({
+          where: { status: { in: ['ACTIVE', 'OVERDUE'] } },
+          include: {
+            installments: { orderBy: { sequence: 'asc' } },
+            customer: { select: { id: true, name: true, phone: true } },
+            sale: { select: { id: true, invoiceNumber: true } },
+          },
+          orderBy: { contractNumber: 'asc' },
+        });
+        return rows.map((row) => ({
+          contract: emiContract(row),
+          installments: row.installments.map(emiInstallment),
+          customer: row.customer,
+          sale: row.sale,
+        }));
+      },
       async findContractsBySales(saleIds) {
         if (saleIds.length === 0) return [];
         return (await client.emiContract.findMany({

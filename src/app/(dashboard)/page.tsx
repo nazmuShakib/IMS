@@ -2,16 +2,16 @@ import Link from 'next/link';
 
 import { DashboardCharts } from '@/components/dashboard/DashboardCharts';
 import { DashboardKpis } from '@/components/dashboard/DashboardKpis';
-import { DashboardMovers, DashboardRecentActivity } from '@/components/dashboard/DashboardPeriodPanels';
+import { DashboardMovers, DashboardNextInstallments, DashboardRecentActivity } from '@/components/dashboard/DashboardPeriodPanels';
 import { DashboardPeriodProvider, DashboardPeriodSelector } from '@/components/dashboard/DashboardPeriodContext';
 import { Badge, Card, EmptyState, PageHeader, SerialChip, StockCount, TableViewport } from '@/components/ui';
 import { getAuthUserNames, getSession } from '@/lib/session';
-import { getDashboard } from '@/services/dashboard';
+import { getDashboard, getDashboardEmiSnapshot } from '@/services/dashboard';
 import { createTranslator } from '@/lib/i18n/messages';
 import type { Locale } from '@/lib/i18n/config';
-import { db } from '@/repositories';
 import { formatBDT } from '@/lib/money';
 import { refreshEmiStatuses } from '@/services/emi';
+import { hasPermission } from '@/lib/permissions';
 
 export const dynamic = 'force-dynamic';
 
@@ -28,17 +28,18 @@ const dhaka = (iso: string, _locale: Locale) =>
 export default async function DashboardPage() {
   const { role, locale } = await getSession();
   const t = createTranslator(locale);
-  const dashboard = await getDashboard(role);
-  if (role !== 'STAFF') await refreshEmiStatuses();
+  const canViewEmi = hasPermission(role, 'VIEW_EMI');
+  if (canViewEmi) await refreshEmiStatuses();
+  const [dashboard, emiSnapshot] = await Promise.all([
+    getDashboard(role),
+    canViewEmi ? getDashboardEmiSnapshot() : Promise.resolve(null),
+  ]);
   const periodActivity = Object.values(dashboard.recentActivityByPeriod).flat();
   const authActorNames = await getAuthUserNames(periodActivity.map((item) => item.actorId));
   const recentActivityByPeriod = Object.fromEntries(Object.entries(dashboard.recentActivityByPeriod).map(([key, items]) => [key, items.map((item) => ({
     ...item,
     actorName: (item.actorId && authActorNames.get(item.actorId)) || item.actorName,
   }))])) as typeof dashboard.recentActivityByPeriod;
-  const emiRows = role === 'STAFF' ? [] : await Promise.all((await db.emi.findContracts()).filter((contract) => contract.status === 'ACTIVE' || contract.status === 'OVERDUE').map(async (contract) => ({ contract, installments: await db.emi.findInstallments(contract.id) })));
-  const emiOutstanding = emiRows.reduce((sum, row) => sum + row.installments.reduce((value, installment) => value + installment.amountDue - installment.amountPaid, 0), 0);
-  const overdueContracts = emiRows.filter((row) => row.contract.status === 'OVERDUE').length;
 
   return (
     <>
@@ -46,13 +47,13 @@ export default async function DashboardPage() {
       <PageHeader title={t('dashboard.title')} count={t('dashboard.updated', { date: dhaka(dashboard.generatedAt, locale) })} action={<DashboardPeriodSelector />} />
       <DashboardKpis dashboard={dashboard} />
 
-      {role !== 'STAFF' && <div className="mb-4 grid gap-3 sm:grid-cols-3">
+      {role !== 'STAFF' && emiSnapshot && <div className="mb-4 grid gap-3 sm:grid-cols-3">
         <Link href="/emi">
           <Card className="h-full border-t-[3px] border-t-metric-revenue p-0">
             <div className="flex h-full flex-col px-3 py-2">
               <p className="eyebrow">{t('emi.openContracts')}</p>
               <div className="mt-1 flex flex-1 flex-col justify-center rounded-[2px] bg-metric-revenue-wash px-2 py-1">
-                <p className="text-[20px] font-semibold text-metric-revenue">{emiRows.length}</p>
+                <p className="text-[20px] font-semibold text-metric-revenue">{emiSnapshot.openContractCount}</p>
                 <p className="text-[11px] text-metric-revenue">{t('emi.openContractsHelp')}</p>
               </div>
             </div>
@@ -63,24 +64,26 @@ export default async function DashboardPage() {
             <div className="flex h-full flex-col px-3 py-2">
               <p className="eyebrow">{t('emi.outstanding')}</p>
               <div className="mt-1 flex flex-1 flex-col justify-center rounded-[2px] bg-metric-low-wash px-2 py-1">
-                <p className="tnum text-[20px] font-semibold text-metric-low">{formatBDT(emiOutstanding)}</p>
+                <p className="tnum text-[20px] font-semibold text-metric-low">{formatBDT(emiSnapshot.outstandingAmount)}</p>
                 <p className="text-[11px] text-metric-low">{t('emi.outstandingHelp')}</p>
               </div>
             </div>
           </Card>
         </Link>
         <Link href="/emi?status=OVERDUE">
-          <Card className={`h-full border-t-[3px] p-0 ${overdueContracts > 0 ? 'border-t-metric-profit-loss' : 'border-t-metric-neutral'}`}>
+          <Card className={`h-full border-t-[3px] p-0 ${emiSnapshot.overdueContractCount > 0 ? 'border-t-metric-profit-loss' : 'border-t-metric-neutral'}`}>
             <div className="flex h-full flex-col px-3 py-2">
               <p className="eyebrow">{t('emi.overdueContracts')}</p>
-              <div className={`mt-1 flex flex-1 flex-col justify-center rounded-[2px] px-2 py-1 ${overdueContracts > 0 ? 'bg-metric-profit-loss-wash' : 'bg-metric-neutral-wash'}`}>
-                <p className={`text-[20px] font-semibold ${overdueContracts > 0 ? 'text-metric-profit-loss' : 'text-metric-neutral'}`}>{overdueContracts}</p>
-                <p className={`text-[11px] ${overdueContracts > 0 ? 'text-metric-profit-loss' : 'text-metric-neutral'}`}>{t('emi.overdueContractsHelp')}</p>
+              <div className={`mt-1 flex flex-1 flex-col justify-center rounded-[2px] px-2 py-1 ${emiSnapshot.overdueContractCount > 0 ? 'bg-metric-profit-loss-wash' : 'bg-metric-neutral-wash'}`}>
+                <p className={`text-[20px] font-semibold ${emiSnapshot.overdueContractCount > 0 ? 'text-metric-profit-loss' : 'text-metric-neutral'}`}>{emiSnapshot.overdueContractCount}</p>
+                <p className={`text-[11px] ${emiSnapshot.overdueContractCount > 0 ? 'text-metric-profit-loss' : 'text-metric-neutral'}`}>{t('emi.overdueContractsHelp')}</p>
               </div>
             </div>
           </Card>
         </Link>
       </div>}
+
+      {emiSnapshot && <DashboardNextInstallments installments={emiSnapshot.installmentsByPeriod} />}
 
       <div className="mb-4">
         <DashboardCharts

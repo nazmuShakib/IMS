@@ -953,6 +953,41 @@ const emi: EmiRepository = {
     return `${prefix}${String(next).padStart(6, '0')}`;
   },
   async findContracts() { return (await readAll<EmiContract>('emi-contracts')).sort((a, b) => b.createdAt.localeCompare(a.createdAt)); },
+  async findOpenSchedules() {
+    const [contracts, installments, customerRows, saleRows] = await Promise.all([
+      readAll<EmiContract>('emi-contracts'),
+      readAll<EmiInstallment>('emi-installments'),
+      readAll<Customer>('customers'),
+      readAll<Sale>('sales'),
+    ]);
+    const customerById = new Map(customerRows.map((row) => [row.id, row]));
+    const saleById = new Map(saleRows.map((row) => [row.id, row]));
+    const installmentsByContract = new Map<string, EmiInstallment[]>();
+    for (const installment of installments) {
+      const rows = installmentsByContract.get(installment.contractId);
+      if (rows) rows.push(installment);
+      else installmentsByContract.set(installment.contractId, [installment]);
+    }
+
+    return contracts
+      .filter((contract) => contract.status === 'ACTIVE' || contract.status === 'OVERDUE')
+      .sort((left, right) => left.contractNumber.localeCompare(right.contractNumber))
+      .map((contract) => {
+        const customerRow = customerById.get(contract.customerId);
+        const saleRow = saleById.get(contract.saleId);
+        return {
+          contract,
+          installments: (installmentsByContract.get(contract.id) ?? [])
+            .sort((left, right) => left.sequence - right.sequence),
+          customer: customerRow
+            ? { id: customerRow.id, name: customerRow.name, phone: customerRow.phone }
+            : null,
+          sale: saleRow
+            ? { id: saleRow.id, invoiceNumber: saleRow.invoiceNumber }
+            : null,
+        };
+      });
+  },
   async findContractsBySales(saleIds) {
     const selected = new Set(saleIds);
     return (await readAll<EmiContract>('emi-contracts'))
