@@ -4,7 +4,7 @@ import { invoiceToPdf } from '@/lib/invoice-pdf';
 import { hasPermission } from '@/lib/permissions';
 import { getOptionalSession } from '@/lib/session';
 import { db } from '@/repositories';
-import { bundledInvoiceLogoDataUri } from '@/lib/server-shop-branding';
+import { printableShop } from '@/lib/server-shop-branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -25,22 +25,18 @@ export async function GET(
     db.emi.findContractBySale(sale.id),
     db.saleSettlements.findBySale(sale.id),
   ]);
-  const [emiInstallments, emiEarlySettlement] = emiContract
+  const [emiInstallments, emiEarlySettlement, emiPayments] = emiContract
     ? await Promise.all([
         db.emi.findInstallments(emiContract.id),
         db.emi.findEarlySettlement(emiContract.id),
+        db.emi.findPayments(emiContract.id),
       ])
-    : [[], null];
-  const content = await invoiceToPdf(sale, items, {
-    name: process.env.SHOP_NAME?.trim() || 'Irfan Gadget & Mobile',
-    logoDataUri: process.env.SHOP_LOGO_DATA_URI?.trim() || await bundledInvoiceLogoDataUri(),
-    address: process.env.SHOP_ADDRESS?.trim() || null,
-    phone: process.env.SHOP_PHONE?.trim() || null,
-    policy: process.env.INVOICE_POLICY?.trim() || null,
-  }, emiContract ? {
+    : [[], null, []];
+  const content = await invoiceToPdf(sale, items, await printableShop(true), emiContract ? {
     contract: emiContract,
     installments: emiInstallments,
     earlySettlement: emiEarlySettlement,
+    payments: emiPayments,
   } : null, settlements);
   return new Response(new Uint8Array(content), {
     headers: {

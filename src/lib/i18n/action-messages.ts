@@ -1,6 +1,8 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const bnMessages: Record<string, string> = {
+  'Enter a discount greater than zero. Use Record payment for a payoff without a discount.': 'শূন্যের বেশি ছাড় লিখুন। ছাড় ছাড়া সম্পূর্ণ পরিশোধের জন্য পেমেন্ট রেকর্ড করুন ব্যবহার করুন।',
+  'This request key belongs to a different EMI payment. Refresh and try again.': 'এই অনুরোধটি অন্য EMI পেমেন্টের সঙ্গে যুক্ত। রিফ্রেশ করে আবার চেষ্টা করুন।',
   'A record with this name already exists.': 'এই নামে একটি রেকর্ড ইতিমধ্যে আছে।',
   'Item added to the draft cart.': 'পণ্যটি খসড়া কার্টে যোগ হয়েছে।',
   'Cart line updated.': 'কার্টের পণ্য হালনাগাদ হয়েছে।',

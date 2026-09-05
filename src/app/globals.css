@@ -619,7 +619,7 @@ html[lang="bn"] .eyebrow {
   align-items: flex-start;
   justify-content: space-between;
   gap: 10mm;
-  border-bottom: 1px solid #4b5563;
+  border-bottom: 1px solid #000;
   padding-bottom: 5mm;
 }
 
@@ -633,8 +633,8 @@ html[lang="bn"] .eyebrow {
 
 .emi-receipt-shop-logo {
   display: block;
-  width: 30mm !important;
-  max-width: 30mm !important;
+  width: 42mm !important;
+  max-width: 100% !important;
   height: auto !important;
   object-fit: contain;
 }
@@ -712,7 +712,7 @@ html[lang="bn"] .eyebrow {
 }
 
 .emi-receipt-products {
-  border-block: 1px solid #d1d5db;
+  border-top: 1px solid #000;
   padding: 4mm 0;
 }
 
@@ -740,15 +740,6 @@ html[lang="bn"] .eyebrow {
   font-size: 8pt;
 }
 
-.emi-receipt-footer {
-  display: flex;
-  justify-content: space-between;
-  gap: 5mm;
-  margin-top: 5mm;
-  color: #4b5563;
-  font-size: 8pt;
-}
-
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-document {
   display: flex;
   flex-direction: column;
@@ -769,8 +760,7 @@ html[lang="bn"] .eyebrow {
   .emi-receipt-details dt,
   .emi-receipt-details dd span,
   .emi-receipt-products h3,
-  .emi-receipt-products span,
-  .emi-receipt-footer
+  .emi-receipt-products span
 ) {
   color: #000;
 }
@@ -778,8 +768,7 @@ html[lang="bn"] .eyebrow {
 .emi-receipt-root[data-layout="thermal"] :is(
   .emi-receipt-details dd,
   .emi-receipt-details dd span,
-  .emi-receipt-products span,
-  .emi-receipt-footer
+  .emi-receipt-products span
 ) {
   font-weight: 400;
 }
@@ -788,16 +777,21 @@ html[lang="bn"] .eyebrow {
   display: contents;
 }
 
+.emi-receipt-root[data-layout="thermal"] .emi-receipt-served-by {
+  order: 1;
+  border-bottom: 1px solid #000;
+  padding-bottom: 3mm;
+}
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-header > div:first-child {
   order: 1;
-  border-bottom: 1px solid #4b5563;
+  border-bottom: 0;
   padding-bottom: 3mm;
   text-align: center;
 }
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-shop-logo {
-  width: 24mm !important;
-  max-width: 24mm !important;
+  width: 36mm !important;
+  max-width: 100% !important;
   margin-inline: auto;
 }
 
@@ -841,14 +835,6 @@ html[lang="bn"] .eyebrow {
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-details dd {
   font-size: 8pt;
-}
-
-.emi-receipt-root[data-layout="thermal"] .emi-receipt-footer {
-  order: 5;
-  display: grid;
-  gap: 1mm;
-  margin-top: 3mm;
-  text-align: left;
 }
 
 .emi-receipt-root[data-layout="thermal"] .emi-receipt-products {
@@ -920,13 +906,28 @@ html[lang="bn"] .eyebrow {
     break-after: avoid-page;
   }
 
-  .emi-receipt-root[data-layout="thermal"] .emi-receipt-shop-logo {
-    clip-path: inset(12.5% 0);
-    margin-top: -2mm;
-    margin-bottom: -2mm;
-  }
+
 
 }
+
+.invoice-emi-schedule { margin-top: 6mm; border: 1px solid #d5dade; border-radius: 6px; padding: 3mm; }
+.invoice-emi-schedule h2 { font-size: 10pt; font-weight: 700; }
+.invoice-emi-caption { margin-top: 1mm; font-size: 8pt; color: #4b5563; }
+.invoice-settlement-explanation { margin-top: 3mm; padding: 3mm; background: #f3f4f6; font-size: 8pt; line-height: 1.5; }
+.invoice-emi-schedule table { width: 100%; border-collapse: collapse; margin-top: 3mm; font-size: 8pt; }
+.invoice-emi-schedule th, .invoice-emi-schedule td { padding: 2.5mm 1mm; border-bottom: 1px solid #e5e7eb; text-align: right; vertical-align: top; }
+.invoice-emi-schedule th:first-child, .invoice-emi-schedule td:first-child { text-align: left; }
+.invoice-emi-schedule th { font-size: 7pt; color: #4b5563; }
+.invoice-emi-schedule tr:last-child td { border-bottom: 0; }
+.invoice-installment-status { margin-left: 2mm; text-transform: capitalize; font-size: 7pt; }
+.invoice-installment-date { display: block; margin-top: 1mm; }
+.invoice-emi-schedule small { display: block; margin-top: 1mm; font-size: 7pt; color: #4b5563; }
+.invoice-root[data-layout="thermal"] .invoice-emi-schedule { padding: 2mm; border-radius: 0; }
+.invoice-root[data-layout="thermal"] .invoice-emi-schedule tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); border-top: 1px solid #d5dade; padding-block: 2mm; break-inside: avoid; }
+.invoice-root[data-layout="thermal"] .invoice-emi-schedule td { border: 0; padding: 0; font-size: 7.5pt; }
+.invoice-root[data-layout="thermal"] .invoice-emi-schedule thead { display: none; }
+.invoice-root[data-layout="thermal"] .invoice-settlement-explanation { padding: 2mm; font-size: 7.5pt; }
+.invoice-emi-schedule tr { break-inside: avoid; }
 
 /* Phase 8 immutable invoice preview/printing. */
 .invoice-root {
@@ -1220,8 +1221,11 @@ html[lang="bn"] .eyebrow {
 }
 
 .invoice-summary dl {
-  width: 72mm;
+  width: 95mm;
+  max-width: 100%;
 }
+.invoice-summary dd { flex-shrink: 0; white-space: nowrap; text-align: right; }
+.invoice-summary dt { min-width: 0; }
 
 .invoice-summary dl > div {
   display: flex;
@@ -1292,9 +1296,15 @@ html[lang="bn"] .eyebrow {
   font-size: 8.5pt;
 }
 
-.invoice-root[data-layout="thermal"] .invoice-served-by-thermal strong {
+.invoice-root[data-layout="thermal"] .invoice-served-by-thermal strong,
+.emi-receipt-served-by strong {
+  font-size: 7pt;
   font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
+.emi-receipt-served-by { display: grid; justify-items: end; gap: 0.5mm; margin-top: 2mm; text-align: right; font-size: 8.5pt; }
+.emi-receipt-served-by span { font-weight: 400; }
 
 .invoice-root[data-layout="thermal"] .invoice-served-by-thermal span {
   margin-top: 0.5mm;

@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
-import { writeAudit } from '@/lib/audit';
+import { writeAudit, requestAuditIp } from '@/lib/audit';
 import { actionErrorMessage } from '@/lib/action-error';
 import { getSession, requireCapability } from '@/lib/session';
 import { translateActionMessage } from '@/lib/i18n/action-messages';
@@ -23,6 +23,7 @@ export async function recordEmiPaymentAction(_state: EmiActionState, fd: FormDat
     const payment = await recordEmiPayment({ contractId: str(fd, 'contractId'), amount: str(fd, 'amount'), paymentMethod: str(fd, 'paymentMethod') as PaymentMethod, reference: str(fd, 'reference') || null, note: str(fd, 'note') || null, idempotencyKey: str(fd, 'idempotencyKey'), actorId: actor.id, actorName: actor.name });
     await writeAudit({ actorId: actor.id, action: 'emi.payment_record', entity: 'EmiPayment', entityId: payment.id, after: { contractId: payment.contractId, amount: payment.amount, receiptNumber: payment.receiptNumber } });
     revalidatePath('/emi'); revalidatePath(`/emi/${payment.contractId}`); revalidatePath('/');
+    revalidatePath('/invoices'); revalidatePath('/invoices/[id]', 'page');
     return { ok: translateActionMessage(locale, 'Payment recorded successfully.'), receiptId: payment.id, receiptNumber: payment.receiptNumber };
   } catch (error) { return failure(error, locale); }
 }
@@ -31,9 +32,9 @@ export async function settleEmiEarlyAction(_state: EmiActionState, fd: FormData)
   const actor = await requireCapability('APPROVE_EMI_SETTLEMENT');
   const { locale } = await getSession();
   try {
-    const payment = await settleEmiEarly({ contractId: str(fd, 'contractId'), discountAmount: str(fd, 'discountAmount'), paymentMethod: str(fd, 'paymentMethod') as PaymentMethod, reason: str(fd, 'reason'), reference: str(fd, 'reference') || null, idempotencyKey: str(fd, 'idempotencyKey'), actorId: actor.id, actorName: actor.name });
-    await writeAudit({ actorId: actor.id, action: 'emi.early_settlement', entity: 'EmiContract', entityId: payment.contractId, after: { amount: payment.amount, receiptNumber: payment.receiptNumber } });
+    const { payment } = await settleEmiEarly({ contractId: str(fd, 'contractId'), discountAmount: str(fd, 'discountAmount'), paymentMethod: str(fd, 'paymentMethod') as PaymentMethod, reason: str(fd, 'reason'), reference: str(fd, 'reference') || null, idempotencyKey: str(fd, 'idempotencyKey'), actorId: actor.id, actorName: actor.name, auditIp: await requestAuditIp() });
     revalidatePath('/emi'); revalidatePath(`/emi/${payment.contractId}`); revalidatePath('/');
+    revalidatePath('/invoices'); revalidatePath('/invoices/[id]', 'page');
     return { ok: translateActionMessage(locale, 'EMI settled early successfully.'), receiptId: payment.id, receiptNumber: payment.receiptNumber };
   } catch (error) { return failure(error, locale); }
 }

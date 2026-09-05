@@ -1,8 +1,9 @@
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 
-import type { EmiContract, EmiEarlySettlement, EmiInstallment, InvoiceItem, Sale, SaleSettlement } from '@/domain/types';
+import type { EmiInstallment, InvoiceItem, Sale, SaleSettlement } from '@/domain/types';
+import { emiInvoiceSummary, emiScheduleRows, emiScheduleDate, type EmiInvoiceData } from '@/lib/emi-presentation';
 import { emiDisplayStatus } from '@/lib/emi-summary';
-import { emiInvoiceAmountDue, regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
+import { regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
 
 const styles = StyleSheet.create({
   page: { padding: 34, fontFamily: 'Helvetica', fontSize: 9, color: '#14181d' },
@@ -74,7 +75,7 @@ const thermalStyles = StyleSheet.create({
   metaColumn: { width: '50%' },
   metaDate58: { marginTop: 4 },
   servedBy: { alignItems: 'flex-end', marginTop: 4 },
-  servedByLabel: { fontFamily: 'Helvetica-Bold', fontSize: 6.3 },
+  servedByLabel: { fontFamily: 'Helvetica-Bold', fontSize: 6, textTransform: 'uppercase' },
   servedByName: { fontSize: 6.3, marginTop: 1.2 },
   headerDivider: { marginTop: 3 },
   itemHeader: { flexDirection: 'row', backgroundColor: '#e9ecee', color: '#000000', borderBottomWidth: 0.5, borderBottomColor: '#d5dade', paddingVertical: 3, paddingHorizontal: 2, fontFamily: 'Helvetica-Bold', fontSize: 6.2 },
@@ -108,13 +109,6 @@ function dateTime(value: string): string {
   }).format(new Date(value));
 }
 
-function dateOnly(value: string): string {
-  return new Intl.DateTimeFormat('en-BD', {
-    timeZone: 'Asia/Dhaka',
-    dateStyle: 'medium',
-  }).format(new Date(value));
-}
-
 function wrappedLines(value: string | null | undefined, characters: number): number {
   if (!value) return 0;
   return value.split(/\r?\n/).reduce((count, line) => count + Math.max(1, Math.ceil(line.length / characters)), 0);
@@ -144,10 +138,23 @@ function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { install
   }
   if (sale.tradeInDetails) height += 20 + wrappedLines(sale.tradeInDetails.productName, chars) * 3.2;
   if (sale.reference) height += wrappedLines(`Ref: ${sale.reference}`, chars) * 3;
-  if (emi) height += 20 + Math.ceil(emi.installments.length / (widthMm === 58 ? 2 : 3)) * 4.2;
+  if (emi) height += 55 + emi.installments.length * (widthMm === 58 ? 19 : 15);
   if (sale.note) height += 8 + wrappedLines(sale.note, chars) * 3.2;
   if (sale.status === 'VOIDED') height += 15 + wrappedLines(sale.voidReason, chars) * 3.2;
   return Math.min(1000, Math.max(95, Math.ceil(height)));
+}
+
+function PdfEmiSchedule({ emi, voided, thermal = false }: { emi: EmiInvoiceData; voided: boolean; thermal?: boolean }) {
+  const settlement = voided ? null : emi.earlySettlement;
+  return <View style={thermal ? thermalStyles.box : styles.tradeIn}>
+    <Text style={thermal ? thermalStyles.label : styles.label}>{settlement ? 'Adjusted installment schedule' : 'Installment schedule'}</Text>
+    <Text style={{ fontSize: thermal ? 7 : 8, marginBottom: 5 }}>Shop-managed EMI</Text>
+    {settlement && <Text style={{ fontSize: thermal ? 7 : 8, marginBottom: 6 }}>Due before discount {money(settlement.outstandingBefore)} - discount {money(settlement.discountAmount)} = final payment {money(settlement.finalAmount)}</Text>}
+    {emiScheduleRows(emi.contract, emi.installments, emi.earlySettlement).map((row) => <View key={row.id} wrap={false} style={{ borderTopWidth: 0.3, borderTopColor: '#d5dade', paddingVertical: 5 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: 4 }}><Text style={{ fontSize: thermal ? 7 : 9 }}>#{row.sequence} · {voided ? 'Voided' : row.status.toLowerCase()}</Text><Text style={{ fontSize: thermal ? 7 : 9, fontFamily: 'Helvetica-Bold' }}>{money(row.amountDue)}</Text></View>
+      <Text style={{ fontSize: thermal ? 6.5 : 8, marginTop: 2 }}>{emiScheduleDate(row.dueDate)}{row.discount > 0 ? ` · Was ${money(row.originalAmount)} · discount -${money(row.discount)}` : ''}</Text>
+    </View>)}
+  </View>;
 }
 
 function InvoiceDocument({
@@ -160,13 +167,13 @@ function InvoiceDocument({
   sale: Sale;
   items: InvoiceItem[];
   shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null };
-  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null;
+  emi: EmiInvoiceData | null;
   settlements: SaleSettlement[];
 }) {
   const collectibleTotal = Math.max(0, sale.total - sale.tradeInCredit);
   const paidAmount = Math.min(collectibleTotal, Math.max(0, sale.amountPaid ?? 0));
   const amountDue = regularInvoiceAmountDue(sale);
-  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
+  const emiSummary = emi ? emiInvoiceSummary(emi, sale.status === 'VOIDED') : null;
   const tradeInCashPayout = Math.max(0, sale.tradeInCredit - sale.total);
   const tradeInCashRecovered = recoveredTradeInPayout(settlements);
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
@@ -241,8 +248,7 @@ function InvoiceDocument({
         <View style={styles.summary}>
           {emi ? (
             <>
-              <View style={styles.summaryRow}><Text>Down payment</Text><Text>{money(emi.contract.downPayment)}</Text></View>
-              <View style={[styles.summaryRow, styles.total]}><Text>Outstanding</Text><Text>{money(emiAmountDue)}</Text></View>
+{emiSummary?.rows.map((row) => <View key={row.label} style={[styles.summaryRow, row.label === 'Outstanding' ? styles.total : {}]}><Text>{row.label}</Text><Text>{row.deduction ? '-' : ''}{money(row.amount)}</Text></View>)}
             </>
           ) : (
             <>
@@ -259,32 +265,9 @@ function InvoiceDocument({
           )}
         </View>
         {emi && (
-          <View style={styles.tradeIn} wrap={false}>
-            <Text style={styles.label}>Installment schedule</Text>
-            <Text style={styles.muted}>
-              {emi.installments
-                .map((row) => `#${row.sequence} ${new Date(row.dueDate).toLocaleDateString('en-GB')} ${money(row.amountDue)}`)
-                .join(' · ')}
-            </Text>
-          </View>
+<PdfEmiSchedule emi={emi} voided={sale.status === 'VOIDED'} />
         )}
-        {(emi || sale.note || sale.status === 'VOIDED') && <View style={styles.payment}>
-          {emi ? (
-            <>
-              <View style={styles.paymentRow}>
-                <Text style={styles.label}>Payment plan</Text>
-                <Text>Shop-managed EMI</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.label}>Installments</Text>
-                <Text>{emi.contract.termMonths} monthly installments</Text>
-              </View>
-              <View style={styles.paymentRow}>
-                <Text style={styles.label}>First installment date</Text>
-                <Text>{dateOnly(emi.contract.firstDueDate)}</Text>
-              </View>
-            </>
-          ) : null}
+        {(sale.note || sale.status === 'VOIDED') && <View style={styles.payment}>
           {sale.note && (
             <View style={styles.paymentRow}>
               <Text style={styles.label}>Note</Text>
@@ -324,14 +307,14 @@ function ThermalInvoiceDocument({
   sale: Sale;
   items: InvoiceItem[];
   shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null };
-  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null;
+  emi: EmiInvoiceData | null;
   widthMm: 58 | 80;
   settlements: SaleSettlement[];
 }) {
   const collectibleTotal = Math.max(0, sale.total - sale.tradeInCredit);
   const paidAmount = Math.min(collectibleTotal, Math.max(0, sale.amountPaid ?? 0));
   const amountDue = regularInvoiceAmountDue(sale);
-  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
+  const emiSummary = emi ? emiInvoiceSummary(emi, sale.status === 'VOIDED') : null;
   const rawEmiStatus = emi ? emiDisplayStatus(emi.contract, emi.installments, emi.earlySettlement) : null;
   const badge = sale.status === 'VOIDED'
     ? null
@@ -349,6 +332,8 @@ function ThermalInvoiceDocument({
       {shop.logoDataUri
         ? <Image src={shop.logoDataUri} style={[thermalStyles.logo, widthMm === 58 ? thermalStyles.logo58 : thermalStyles.logo80]} />
         : <Text style={thermalStyles.shopName}>{shop.name}</Text>}
+      {shop.address && <Text style={[thermalStyles.muted, thermalStyles.centered]}>{shop.address}</Text>}
+      {shop.phone && <Text style={[thermalStyles.muted, thermalStyles.centered]}>{shop.phone}</Text>}
       <Text style={[thermalStyles.title, sale.status === 'VOIDED' ? thermalStyles.voided : {}]}>
         {sale.status === 'VOIDED' ? 'VOIDED INVOICE' : 'INVOICE'}
       </Text>
@@ -396,13 +381,8 @@ function ThermalInvoiceDocument({
       </View>}
       <View style={thermalStyles.summary} wrap={false}>
         {emi ? <>
-          <View style={thermalStyles.line}><Text>Down payment</Text><Text>{money(emi.contract.downPayment)}</Text></View>
-          <View style={thermalStyles.totalLine}><Text>Outstanding</Text><Text>{money(emiAmountDue)}</Text></View>
-          <View style={thermalStyles.box} wrap={false}>
-            <Text style={thermalStyles.label}>Payment plan</Text>
-            <Text>{emi.contract.termMonths} monthly installments</Text>
-            <Text style={thermalStyles.muted}>{emi.installments.map((row) => `#${row.sequence} ${dateOnly(row.dueDate)} ${money(row.amountDue)}`).join(' / ')}</Text>
-          </View>
+{emiSummary?.rows.map((row) => <View key={row.label} style={row.label === 'Outstanding' ? thermalStyles.totalLine : thermalStyles.line}><Text style={{ maxWidth: '60%' }}>{row.label}</Text><Text>{row.deduction ? '-' : ''}{money(row.amount)}</Text></View>)}
+          <PdfEmiSchedule emi={emi} voided={sale.status === 'VOIDED'} thermal />
         </> : <>
           <View style={thermalStyles.totalLine}><Text>Total</Text><Text>{money(sale.total)}</Text></View>
           {sale.tradeInCredit > 0 && <View style={thermalStyles.line}><Text>Trade-in credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>}
@@ -429,7 +409,7 @@ export async function invoiceToPdf(
   sale: Sale,
   items: InvoiceItem[],
   shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null },
-  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null = null,
+  emi: EmiInvoiceData | null = null,
   settlements: SaleSettlement[] = [],
 ): Promise<Buffer> {
   return renderToBuffer(<InvoiceDocument sale={sale} items={items} shop={shop} emi={emi} settlements={settlements} />);
@@ -439,7 +419,7 @@ export async function invoiceToThermalPdf(
   sale: Sale,
   items: InvoiceItem[],
   shop: { name: string; logoDataUri: string | null; address: string | null; phone: string | null; policy: string | null },
-  emi: { contract: EmiContract; installments: EmiInstallment[]; earlySettlement: EmiEarlySettlement | null } | null,
+  emi: EmiInvoiceData | null,
   widthMm: 58 | 80,
   settlements: SaleSettlement[] = [],
 ): Promise<Buffer> {

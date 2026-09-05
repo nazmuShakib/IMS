@@ -1,7 +1,8 @@
 import Link from 'next/link';
 
 import { Badge, Card, Input, PageHeader, Select } from '@/components/ui';
-import type { EmiContractStatus, EmiInstallmentStatus } from '@/domain/types';
+import { emiDisplayStatus, type EmiDisplayStatus } from '@/lib/emi-summary';
+import type { EmiInstallmentStatus } from '@/domain/types';
 import { formatBDT, parseBDT } from '@/lib/money';
 import { getSession, requirePageCapability } from '@/lib/session';
 import { formatDhakaDateTime } from '@/lib/time';
@@ -31,7 +32,7 @@ function moneyBoundary(value: string): number | undefined {
   try { return parseBDT(value); } catch { return undefined; }
 }
 
-const contractStatuses: EmiContractStatus[] = ['ACTIVE', 'OVERDUE', 'PAID', 'VOIDED'];
+const contractStatuses: EmiDisplayStatus[] = ['ACTIVE', 'OVERDUE', 'PAID', 'SETTLED_EARLY', 'VOIDED'];
 const installmentStates: EmiInstallmentStatus[] = ['DUE', 'PARTIAL', 'OVERDUE', 'UPCOMING', 'PAID'];
 
 export default async function EmiPage({ searchParams }: { searchParams: Promise<RawParams> }) {
@@ -55,15 +56,16 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
   const query = q.toLowerCase();
   const contracts = await db.emi.findContracts();
   const allRows = await Promise.all(contracts.map(async (contract) => {
-    const [sale, customer, installments] = await Promise.all([
+    const [sale, customer, installments, earlySettlement] = await Promise.all([
       db.sales.findById(contract.saleId),
       db.customers.findById(contract.customerId),
       db.emi.findInstallments(contract.id),
+      db.emi.findEarlySettlement(contract.id),
     ]);
-    return { contract, sale, customer, installments, outstanding: contract.status === 'VOIDED' ? 0 : installments.reduce((sum, row) => sum + row.amountDue - row.amountPaid, 0) };
+    return { contract, sale, customer, installments, displayStatus: emiDisplayStatus(contract, installments, earlySettlement), outstanding: contract.status === 'VOIDED' ? 0 : installments.reduce((sum, row) => sum + row.amountDue - row.amountPaid, 0) };
   }));
-  const rows = (invalidRange ? [] : allRows.filter(({ contract, sale, customer, installments, outstanding }) => {
-    if (status && contract.status !== status) return false;
+  const rows = (invalidRange ? [] : allRows.filter(({ contract, sale, customer, installments, outstanding, displayStatus }) => {
+    if (status && displayStatus !== status) return false;
     if (term && contract.termMonths !== Number(term)) return false;
     if (installmentStatus && !installments.some((item) => item.status === installmentStatus)) return false;
     const createdDay = dhakaDateKey(contract.createdAt);
@@ -82,9 +84,24 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
     if (order === 'customer-desc') return (b.customer?.name ?? '').localeCompare(a.customer?.name ?? '', 'en');
     return b.contract.createdAt.localeCompare(a.contract.createdAt);
   });
+  const pageSize = 50;
+  const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
+  const requestedPage = Number(one(raw, 'page'));
+  const page = Math.min(pageCount, Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1);
+  const pageRows = rows.slice((page - 1) * pageSize, page * pageSize);
+  const pageUrl = (target: number) => {
+    const params = new URLSearchParams();
+    for (const key of ['q', 'status', 'term', 'installmentStatus', 'from', 'to', 'minOutstanding', 'maxOutstanding', 'order']) {
+      const value = one(raw, key);
+      if (value) params.set(key, value);
+    }
+    params.set('page', String(target));
+    return '/emi?' + params.toString();
+  };
+  const advancedFiltersActive = Boolean(term || installmentStatus || from || to || minOutstandingText || maxOutstandingText || order !== 'newest');
   const outstanding = rows.reduce((sum, row) => sum + row.outstanding, 0);
   const overdue = rows.filter((row) => row.contract.status === 'OVERDUE').length;
-  const statusLabel = (value: EmiContractStatus | EmiInstallmentStatus) => t(`emi.status.${value.toLowerCase()}` as 'emi.status.active');
+  const statusLabel = (value: EmiDisplayStatus | EmiInstallmentStatus) => t(`emi.status.${value.toLowerCase()}` as 'emi.status.active');
 
   return <>
     <PageHeader title={t('emi.title')} count={t('emi.subtitle')} />
@@ -92,6 +109,9 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
       <form className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
         <label className="sm:col-span-2"><span className="eyebrow mb-1 block">{t('common.search')}</span><Input name="q" defaultValue={q} placeholder={t('emi.searchPlaceholder')} /></label>
         <label><span className="eyebrow mb-1 block">{t('emi.contractStatus')}</span><Select name="status" defaultValue={status}><option value="">{t('emi.allContractStatuses')}</option>{contractStatuses.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}</Select></label>
+        <details className="group sm:col-span-2 lg:col-span-4" open={advancedFiltersActive || undefined}>
+          <summary className="cursor-pointer list-none text-[12px] font-medium text-signal marker:hidden"><span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>{t('invoices.moreFilters')}</summary>
+          <div className="mt-3 grid gap-3 rounded-lg bg-plate/50 p-3 sm:grid-cols-2 lg:grid-cols-4">
         <label><span className="eyebrow mb-1 block">{t('emi.term')}</span><Select name="term" defaultValue={term}><option value="">{t('emi.allTerms')}</option>{[3, 6, 9, 12].map((item) => <option key={item} value={item}>{t('emi.installments', { count: item })}</option>)}</Select></label>
         <label><span className="eyebrow mb-1 block">{t('emi.installmentStatus')}</span><Select name="installmentStatus" defaultValue={installmentStatus}><option value="">{t('emi.allInstallmentStatuses')}</option>{installmentStates.map((item) => <option key={item} value={item}>{statusLabel(item)}</option>)}</Select></label>
         <label><span className="eyebrow mb-1 block">{t('emi.fromDate')}</span><Input name="from" type="date" defaultValue={from} /></label>
@@ -99,6 +119,8 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
         <label><span className="eyebrow mb-1 block">{t('emi.minimumOutstanding')}</span><Input name="minOutstanding" inputMode="numeric" defaultValue={minOutstandingText} placeholder="0" /></label>
         <label><span className="eyebrow mb-1 block">{t('emi.maximumOutstanding')}</span><Input name="maxOutstanding" inputMode="numeric" defaultValue={maxOutstandingText} placeholder={t('emi.setMaximum')} /></label>
         <label><span className="eyebrow mb-1 block">{t('emi.orderBy')}</span><Select name="order" defaultValue={order}><option value="newest">{t('emi.orderNewest')}</option><option value="oldest">{t('emi.orderOldest')}</option><option value="outstanding-desc">{t('emi.orderOutstandingHigh')}</option><option value="outstanding-asc">{t('emi.orderOutstandingLow')}</option><option value="total-desc">{t('emi.orderTotalHigh')}</option><option value="total-asc">{t('emi.orderTotalLow')}</option><option value="customer-asc">{t('emi.orderCustomerAz')}</option><option value="customer-desc">{t('emi.orderCustomerZa')}</option></Select></label>
+          </div>
+        </details>
         <div className="flex items-end gap-2 sm:col-span-2"><button className="h-9 rounded-[3px] border border-signal bg-signal px-3.5 text-[13px] font-medium text-white transition-colors hover:bg-blue-700">{t('common.applyFilters')}</button><Link href="/emi" className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[13px] transition-colors hover:border-graphite hover:bg-slate-200">{t('common.reset')}</Link></div>
         {invalidRange && <p className="text-[12px] text-out sm:col-span-2 lg:col-span-4">{t('emi.invalidOutstandingRange')}</p>}
       </form>
@@ -107,8 +129,12 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
     <Card className="overflow-auto">
       {rows.length === 0 ? <p className="p-8 text-center text-graphite">{t('emi.noMatches')}</p> : <table className="w-full min-w-[1050px] text-[13px]">
         <thead><tr className="border-b border-rule"><th className="eyebrow px-4 py-2.5 text-center">{t('emi.contract')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.invoice')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.started')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('common.customer')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.paymentPlan')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.total')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.outstanding')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('common.status')}</th></tr></thead>
-        <tbody>{rows.map(({ contract, sale, customer, outstanding: rowOutstanding }) => <tr key={contract.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-4 py-3 text-center"><Link href={`/emi/${contract.id}`} className="font-semibold text-signal hover:underline">{contract.contractNumber}</Link></td><td className="px-4 py-3 text-center"><Link href={`/invoices/${contract.saleId}`} className="text-signal hover:underline">{sale?.invoiceNumber ?? '—'}</Link></td><td className="px-4 py-3 text-center">{formatDhakaDateTime(contract.createdAt)}</td><td className="px-4 py-3 text-center"><span className="font-medium">{customer?.name ?? '—'}</span><span className="block text-[11px] text-graphite">{customer?.phone ?? ''}</span></td><td className="px-4 py-3 text-center">{t('emi.installments', { count: contract.termMonths })}</td><td className="tnum px-4 py-3 text-center">{formatBDT(contract.emiTotal)}</td><td className="tnum px-4 py-3 text-center font-medium">{formatBDT(rowOutstanding)}</td><td className="px-4 py-3 text-center"><Badge tone={contract.status === 'PAID' ? 'ok' : contract.status === 'OVERDUE' || contract.status === 'VOIDED' ? 'out' : contract.status === 'ACTIVE' ? 'signal' : 'neutral'}>{statusLabel(contract.status)}</Badge></td></tr>)}</tbody>
+        <tbody>{pageRows.map(({ contract, sale, customer, outstanding: rowOutstanding, displayStatus }) => <tr key={contract.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-4 py-3 text-center"><Link href={`/emi/${contract.id}`} className="font-semibold text-signal hover:underline">{contract.contractNumber}</Link></td><td className="px-4 py-3 text-center"><Link href={`/invoices/${contract.saleId}`} className="text-signal hover:underline">{sale?.invoiceNumber ?? '—'}</Link></td><td className="px-4 py-3 text-center">{formatDhakaDateTime(contract.createdAt)}</td><td className="px-4 py-3 text-center"><span className="font-medium">{customer?.name ?? '—'}</span><span className="block text-[11px] text-graphite">{customer?.phone ?? ''}</span></td><td className="px-4 py-3 text-center">{t('emi.installments', { count: contract.termMonths })}</td><td className="tnum px-4 py-3 text-center">{formatBDT(contract.emiTotal)}</td><td className="tnum px-4 py-3 text-center font-medium">{formatBDT(rowOutstanding)}</td><td className="px-4 py-3 text-center"><Badge tone={contract.status === 'PAID' ? 'ok' : contract.status === 'OVERDUE' || contract.status === 'VOIDED' ? 'out' : contract.status === 'ACTIVE' ? 'signal' : 'neutral'}>{statusLabel(displayStatus)}</Badge></td></tr>)}</tbody>
       </table>}
+      {rows.length > 0 && <nav className="flex flex-col gap-2 border-t border-rule px-4 py-3 text-[12px] sm:flex-row sm:items-center sm:justify-between" aria-label={t('emi.pagination')}>
+        <p className="tnum text-graphite">{t('invoices.showing', { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, rows.length), total: rows.length })}</p>
+        <div className="flex gap-2">{page > 1 && <Link className="rounded-lg border border-rule px-3 py-1.5 hover:bg-plate" href={pageUrl(page - 1)}>{t('invoices.previous')}</Link>}{page < pageCount && <Link className="rounded-lg border border-rule px-3 py-1.5 hover:bg-plate" href={pageUrl(page + 1)}>{t('invoices.next')}</Link>}</div>
+      </nav>}
     </Card>
   </>;
 }

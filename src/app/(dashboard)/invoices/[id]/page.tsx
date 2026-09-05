@@ -5,7 +5,7 @@ import { requirePageCapability } from '@/lib/session';
 import { hasPermission } from '@/lib/permissions';
 import { db } from '@/repositories';
 import { assertVoidPermission } from '@/services/sales';
-import { INVOICE_LOGO_SRC } from '@/lib/shop-branding';
+import { printableShop } from '@/lib/server-shop-branding';
 
 export const dynamic = 'force-dynamic';
 
@@ -42,13 +42,7 @@ export default async function InvoicePage({ params }: { params: Promise<{ id: st
       canVoid={canVoid}
       canCollectPayment={hasPermission(actor.role, 'RECORD_INVOICE_PAYMENT')}
       emi={emiContract ? { contract: emiContract, installments: emiInstallments, earlySettlement: emiEarlySettlement, payments: emiPayments } : null}
-      shop={{
-        name: process.env.SHOP_NAME?.trim() || 'Irfan Gadget & Mobile',
-        logoDataUri: process.env.SHOP_LOGO_DATA_URI?.trim() || INVOICE_LOGO_SRC,
-        address: process.env.SHOP_ADDRESS?.trim() || null,
-        phone: process.env.SHOP_PHONE?.trim() || null,
-        policy: process.env.INVOICE_POLICY?.trim() || null,
-      }}
+      shop={await printableShop()}
     />
   );
 }

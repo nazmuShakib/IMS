@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { startTransition, useActionState, useEffect, useState, type FormEvent } from 'react';
+import { InstallmentSchedule } from './InstallmentSchedule';
+import { startTransition, useActionState, useEffect, useRef, useState, type FormEvent } from 'react';
 import { Check, X } from 'lucide-react';
 import { recordEmiPaymentAction, settleEmiEarlyAction, type EmiActionState } from '@/actions/emi';
 import { Badge, Button, Card, Field, Input, Select, Textarea } from '@/components/ui';
 import type { EmiContract, EmiEarlySettlement, EmiInstallment, EmiPayment, PaymentMethod, Role } from '@/domain/types';
 import { formatBDT, parseBDT } from '@/lib/money';
-import { formatDhakaDate, formatDhakaDateTime } from '@/lib/time';
+import { formatDhakaDateTime } from '@/lib/time';
 import { emiEarlySettlementSchema, emiPaymentSchema } from '@/schemas';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { domainLabel } from '@/lib/i18n/domain';
@@ -18,19 +19,20 @@ function moneyInput(paisa: number): string {
   return paisa % 100 === 0 ? String(paisa / 100) : (paisa / 100).toFixed(2);
 }
 
-function installmentTone(status: EmiInstallment['status']): 'ok' | 'out' | 'low' | 'neutral' {
-  if (status === 'PAID') return 'ok';
-  if (status === 'OVERDUE' || status === 'VOIDED') return 'out';
-  if (status === 'DUE' || status === 'PARTIAL') return 'low';
-  return 'neutral';
-}
-
 export function EmiContractWorkspace({ contract, installments, payments, earlySettlement, allocationsByPayment, role }: { contract: EmiContract; installments: EmiInstallment[]; payments: EmiPayment[]; earlySettlement: EmiEarlySettlement | null; allocationsByPayment: Record<string, Array<{ sequence: number; amount: number }>>; role: Role }) {
   const { t, message } = useI18n();
   const [paymentState, paymentAction, paymentPending] = useActionState<EmiActionState, FormData>(recordEmiPaymentAction, {});
   const [settleState, settleAction, settlePending] = useActionState<EmiActionState, FormData>(settleEmiEarlyAction, {});
   const openInstallments = installments.filter((row) => row.amountPaid < row.amountDue);
   const firstOpenAmount = openInstallments[0] ? openInstallments[0].amountDue - openInstallments[0].amountPaid : 0;
+  const [confirmation, setConfirmation] = useState<{ kind: 'payment' | 'settlement'; data: FormData; amount: number; discount: number; method: string } | null>(null);
+  const confirmDialog = useRef<HTMLDialogElement>(null);
+  const submitting = useRef(false);
+  useEffect(() => {
+    if (confirmation) confirmDialog.current?.showModal();
+    else confirmDialog.current?.close();
+  }, [confirmation]);
+  useEffect(() => { if (!paymentPending && !settlePending) submitting.current = false; }, [paymentPending, settlePending]);
   const [paymentKey, setPaymentKey] = useState(''); const [settleKey, setSettleKey] = useState('');
   const [paymentPlan, setPaymentPlan] = useState(openInstallments.length ? '1' : 'custom');
   const [paymentValues, setPaymentValues] = useState({ amount: firstOpenAmount ? moneyInput(firstOpenAmount) : '', paymentMethod: 'CASH', reference: '', note: '' });
@@ -54,13 +56,15 @@ export function EmiContractWorkspace({ contract, installments, payments, earlySe
     setPaymentPlan('1');
     setPaymentValues((current) => ({ ...current, reference: '', note: '' }));
   }, [paymentState.receiptId]);
-  const paid = installments.reduce((sum, row) => sum + row.amountPaid, 0);
+  const paid = payments.filter((row) => row.status === 'ACTIVE').reduce((sum, row) => sum + row.amount, 0);
   const historicalOutstanding = installments.reduce((sum, row) => sum + row.amountDue - row.amountPaid, 0);
   const outstanding = contract.status === 'VOIDED' ? 0 : historicalOutstanding;
   const canCollect = role === 'ADMIN' || role === 'MANAGER';
   const open = contract.status === 'ACTIVE' || contract.status === 'OVERDUE';
   let enteredPayment = 0;
   try { enteredPayment = paymentValues.amount ? parseBDT(paymentValues.amount) : 0; } catch { enteredPayment = 0; }
+  let settlementDiscount = 0;
+  try { settlementDiscount = settleValues.discountAmount ? parseBDT(settleValues.discountAmount) : 0; } catch { /* Validation supplies the error. */ }
   let previewRemaining = enteredPayment;
   const paymentAllocation = openInstallments.flatMap((row) => {
     if (previewRemaining <= 0) return [];
@@ -114,24 +118,47 @@ export function EmiContractWorkspace({ contract, installments, payments, earlySe
     const parsed = emiPaymentSchema.safeParse({ contractId: contract.id, idempotencyKey: paymentKey, ...paymentValues });
     if (!parsed.success) { setPaymentErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; }
     if (parsed.data.amount > outstanding) { setPaymentErrors({ amount: t('emi.paymentExceedsOutstanding') }); return; }
-    setPaymentErrors({}); startTransition(() => paymentAction(new FormData(event.currentTarget)));
+    if (paymentPending || settlePending || submitting.current) return;
+    setPaymentErrors({}); setConfirmation({ kind: 'payment', data: new FormData(event.currentTarget), amount: parsed.data.amount, discount: 0, method: parsed.data.paymentMethod });
   }
   function submitSettlement(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const parsed = emiEarlySettlementSchema.safeParse({ contractId: contract.id, idempotencyKey: settleKey, ...settleValues });
     if (!parsed.success) { setSettleErrors(Object.fromEntries(parsed.error.issues.map((issue) => [String(issue.path[0]), issue.message]))); return; }
     if (parsed.data.discountAmount >= outstanding) { setSettleErrors({ discountAmount: t('emi.discountBelowOutstanding') }); return; }
-    setSettleErrors({}); startTransition(() => settleAction(new FormData(event.currentTarget)));
+    if (paymentPending || settlePending || submitting.current) return;
+    setSettleErrors({}); setConfirmation({ kind: 'settlement', data: new FormData(event.currentTarget), amount: outstanding - parsed.data.discountAmount, discount: parsed.data.discountAmount, method: parsed.data.paymentMethod });
+  }
+  function confirmSubmission() {
+    if (!confirmation || submitting.current) return;
+    submitting.current = true;
+    const { kind, data } = confirmation;
+    setConfirmation(null);
+    startTransition(() => { if (kind === 'payment') paymentAction(data); else settleAction(data); });
   }
   return <div className="space-y-4">
+    <dialog ref={confirmDialog} onCancel={() => setConfirmation(null)} onClose={() => setConfirmation(null)} aria-labelledby="emi-confirm-title" className="m-auto w-[calc(100%_-_2rem)] max-w-md rounded-xl border border-rule bg-card p-0 text-ink shadow-xl backdrop:bg-black/45">
+      {confirmation && <div className="p-5">
+        <h2 id="emi-confirm-title" className="text-lg font-semibold">{t(confirmation.kind === 'payment' ? 'emi.confirmPayment' : 'emi.confirmSettlement')}</h2>
+        <p className="mt-2 text-sm text-graphite">{t('emi.confirmHelp')}</p>
+        <dl className="my-5 space-y-3 text-sm">
+          <div className="flex justify-between gap-3"><dt>{t('emi.contract')}</dt><dd className="font-medium">{contract.contractNumber}</dd></div>
+          {confirmation.kind === 'settlement' && <div className="flex justify-between gap-3"><dt>{t('emi.earlySettlementDiscount')}</dt><dd className="tnum">{formatBDT(confirmation.discount)}</dd></div>}
+          <div className="flex justify-between gap-3"><dt>{t('emi.amountReceived')}</dt><dd className="tnum font-semibold">{formatBDT(confirmation.amount)}</dd></div>
+          <div className="flex justify-between gap-3"><dt>{t('emi.paymentMethod')}</dt><dd>{domainLabel(t, confirmation.method as PaymentMethod)}</dd></div>
+          <div className="flex justify-between gap-3"><dt>{t('emi.outstanding')}</dt><dd className="tnum">{formatBDT(outstanding - confirmation.amount - confirmation.discount)}</dd></div>
+        </dl>
+        <div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="ghost" autoFocus onClick={() => setConfirmation(null)}>{t('common.cancel')}</Button><Button type="button" disabled={paymentPending || settlePending} onClick={confirmSubmission}>{t(confirmation.kind === 'payment' ? 'emi.confirmPayment' : 'emi.confirmSettlement')}</Button></div>
+      </div>}
+    </dialog>
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Card className="p-3"><p className="eyebrow">{t('emi.totalCard')}</p><p className="tnum mt-1 text-[19px] font-semibold">{formatBDT(contract.emiTotal)}</p></Card>
-      <Card className="p-3"><p className="eyebrow">{t('emi.paidTowardInstallments')}</p><p className="tnum mt-1 text-[19px] font-semibold text-ok">{formatBDT(paid)}</p></Card>
-      <Card className="p-3"><p className="eyebrow">{t('emi.outstanding')}</p><p className="tnum mt-1 text-[19px] font-semibold text-out">{formatBDT(outstanding)}</p></Card>
-      <Card className="p-3"><p className="eyebrow">{t('emi.upfrontCredit')}</p><p className="tnum mt-1 text-[19px] font-semibold">{formatBDT(contract.downPayment + contract.tradeInCredit)}</p></Card>
+      <Card className="!rounded-xl p-4"><p className="eyebrow">{t('emi.totalCard')}</p><p className="tnum mt-1 text-[19px] font-semibold">{formatBDT(contract.emiTotal)}</p></Card>
+      <Card className="!rounded-xl p-4"><p className="eyebrow">{t('emi.paidTowardInstallments')}</p><p className="tnum mt-1 text-[19px] font-semibold text-ok">{formatBDT(paid)}</p></Card>
+      <Card className="!rounded-xl p-4"><p className="eyebrow">{t('emi.outstanding')}</p><p className="tnum mt-1 text-[19px] font-semibold text-out">{formatBDT(outstanding)}</p></Card>
+      <Card className="!rounded-xl p-4"><p className="eyebrow">{t('emi.upfrontCredit')}</p><p className="tnum mt-1 text-[19px] font-semibold">{formatBDT(contract.downPayment + contract.tradeInCredit)}</p></Card>
     </div>
 
-    {earlySettlement && <Card className="p-3">
+    {earlySettlement && <Card className="!rounded-xl p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="font-semibold">{t('emi.earlySettlementSummary')}</h2>
         <Badge tone="ok">{t('emi.settled')}</Badge>
@@ -145,15 +172,10 @@ export function EmiContractWorkspace({ contract, installments, payments, earlySe
       </dl>
     </Card>}
 
-    <Card className="overflow-auto">
-      <div className="border-b border-rule px-3 py-2.5"><h2 className="font-semibold">{t('emi.schedule')}</h2>{earlySettlement && <p className="mt-0.5 text-[12px] text-graphite">{t('emi.scheduleAdjustedForDiscount', { discount: formatBDT(earlySettlement.discountAmount) })}</p>}</div>
-      <table className="w-full min-w-[650px] text-[13px]"><thead><tr className="border-b border-rule bg-card"><th className="eyebrow px-3 py-2.5 text-center">{t('emi.installment')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.dueDate')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.amount')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.paid')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('emi.balance')}</th><th className="eyebrow px-3 py-2.5 text-center">{t('common.status')}</th></tr></thead><tbody>
-        {installments.map((row) => <tr key={row.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-3 py-2.5 text-center font-medium">#{row.sequence}</td><td className="px-3 py-2.5 text-center">{formatDhakaDate(row.dueDate)}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(row.amountDue)}</td><td className="tnum px-3 py-2.5 text-center">{formatBDT(row.amountPaid)}</td><td className="tnum px-3 py-2.5 text-center font-medium">{formatBDT(row.amountDue - row.amountPaid)}</td><td className="px-3 py-2.5 text-center"><Badge tone={installmentTone(row.status)}>{t(`emi.status.${row.status.toLowerCase()}` as 'emi.status.paid')}</Badge></td></tr>)}
-      </tbody></table>
-    </Card>
+    <InstallmentSchedule contract={contract} installments={installments} settlement={earlySettlement} />
 
     {canCollect && open && <div className="grid items-start gap-4 lg:grid-cols-2">
-      <Card className="p-3"><h2 className="mb-1 font-semibold">{t('emi.recordPayment')}</h2><p className="mb-3 text-[12px] text-graphite">{t('emi.oldestFirstHelp')}</p><form noValidate onSubmit={submitPayment} className="space-y-3">
+      <Card className="!rounded-xl p-4"><h2 className="mb-1 font-semibold">{t('emi.recordPayment')}</h2><p className="mb-3 text-[12px] text-graphite">{t('emi.oldestFirstHelp')}</p><form noValidate onSubmit={submitPayment} className="space-y-3">
         <input type="hidden" name="contractId" value={contract.id}/><input type="hidden" name="idempotencyKey" value={paymentKey}/>
         <Field label={t('emi.installmentsBeingPaid')}>
           <Select value={paymentPlan} onChange={(event) => choosePaymentPlan(event.target.value)}>
@@ -170,15 +192,15 @@ export function EmiContractWorkspace({ contract, installments, payments, earlySe
         {paymentAllocation.length > 0 && <div className="rounded-[3px] border border-rule bg-plate/60 px-3 py-2 text-[12px]"><span className="font-medium">{t('emi.allocationPreview')}</span> {paymentAllocation.map((item) => `#${item.sequence} ${formatBDT(item.amount)}`).join(' · ')}</div>}
         <Field label={t('emi.paymentMethod')} error={paymentError('paymentMethod')}><Select name="paymentMethod" value={paymentValues.paymentMethod} onChange={(event) => updatePayment('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method} value={method}>{domainLabel(t, method)}</option>)}</Select></Field>
         <Field label={t('common.reference')} error={paymentError('reference')}><Input name="reference" maxLength={120} value={paymentValues.reference} onChange={(event) => updatePayment('reference', event.target.value)}/></Field><Field label={t('common.note')} error={paymentError('note')}><Textarea name="note" rows={2} value={paymentValues.note} onChange={(event) => updatePayment('note', event.target.value)}/></Field>
-        <Button disabled={paymentPending || !paymentKey}>{paymentPending ? t('emi.recording') : t('emi.recordPaymentButton')}</Button>
+        <Button disabled={paymentPending || settlePending || !paymentKey}>{paymentPending ? t('emi.recording') : t('emi.recordPaymentButton')}</Button>
         {paymentState.error && <p className="text-[12px] text-out">{message(paymentState.error)}</p>}
       </form></Card>
-      <Card className="p-3"><h2 className="mb-1 font-semibold">{t('emi.earlySettlement')}</h2><p className="mb-3 text-[12px] text-graphite">{t('emi.earlySettlementHelp')}</p><form noValidate onSubmit={submitSettlement} className="space-y-3">
+      <Card className="!rounded-xl p-4"><h2 className="mb-1 font-semibold">{t('emi.earlySettlement')}</h2><p className="mb-3 text-[12px] text-graphite">{t('emi.earlySettlementHelp')}</p><form noValidate onSubmit={submitSettlement} className="space-y-3">
         <input type="hidden" name="contractId" value={contract.id}/><input type="hidden" name="idempotencyKey" value={settleKey}/>
-        <Field label={t('emi.approvedDiscount')} error={settleError('discountAmount')}><Input name="discountAmount" inputMode="numeric" step="1" value={settleValues.discountAmount} onChange={(event) => updateSettlement('discountAmount', event.target.value)} placeholder="0"/></Field>
+        <div className="mb-3 rounded-lg border border-rule bg-plate/50 p-3 text-[13px]"><p className="flex justify-between gap-3"><span>{t('emi.dueBeforeDiscount')}</span><strong className="tnum">{formatBDT(outstanding)}</strong></p><p className="mt-2 flex justify-between gap-3"><span>{t('emi.finalSettlementAmount')}</span><strong className="tnum">{formatBDT(Math.max(0, outstanding - settlementDiscount))}</strong></p></div><Field label={t('emi.approvedDiscount')} error={settleError('discountAmount')}><Input name="discountAmount" inputMode="numeric" step="1" value={settleValues.discountAmount} onChange={(event) => updateSettlement('discountAmount', event.target.value)} placeholder="0"/></Field>
         <Field label={t('emi.paymentMethod')} error={settleError('paymentMethod')}><Select name="paymentMethod" value={settleValues.paymentMethod} onChange={(event) => updateSettlement('paymentMethod', event.target.value)}>{methods.map((method) => <option key={method} value={method}>{domainLabel(t, method)}</option>)}</Select></Field>
         <Field label={t('emi.approvalReason')} error={settleError('reason')}><Textarea name="reason" rows={2} value={settleValues.reason} onChange={(event) => updateSettlement('reason', event.target.value)}/></Field><Field label={t('common.reference')} error={settleError('reference')}><Input name="reference" value={settleValues.reference} onChange={(event) => updateSettlement('reference', event.target.value)}/></Field>
-        <Button disabled={settlePending || !settleKey}>{settlePending ? t('emi.settling') : t('emi.approveSettle')}</Button>
+        <Button disabled={settlePending || paymentPending || !settleKey}>{settlePending ? t('emi.settling') : t('emi.approveSettle')}</Button>
         {settleState.error && <p className="text-[12px] text-out">{message(settleState.error)}</p>}
       </form></Card>
     </div>}

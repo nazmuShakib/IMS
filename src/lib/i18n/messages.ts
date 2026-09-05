@@ -1,6 +1,10 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const en = {
+  'emi.status.settled_early': 'Settled early',
+  'emi.adjustedSchedule': 'Adjusted installment schedule',
+  'emi.nextPayment': 'Next payment',
+  'emi.rowDiscount': 'Was {original} · discount −{discount}',
   'language.english': 'English',
   'language.bengali': 'বাংলা',
   'language.switchTo': 'Switch language',
@@ -10,6 +14,10 @@ const en = {
   'common.saveChanges': 'Save changes',
   'common.saving': 'Saving…',
   'common.cancel': 'Cancel',
+  'emi.pagination': 'EMI contracts pagination',
+  'emi.confirmPayment': 'Confirm payment',
+  'emi.confirmSettlement': 'Confirm settlement',
+  'emi.confirmHelp': 'Review the details below. Confirm only after receiving the payment.',
   'common.search': 'Search',
   'common.reset': 'Reset',
   'common.applyFilters': 'Apply filters',
@@ -1401,7 +1409,6 @@ const en = {
   'emi.productCode': 'Product code (SKU): {sku}',
   'emi.deviceImei': 'Device/IMEI: {serial}',
   'emi.quantity': 'Quantity: {count}',
-  'emi.keepReceipt': 'Keep this receipt for future payment verification.',
   'emi.receiptLayout': 'Receipt print layout',
   'emi.a4Printer': 'A4 / standard printer',
   'emi.thermalPrinter': '80 mm thermal',
@@ -1498,6 +1505,10 @@ const en = {
 export type MessageKey = keyof typeof en;
 
 const bn: Record<MessageKey, string> = {
+  'emi.status.settled_early': 'আগাম পরিশোধিত',
+  'emi.adjustedSchedule': 'ছাড়ের পর কিস্তির সময়সূচি',
+  'emi.nextPayment': 'পরবর্তী পেমেন্ট',
+  'emi.rowDiscount': 'আগে {original} · ছাড় −{discount}',
   'language.english': 'English',
   'language.bengali': 'বাংলা',
   'language.switchTo': 'ভাষা পরিবর্তন করুন',
@@ -1507,6 +1518,10 @@ const bn: Record<MessageKey, string> = {
   'common.saveChanges': 'পরিবর্তন সংরক্ষণ',
   'common.saving': 'সংরক্ষণ হচ্ছে…',
   'common.cancel': 'বাতিল',
+  'emi.pagination': 'ইএমআই চুক্তির পৃষ্ঠা',
+  'emi.confirmPayment': 'পেমেন্ট নিশ্চিত করুন',
+  'emi.confirmSettlement': 'নিষ্পত্তি নিশ্চিত করুন',
+  'emi.confirmHelp': 'নিচের তথ্য যাচাই করুন। টাকা গ্রহণের পরই নিশ্চিত করুন।',
   'common.search': 'খুঁজুন',
   'common.reset': 'রিসেট',
   'common.applyFilters': 'ফিল্টার প্রয়োগ করুন',
@@ -2898,7 +2913,6 @@ const bn: Record<MessageKey, string> = {
   'emi.productCode': 'পণ্য কোড (SKU): {sku}',
   'emi.deviceImei': 'ডিভাইস/IMEI: {serial}',
   'emi.quantity': 'পরিমাণ: {count}',
-  'emi.keepReceipt': 'ভবিষ্যৎ পেমেন্ট যাচাইয়ের জন্য এই রসিদটি সংরক্ষণ করুন।',
   'emi.receiptLayout': 'রসিদ প্রিন্টের ধরন',
   'emi.a4Printer': 'A4 / সাধারণ প্রিন্টার',
   'emi.thermalPrinter': '৮০ মিমি থার্মাল',

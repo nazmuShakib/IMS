@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 
+import { printableShop } from '@/lib/server-shop-branding';
 import { emiReceiptToThermalPdf } from '@/lib/emi-receipt-pdf';
 import { hasPermission } from '@/lib/permissions';
 import { getOptionalSession } from '@/lib/session';
@@ -36,6 +37,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     ? payment.reverseReason.slice(legacyReasonPrefix.length)
     : payment.reverseReason;
   const content = await emiReceiptToThermalPdf({
+    shop: await printableShop(true),
     contract,
     payment,
     customer,

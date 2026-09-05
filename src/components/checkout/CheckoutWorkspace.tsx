@@ -1713,9 +1713,6 @@ export function CheckoutWorkspace({
                               <span>{t("checkout.financedBalance")}</span>
                               <span className="tnum">{formatBDT(amountDue)}</span>
                             </div>}
-                            <p className="text-right text-[11px] text-graphite">
-                              {t("checkout.previewEmiTerm", { count: emiTerm })}{emiFirstDueDate ? ` · ${previewDate(emiFirstDueDate, locale)}` : ""}
-                            </p>
                           </>
                         )}
                         {!isEmi && tradeInCredit > 0 && (

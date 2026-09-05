@@ -14,9 +14,10 @@ import { formatBDT } from '@/lib/money';
 import { useI18n } from '@/components/i18n/I18nProvider';
 import { domainLabel } from '@/lib/i18n/domain';
 import { voidInvoiceFieldsSchema, type VoidInvoiceFields } from '@/schemas';
+import { emiInvoiceSummary, emiScheduleRows, emiScheduleDate } from '@/lib/emi-presentation';
 import { emiDisplayStatus, emiVoidRefundAmount } from '@/lib/emi-summary';
 import { thermalPageHeightMm } from '@/lib/thermal-print-page';
-import { emiInvoiceAmountDue, regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
+import { regularInvoiceAmountDue } from '@/lib/invoice-payment-status';
 
 export interface InvoiceShop {
   name: string;
@@ -32,13 +33,6 @@ function dateTime(value: string): string {
     dateStyle: 'medium',
     timeStyle: 'short',
     hour12: true,
-  }).format(new Date(value));
-}
-
-function dateOnly(value: string): string {
-  return new Intl.DateTimeFormat('en-BD', {
-    timeZone: 'Asia/Dhaka',
-    dateStyle: 'medium',
   }).format(new Date(value));
 }
 
@@ -137,7 +131,7 @@ export function InvoiceView({
     .reduce((sum, entry) => sum + entry.amount, 0);
   const tradeInPayoutToRecover = Math.max(0, tradeInPayoutRecorded - tradeInPayoutRecovered);
   const regularAmountDue = regularInvoiceAmountDue(sale);
-  const emiAmountDue = emi ? emiInvoiceAmountDue(sale, emi.installments) : 0;
+  const emiSummary = emi ? emiInvoiceSummary(emi, sale.status === 'VOIDED') : null;
   const pdfHref = layout === 'a4'
     ? `/api/invoices/${sale.id}/pdf`
     : `/api/invoices/${sale.id}/thermal-pdf?width=${layout === 'thermal58' ? 58 : 80}`;
@@ -322,10 +316,7 @@ export function InvoiceView({
           <section className="invoice-summary">
             <dl>
               {emi ? (
-                <>
-                  <div><dt>Down payment</dt><dd className="tnum">{formatBDT(emi.contract.downPayment)}</dd></div>
-                  <div className="invoice-total"><dt>Outstanding</dt><dd className="tnum">{formatBDT(emiAmountDue)}</dd></div>
-                </>
+                <>{emiSummary?.rows.map((row) => <div key={row.label} className={row.label === 'Outstanding' ? 'invoice-total' : undefined}><dt>{row.label}</dt><dd className="tnum">{row.deduction ? '−' : ''}{formatBDT(row.amount)}</dd></div>)}</>
               ) : (
                 <>
                   <div className="invoice-total"><dt>Total</dt><dd className="tnum">{formatBDT(sale.total)}</dd></div>
@@ -349,20 +340,17 @@ export function InvoiceView({
           </section>
 
           {emi && (
-            <section className="invoice-trade-in">
-              <span>Installment schedule</span>
-              <p>{emi.installments.map((row) => `#${row.sequence} ${new Date(row.dueDate).toLocaleDateString('en-GB')} ${formatBDT(row.amountDue)}`).join(' · ')}</p>
+            <section className="invoice-emi-schedule">
+              <h2>{emiSummary?.settlement ? 'Adjusted installment schedule' : 'Installment schedule'}</h2>
+              <p className="invoice-emi-caption">Shop-managed EMI</p>
+              {emiSummary?.settlement && <p className="invoice-settlement-explanation">Due before discount {formatBDT(emiSummary.settlement.outstandingBefore)} − discount {formatBDT(emiSummary.settlement.discountAmount)} = final payment {formatBDT(emiSummary.settlement.finalAmount)}</p>}
+              <table><thead><tr><th>Installment / due date</th><th>Amount</th></tr></thead><tbody>
+                {emiScheduleRows(emi.contract, emi.installments, emi.earlySettlement).map((row) => <tr key={row.id}><td><strong>#{row.sequence}</strong><span className="invoice-installment-status">{sale.status === 'VOIDED' ? 'Voided' : row.status.toLowerCase()}</span><span className="invoice-installment-date">{emiScheduleDate(row.dueDate)}</span></td><td className="tnum">{formatBDT(row.amountDue)}{row.discount > 0 && <small>Was {formatBDT(row.originalAmount)} · discount −{formatBDT(row.discount)}</small>}</td></tr>)}
+              </tbody></table>
             </section>
           )}
 
-          {(emi || sale.note || sale.status === 'VOIDED') && <section className="invoice-payment">
-            {emi ? (
-              <div>
-                <p><span>Payment plan:</span> Shop-managed EMI</p>
-                <p><span>Installments:</span> {emi.contract.termMonths} monthly installments</p>
-                <p><span>First installment date:</span> {dateOnly(emi.contract.firstDueDate)}</p>
-              </div>
-            ) : null}
+          {(sale.note || sale.status === 'VOIDED') && <section className="invoice-payment">
             {sale.note && <p><span>Note:</span> {sale.note}</p>}
             {sale.status === 'VOIDED' && (
               <p className="invoice-void-details">

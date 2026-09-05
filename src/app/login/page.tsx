@@ -22,7 +22,6 @@ export default async function LoginPage({
         <div className="mb-5 flex items-start justify-between gap-3">
           <div>
             <Image src={TOPBAR_LOGO_SRC} alt="Irfan Gadget & Mobile" width={1055} height={345} priority unoptimized className="h-auto w-[170px]" />
-            <h1 className="mt-1 text-[24px] font-semibold">{t('auth.signInTitle')}</h1>
           </div>
           <LanguageSwitcher locale={locale} compact />
         </div>

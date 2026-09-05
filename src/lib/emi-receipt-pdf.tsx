@@ -10,7 +10,7 @@ import type {
   InvoiceItem,
   Sale,
 } from '@/domain/types';
-import { SHOP_LOGO_DATA_URI } from '@/lib/shop-branding';
+import { isSettlementReceipt } from '@/lib/emi-presentation';
 
 const MM_TO_PT = 72 / 25.4;
 
@@ -19,16 +19,16 @@ const styles = StyleSheet.create({
   page58: { paddingHorizontal: 5 },
   page80: { paddingHorizontal: 6 },
   logo: { objectFit: 'contain', objectPosition: 'center', alignSelf: 'center' },
-  logo58: { width: 88, height: 52 },
-  logo80: { width: 108, height: 63 },
+  logo58: { width: 110, height: 61 },
+  logo80: { width: 140, height: 77 },
   title: { marginTop: 2, textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 9 },
   receiptNumber: { marginTop: 4, textAlign: 'center', fontFamily: 'Helvetica-Bold', fontSize: 8.5 },
   centered: { textAlign: 'center' },
   muted: { color: '#000000', fontSize: 6.5 },
   divider: { borderBottomWidth: 0.6, borderBottomColor: '#000000', marginVertical: 6 },
-  amountGrid: { flexDirection: 'row', borderWidth: 0.4, borderColor: '#000000' },
-  amountCell: { width: '50%', padding: 5 },
-  amountCellBorder: { borderRightWidth: 0.4, borderRightColor: '#000000' },
+  amountGrid: { borderWidth: 0.4, borderColor: '#000000' },
+  amountCell: { width: '100%', padding: 5 },
+  amountCellBorder: { borderBottomWidth: 0.4, borderBottomColor: '#000000' },
   label: { color: '#000000', fontFamily: 'Helvetica-Bold', fontSize: 6, textTransform: 'uppercase', marginBottom: 2 },
   amount: { fontFamily: 'Helvetica-Bold', fontSize: 11 },
   detailGrid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 5 },
@@ -36,9 +36,7 @@ const styles = StyleSheet.create({
   value: { fontFamily: 'Helvetica-Bold' },
   product: { borderTopWidth: 0.35, borderTopColor: '#000000', marginTop: 5, paddingTop: 5 },
   productName: { fontFamily: 'Helvetica-Bold', fontSize: 8 },
-  settlement: { borderWidth: 0.4, borderColor: '#000000', marginTop: 5, padding: 5 },
   voided: { borderWidth: 0.5, borderColor: '#000000', color: '#000000', marginBottom: 6, padding: 5 },
-  footer: { marginTop: 7 },
 });
 
 function money(value: number): string {
@@ -67,11 +65,13 @@ function receiptHeightMm(input: ThermalReceiptInput, widthMm: 58 | 80): number {
   height += wrappedLines(input.payment.reference, characters) * 3;
   height += wrappedLines(input.payment.note, characters) * 3;
   height += wrappedLines(input.voidReason, characters) * 3;
-  if (input.earlySettlement) height += 17;
+  if (isSettlementReceipt(input.payment, input.earlySettlement)) height += 25;
+  height += wrappedLines(input.shop.address, characters) * 3 + wrappedLines(input.shop.phone, characters) * 3;
   return Math.min(1000, Math.max(widthMm === 58 ? 108 : 102, Math.ceil(height)));
 }
 
 export interface ThermalReceiptInput {
+  shop: { name: string; logoDataUri: string; address: string | null; phone: string | null };
   contract: EmiContract;
   payment: EmiPayment;
   customer: Customer | null;
@@ -89,14 +89,14 @@ function ThermalReceiptDocument({ input, widthMm }: {
   widthMm: 58 | 80;
 }) {
   const sequenceById = new Map(input.installments.map((row) => [row.id, row.sequence]));
-  const isEarlySettlement = Boolean(input.earlySettlement && input.payment.paidAt === input.earlySettlement.approvedAt);
+  const isEarlySettlement = isSettlementReceipt(input.payment, input.earlySettlement);
   const reversed = input.payment.status === 'REVERSED';
   const applied = input.allocations
     .map((row) => `#${sequenceById.get(row.installmentId) ?? '?'} (${money(row.amount)})`)
     .join(' / ') || 'None';
   const heightMm = receiptHeightMm(input, widthMm);
 
-  return <Document title={input.payment.receiptNumber} author="Irfan Gadget & Mobile">
+  return <Document title={input.payment.receiptNumber} author={input.shop.name}>
     <Page
       size={{ width: widthMm * MM_TO_PT, height: heightMm * MM_TO_PT }}
       style={[styles.page, widthMm === 58 ? styles.page58 : styles.page80]}
@@ -108,12 +108,16 @@ function ThermalReceiptDocument({ input, widthMm }: {
         <Text>Invoice: {input.sale?.invoiceNumber ?? 'Not recorded'}</Text>
         <Text>Reason: {input.voidReason ?? 'Not recorded'}</Text>
       </View>}
-      <Image src={SHOP_LOGO_DATA_URI} style={[styles.logo, widthMm === 58 ? styles.logo58 : styles.logo80]} />
+      <Image src={input.shop.logoDataUri} style={[styles.logo, widthMm === 58 ? styles.logo58 : styles.logo80]} />
+      {input.shop.address && <Text style={styles.centered}>{input.shop.address}</Text>}
+      {input.shop.phone && <Text style={styles.centered}>{input.shop.phone}</Text>}
       <Text style={styles.title}>INSTALLMENT PAYMENT RECEIPT</Text>
       <Text style={styles.receiptNumber}>{input.payment.receiptNumber}</Text>
       <Text style={[styles.muted, styles.centered]}>{dateTime(input.payment.paidAt)}</Text>
+      <View style={{ alignItems: 'flex-end', marginTop: 6 }}><Text style={styles.label}>Served By</Text><Text>{input.payment.recordedByName}</Text></View>
       <View style={styles.divider} />
       <View style={styles.amountGrid}>
+        {isEarlySettlement && input.earlySettlement && <><View style={[styles.amountCell, styles.amountCellBorder]}><Text style={styles.label}>Due before discount</Text><Text style={styles.amount}>{money(input.earlySettlement.outstandingBefore)}</Text></View><View style={[styles.amountCell, styles.amountCellBorder]}><Text style={styles.label}>Early-settlement discount</Text><Text style={styles.amount}>-{money(input.earlySettlement.discountAmount)}</Text></View></>}
         <View style={[styles.amountCell, styles.amountCellBorder]}>
           <Text style={styles.label}>{reversed ? 'Voided amount' : 'Paid amount'}</Text>
           <Text style={styles.amount}>{money(input.payment.amount)}</Text>
@@ -123,16 +127,10 @@ function ThermalReceiptDocument({ input, widthMm }: {
           <Text style={styles.amount}>{reversed ? 'Not applicable' : money(input.outstanding)}</Text>
         </View>
       </View>
-      {isEarlySettlement && input.earlySettlement && <View style={styles.settlement}>
-        <Text style={styles.label}>Early settlement</Text>
-        <Text>Due before discount: {money(input.earlySettlement.outstandingBefore)}</Text>
-        <Text>Discount: -{money(input.earlySettlement.discountAmount)}</Text>
-      </View>}
       <View style={styles.detailGrid}>
         <View style={styles.detail}><Text style={styles.label}>Customer</Text><Text style={styles.value}>{input.customer?.name ?? 'Not recorded'}</Text><Text style={styles.muted}>{input.customer?.phone ?? 'Mobile not recorded'}</Text></View>
         <View style={styles.detail}><Text style={styles.label}>Contract / invoice</Text><Text style={styles.value}>{input.contract.contractNumber}</Text><Text style={styles.muted}>{input.sale?.invoiceNumber ?? 'Invoice not recorded'}</Text></View>
         <View style={styles.detail}><Text style={styles.label}>Payment method</Text><Text style={styles.value}>{input.payment.paymentMethod.replaceAll('_', ' ')}</Text></View>
-        <View style={styles.detail}><Text style={styles.label}>Recorded by</Text><Text style={styles.value}>{input.payment.recordedByName}</Text></View>
         <View style={styles.detail}><Text style={styles.label}>Applied to installments</Text><Text>{applied}</Text></View>
         <View style={styles.detail}><Text style={styles.label}>Reference</Text><Text>{input.payment.reference ?? 'None'}</Text></View>
       </View>
@@ -143,11 +141,8 @@ function ThermalReceiptDocument({ input, widthMm }: {
           <Text style={styles.muted}>{item.sku}{item.serialNo ? ` / Device/IMEI: ${item.serialNo}` : ` / Quantity: ${item.quantity}`}</Text>
         </View>)}
       </View>}
-      {input.payment.note && <View style={styles.product}><Text style={styles.label}>Note</Text><Text>{input.payment.note}</Text></View>}
-      <View style={styles.footer}>
-        <Text>{input.contract.termMonths} monthly installments</Text>
-        <Text style={[styles.muted, { marginTop: 2 }]}>Keep this receipt for future payment verification.</Text>
-      </View>
+
+
     </Page>
   </Document>;
 }

@@ -14,5 +14,6 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!login|api/auth|_next/static|_next/image|favicon.ico).*)'],
+  // Bundled branding must load before a visitor signs in.
+  matcher: ['/((?!branding/|login|api/auth|_next/static|_next/image|favicon.ico).*)'],
 };

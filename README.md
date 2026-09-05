@@ -41,8 +41,9 @@ Use Node.js 22 and configure these variables for the Production environment:
 - `BETTER_AUTH_SECRET` — at least 32 high-entropy characters
 - `BETTER_AUTH_URL` — the exact production HTTPS origin
 - `SHOP_NAME` — name printed on stock labels and invoices (defaults to `Irfan Gadget & Mobile`)
-- `SHOP_LOGO_DATA_URI` — optional invoice-logo override as a `data:` URI; the bundled logo is used when omitted
-- `SHOP_ADDRESS`, `SHOP_PHONE`, `INVOICE_POLICY` — optional invoice details
+- `SHOP_LOGO_DATA_URI` — optional logo override as a `data:` URI for invoices and EMI receipts; the bundled invoice logo is used when omitted
+- `SHOP_ADDRESS`, `SHOP_PHONE` — optional contact lines shown with a custom logo. The bundled logo already contains the shop address and phone, so separate contact lines are suppressed.
+- `INVOICE_POLICY` — optional invoice policy text
 
 Run committed Prisma migrations separately with `npm run db:deploy`; do not run
 migrations inside the Vercel build. `INITIAL_ADMIN_*` variables are only for the

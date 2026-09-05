@@ -58,8 +58,8 @@ export function PrintReceiptButton({ contractId, paymentId }: { contractId: stri
   return <>
     <style>{`@media print { @page { size: ${printPageSize}; margin: 0; } }`}</style>
     <div className="print:hidden" data-contract-id={contractId} data-payment-id={paymentId}>
-      <div className="flex flex-wrap items-center gap-2 sm:flex-nowrap">
-        <Select aria-label={t('emi.receiptLayout')} className="!w-52 shrink-0" value={layout} onChange={(event) => changeLayout(event.target.value as ReceiptLayout)}>
+      <div className="flex flex-wrap items-center gap-2 ">
+        <Select aria-label={t('emi.receiptLayout')} className="!w-auto max-w-full min-w-0" value={layout} onChange={(event) => changeLayout(event.target.value as ReceiptLayout)}>
           <option value="a4">{t('emi.a4Printer')}</option>
           <option value="thermal80">{t('emi.thermalPrinter')}</option>
           <option value="thermal58">{t('emi.thermal58Printer')}</option>

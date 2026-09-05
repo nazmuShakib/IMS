@@ -125,7 +125,7 @@ describe('invoice void safeguards', () => {
     expect(pdf).toContain("entry.type === 'TRADE_IN_PAYOUT_RECOVERY'");
     expect(pdf).toContain('recoveredTradeInPayout(settlements)');
     expect(route).toContain('db.saleSettlements.findBySale(sale.id)');
-    expect(route).toContain('}, emiContract ? {');
+    expect(route).toContain('} : null, settlements)');
   });
 
   it('blocks individual sale movement reversal and requires confirmation in the UI', () => {

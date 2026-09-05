@@ -1,4 +1,5 @@
-import type { EmiContract, EmiInstallment, EmiPayment, PaymentMethod } from '@/domain/types';
+import type { EmiContract, EmiEarlySettlement, EmiInstallment, EmiPayment, PaymentMethod } from '@/domain/types';
+import { isSettlementReceipt } from '@/lib/emi-presentation';
 import { uuidv7 } from '@/lib/ids';
 import { db, type Repositories } from '@/repositories';
 import { emiEarlySettlementSchema, emiPaymentSchema } from '@/schemas';
@@ -124,6 +125,8 @@ export async function recordEmiPayment(raw: {
   }, { isolationLevel: 'Serializable' });
 }
 
+export interface EmiSettlementResult { payment: EmiPayment; settlement: EmiEarlySettlement; replayed: boolean }
+
 export async function settleEmiEarly(raw: {
   contractId: string;
   discountAmount: number | string;
@@ -133,9 +136,20 @@ export async function settleEmiEarly(raw: {
   idempotencyKey: string;
   actorId: string;
   actorName: string;
-}): Promise<EmiPayment> {
+  auditIp?: string | null;
+}): Promise<EmiSettlementResult> {
   const input = emiEarlySettlementSchema.parse(raw);
   return db.transaction(async (tx) => {
+    const replay = await tx.emi.findPaymentByIdempotencyKey(input.idempotencyKey);
+    if (replay) {
+      const settlement = await tx.emi.findEarlySettlement(input.contractId);
+      if (!settlement || replay.contractId !== input.contractId || !isSettlementReceipt(replay, settlement) || replay.recordedById !== raw.actorId
+        || settlement.discountAmount !== input.discountAmount || settlement.reason !== input.reason
+        || replay.paymentMethod !== input.paymentMethod || replay.reference !== input.reference) {
+        throw new Error('This request key belongs to a different EMI payment. Refresh and try again.');
+      }
+      return { payment: replay, settlement, replayed: true };
+    }
     const contract = await tx.emi.findContractById(input.contractId);
     if (!contract || !['ACTIVE', 'OVERDUE'].includes(contract.status)) throw new Error('This EMI contract cannot be settled.');
     if (await tx.emi.findEarlySettlement(contract.id)) throw new Error('Early settlement has already been applied.');
@@ -144,8 +158,8 @@ export async function settleEmiEarly(raw: {
     if (input.discountAmount >= outstanding) throw new Error('Early-settlement discount must be lower than the outstanding balance.');
     const finalAmount = outstanding - input.discountAmount;
     const now = new Date().toISOString();
-    await tx.emi.createEarlySettlement({ id: uuidv7(), contractId: contract.id, outstandingBefore: outstanding, discountAmount: input.discountAmount, finalAmount, reason: input.reason, approvedById: raw.actorId, approvedByName: raw.actorName, approvedAt: now });
-    // Reduce the final installment(s) so the immutable schedule still adds up.
+    const settlement = await tx.emi.createEarlySettlement({ id: uuidv7(), contractId: contract.id, outstandingBefore: outstanding, discountAmount: input.discountAmount, finalAmount, reason: input.reason, approvedById: raw.actorId, approvedByName: raw.actorName, approvedAt: now });
+    // Reduce open installments from the end without changing the sale price.
     let discount = input.discountAmount;
     for (const installment of [...installments].reverse()) {
       if (discount <= 0) break;
@@ -181,7 +195,10 @@ export async function settleEmiEarly(raw: {
       remaining -= allocated;
     }
     await tx.emi.updateContract(contract.id, { status: 'PAID', completedAt: now, updatedAt: now });
-    return payment;
+    await tx.auditLogs.create({ id: uuidv7(), actorId: raw.actorId, action: 'emi.early_settlement', entity: 'EmiContract', entityId: contract.id,
+      before: { outstanding }, after: { ...settlement, paymentId: payment.id, receiptNumber: payment.receiptNumber, paymentMethod: payment.paymentMethod, reference: payment.reference },
+      ip: raw.auditIp ?? null, createdAt: now });
+    return { payment, settlement, replayed: false };
   }, { isolationLevel: 'Serializable' });
 }
 

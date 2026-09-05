@@ -542,7 +542,7 @@ export const emiPaymentSchema = z.object({
 
 export const emiEarlySettlementSchema = z.object({
   contractId: z.string().uuid(),
-  discountAmount: z.union([z.string(), z.number()]).transform((value) => typeof value === 'number' ? value : value.trim() ? parseBDT(value) : 0).pipe(paisa.refine((value) => value % 100 === 0, 'Use a whole-taka discount without decimal places.')),
+  discountAmount: z.union([z.string(), z.number()]).transform((value) => typeof value === 'number' ? value : value.trim() ? parseBDT(value) : 0).pipe(paisa.positive('Enter a discount greater than zero. Use Record payment for a payoff without a discount.').refine((value) => value % 100 === 0, 'Use a whole-taka discount without decimal places.')),
   paymentMethod: z.enum(PAYMENT_METHODS),
   reason: z.string().trim().min(5, 'Give a clear reason using at least 5 characters.').max(500),
   reference: optionalFormText(120),
