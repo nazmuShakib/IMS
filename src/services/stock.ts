@@ -1,4 +1,5 @@
 import { db } from '@/repositories';
+import { serialKey, type StockReceipt } from '@/lib/stock-receipt';
 import { idempotencyKey as newKey, uuidv7 } from '@/lib/ids';
 import { weightedAvgCost, type Paisa } from '@/lib/money';
 import {
@@ -43,16 +44,99 @@ export async function getOnHand(product: Product): Promise<number> {
 // STOCK IN
 // ---------------------------------------------------------------------------
 
-export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovement[]> {
-  const input = receiveStockSchema.parse(raw);
+export interface ReceiveStockResult {
+  movements: StockMovement[];
+  receipt: StockReceipt;
+  replayed: boolean;
+}
 
-  return db.transaction(async (tx) => {
-    // Idempotency: a retried Server Action must not double-receive stock.
+function receiptRequest(input: ReceiveStockInput) {
+  return {
+    productId: input.productId, actorId: input.actorId,
+    supplierId: input.supplierId ?? null, unitCost: input.unitCost,
+    reason: input.reason ?? 'PURCHASE',
+    serialNumbers: input.serialNumbers?.map(serialKey).sort() ?? null,
+    quantity: input.quantity ?? null,
+    warrantyMonths: input.warrantyMonths ?? null, warrantyDays: input.warrantyDays ?? null,
+    unitCondition: input.unitCondition ?? 'NEW', location: input.location ?? null,
+    reference: input.reference ?? null, note: input.note ?? null,
+  };
+}
+
+export async function receiveStock(
+  raw: ReceiveStockInput,
+  repositories: Repositories = db,
+  auditIp: string | null = null,
+): Promise<ReceiveStockResult> {
+  const input = receiveStockSchema.parse(raw);
+  const request = receiptRequest(input);
+
+  return repositories.transaction(async (tx) => {
+    // The anchor movement and its audit snapshot identify the ENTIRE receipt.
     const existing = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
-    if (existing) return [existing];
+    if (existing) {
+      if (existing.actorId !== input.actorId || existing.productId !== input.productId || existing.type !== 'IN') {
+        throw new Error('This receipt key belongs to a different receiving request.');
+      }
+      const audits = await tx.auditLogs.findByEntity('StockMovement', existing.id);
+      const audit = audits.find((entry) => entry.action === 'stock.in');
+      const saved = audit?.after as { movementIds?: string[]; request?: unknown; receipt?: StockReceipt } | undefined;
+      if (!saved?.movementIds?.length || !saved.movementIds.includes(existing.id)) {
+        throw new Error('This receipt is already recorded. Check the movement ledger before receiving again.');
+      }
+      const rows = await Promise.all(saved.movementIds.map((id) => tx.movements.findById(id)));
+      const movements = rows.filter((row): row is StockMovement => row !== null);
+      if (movements.length !== saved.movementIds.length || movements.some((row) => row.productId !== existing.productId || row.actorId !== existing.actorId || row.type !== 'IN')) {
+        throw new Error('This receipt is already recorded. Check the movement ledger before receiving again.');
+      }
+      if (saved.request && JSON.stringify(saved.request) !== JSON.stringify(request)) {
+        // JSON object key order is not preserved by PostgreSQL jsonb.
+        const recorded = saved.request as Record<string, unknown>;
+        if (Object.entries(request).some(([key, value]) => JSON.stringify(recorded[key]) !== JSON.stringify(value))) {
+          throw new Error('This receipt key belongs to a different receiving request.');
+        }
+      }
+      if (saved.receipt?.id === existing.id && saved.request) {
+        return { movements, receipt: saved.receipt, replayed: true };
+      }
+      // Older audit entries have membership but no complete request snapshot.
+      // Never treat a changed or incompletely recorded request as a new receipt.
+      const count = movements.reduce((sum, row) => sum + row.quantity, 0);
+      const units = await Promise.all(movements.filter((row) => row.unitId).map((row) => tx.units.findById(row.unitId!)));
+      const serials = units.flatMap((unit) => unit ? [unit.serialNo] : []);
+      if (movements.some((row) => row.reason !== input.reason || row.unitCost !== input.unitCost || row.supplierId !== (input.supplierId ?? null) || row.reference !== (input.reference ?? null) || row.note !== (input.note ?? null))
+        || (input.serialNumbers ? JSON.stringify(serials.map(serialKey).sort()) !== JSON.stringify(request.serialNumbers) : count !== input.quantity)) {
+        throw new Error('This receipt key belongs to a different receiving request.');
+      }
+      throw new Error('This receipt is already recorded. Check the movement ledger before receiving again.');
+    }
 
     const product = await tx.products.findById(input.productId);
-    if (!product) throw new Error(`Product not found: ${input.productId}`);
+    if (!product?.isActive) throw new Error('The selected product is no longer active.');
+    if (input.supplierId && !(await tx.suppliers.findById(input.supplierId))?.isActive) {
+      throw new Error('The selected supplier is no longer active.');
+    }
+    if ((product.trackingType === 'SERIAL') !== Boolean(input.serialNumbers)) {
+      throw new Error('The product tracking method changed. Refresh and review this receipt.');
+    }
+
+    const complete = async (movements: StockMovement[]): Promise<ReceiveStockResult> => {
+      const count = movements.reduce((sum, row) => sum + row.quantity, 0);
+      const receipt: StockReceipt = {
+        id: movements[0]!.id, productId: product.id, productName: product.name, sku: product.sku,
+        trackingType: product.trackingType, count, unitCost: input.unitCost, totalCost: input.unitCost * count,
+        supplierId: input.supplierId ?? null, reason: input.reason,
+        reference: input.reference ?? null, location: input.location ?? null, note: input.note ?? null,
+        serials: input.serialNumbers ?? [], warrantyMonths: input.warrantyMonths ?? null,
+        warrantyDays: input.warrantyDays ?? null, unitCondition: input.unitCondition,
+      };
+      await tx.auditLogs.create({
+        id: uuidv7(), actorId: input.actorId, action: 'stock.in', entity: 'StockMovement', entityId: receipt.id,
+        before: null, after: { movementIds: movements.map((row) => row.id), productId: product.id, count,
+          unitCondition: input.unitCondition, request, receipt }, ip: auditIp, createdAt: new Date().toISOString(),
+      });
+      return { movements, receipt, replayed: false };
+    };
 
     const type = 'IN' as const;
     const now = new Date().toISOString();
@@ -165,7 +249,7 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
           }),
         );
       }
-      return recorded;
+      return complete(recorded);
     }
 
     // ---- QUANTITY path: one movement, plus cache + weighted-average cost ----
@@ -202,8 +286,8 @@ export async function receiveStock(raw: ReceiveStockInput): Promise<StockMovemen
       createdAt: now,
     });
 
-    return [movement];
-  });
+    return complete([movement]);
+  }, { isolationLevel: 'Serializable', timeout: Math.max(30_000, (input.serialNumbers?.length ?? 1) * 250) });
 }
 
 // ---------------------------------------------------------------------------

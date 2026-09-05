@@ -17,7 +17,7 @@ describe('Phase 6 repository cutover', () => {
     expect(contract).toContain('(repositories: Repositories)');
 
     const stock = source('src/services/stock.ts');
-    expect(stock.match(/db\.transaction\(async \(tx\)/g)).toHaveLength(3);
+    expect(stock.match(/(?:db|repositories)\.transaction\(async \(tx\)/g)).toHaveLength(3);
     expect(stock).toContain('tx.units.transitionStatus');
     expect(stock).toContain('tx.products._applyQuantityDelta');
     expect(stock).toContain('tx.movements.record');

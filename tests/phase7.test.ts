@@ -5,13 +5,12 @@ import { describe, expect, it } from 'vitest';
 const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
 describe('Phase 7 scanner workflow', () => {
-  it('uses one scanner input in stock-in, stock-out, and RMA workflows', () => {
+  it('uses the shared scanner input in stock-out and RMA workflows', () => {
     const scanner = source('src/components/search/ScannerInput.tsx');
     expect(scanner).toContain("event.key !== 'Enter'");
     expect(scanner).toContain('event.preventDefault()');
     expect(scanner).toContain('now - last.current.at < 750');
     for (const file of [
-      'src/components/stock/StockInForm.tsx',
       'src/components/stock/StockOutForm.tsx',
       'src/components/warranty/WarrantyForms.tsx',
       'src/components/search/CommandPalette.tsx',
@@ -20,7 +19,7 @@ describe('Phase 7 scanner workflow', () => {
 
   it('submits the checkout add-item form when a scanner sends Enter', () => {
     const checkout = source('src/components/checkout/CheckoutWorkspace.tsx');
-    const pageScanner = source('src/components/checkout/useCheckoutScanner.ts');
+    const pageScanner = source('src/components/search/usePageScanner.ts');
     expect(checkout).toContain('ref={scannerFormRef} onSubmit={submitLocalItem}');
     expect(checkout).toContain('onScan={() => scannerFormRef.current?.requestSubmit()}');
     expect(checkout).toContain('useCheckoutScanner({');
@@ -41,9 +40,8 @@ describe('Phase 7 scanner workflow', () => {
   it('appends scanned receipt identifiers without querying or duplicating units', () => {
     const stockIn = source('src/components/stock/StockInForm.tsx');
     expect(stockIn).toContain('function appendScannedSerial');
-    expect(stockIn).toContain('onScan={appendScannedSerial}');
-    expect(stockIn).toContain("`${existing}\\n${scanned}`");
-    expect(stockIn).toContain('is already in this receipt');
+    expect(stockIn).toContain('onScan: handleScan');
+    expect(stockIn).toContain("t('stock.serialAlreadyAdded'");
     expect(stockIn).toContain('uniqueSerialCount');
     expect(stockIn).toContain("t('stock.imeiHint')");
     expect(stockIn).not.toContain('fetch(');

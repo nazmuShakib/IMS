@@ -59,18 +59,23 @@ export default async function StockLabelsPage({
   if (selectedProduct?.trackingType === 'SERIAL') {
     if (receipt) {
       const receiptMovements = await db.movements.findByProduct(selectedProduct.id);
+      const receiptAudit = (await db.auditLogs.findByEntity('StockMovement', receipt.id))
+        .find((entry) => entry.action === 'stock.in');
+      const recordedIds = (receiptAudit?.after as { movementIds?: string[] } | undefined)?.movementIds;
+      const membership = recordedIds?.length ? new Set(recordedIds) : null;
       const receiptUnitIds = new Set(
         receiptMovements
           .filter(
             (movement) =>
               movement.type === 'IN' &&
+              (membership ? membership.has(movement.id) : (
               movement.createdAt === receipt!.createdAt &&
               movement.actorId === receipt!.actorId &&
               movement.reason === receipt!.reason &&
               movement.reference === receipt!.reference &&
               movement.supplierId === receipt!.supplierId &&
               movement.unitCost === receipt!.unitCost &&
-              movement.note === receipt!.note,
+              movement.note === receipt!.note)),
           )
           .map((movement) => movement.unitId)
           .filter((id): id is string => Boolean(id)),

@@ -8,7 +8,8 @@ import { db } from '@/repositories';
 import { parseBDT } from '@/lib/money';
 import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
-import { writeAudit } from '@/lib/audit';
+import { requestAuditIp, writeAudit } from '@/lib/audit';
+import { receiptFieldsSchema, receiptFormInput, receiptFieldErrors, serialBatchSchema, type StockReceipt } from '@/lib/stock-receipt';
 import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
 import { createSupplierReturn } from '@/services/supplier-returns';
 import type { MovementReason, UnitStatus } from '@/domain/types';
@@ -27,19 +28,7 @@ export interface StockActionState {
   ok?: string;
   fieldErrors?: Record<string, string>;
   labelReceiptId?: string;
-  receipt?: {
-    productId: string;
-    productName: string;
-    sku: string;
-    trackingType: 'SERIAL' | 'QUANTITY';
-    count: number;
-    unitCost: number;
-    totalCost: number;
-    supplierId: string | null;
-    reason: 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
-    reference: string | null;
-    location: string | null;
-  };
+  receipt?: StockReceipt;
   supplierReturn?: {
     id: string;
     returnNumber: string;
@@ -128,12 +117,12 @@ export async function preflightStockSerials(input: {
 
   const parsed = z.object({
     productId: z.string().uuid(),
-    serialNumbers: z.array(z.string().trim().min(1).max(120)).min(1).max(500),
+    serialNumbers: serialBatchSchema,
   }).safeParse(input);
   if (!parsed.success) return { error: 'Invalid device-number check request.' };
 
   const product = await db.products.findById(parsed.data.productId);
-  if (!product || product.trackingType !== 'SERIAL') {
+  if (!product?.isActive || product.trackingType !== 'SERIAL') {
     return { error: 'The selected serialized product is unavailable.' };
   }
 
@@ -157,76 +146,32 @@ export async function receiveStockAction(
   const product = await db.products.findById(productId);
   if (!product) return { error: 'Product not found' };
 
-  // Serials come in as a pasted block, one per line — that's how a delivery note
-  // is actually read out. Split, trim, drop blanks.
-  const serialBlock = str(fd, 'serialNumbers');
-  const serialNumbers = serialBlock
-    ? serialBlock.split(/[\n,]/).map((s) => s.trim()).filter(Boolean)
-    : undefined;
+  const parsed = receiptFieldsSchema.safeParse(receiptFormInput(fd, product.trackingType));
+  if (!parsed.success) return { fieldErrors: receiptFieldErrors(parsed.error) };
 
-  const qtyRaw = str(fd, 'quantity');
-
-  let count: number;
-  let labelReceiptId: string | undefined;
-  let receipt: StockActionState['receipt'];
+  let receipt: StockReceipt;
   try {
-    const supplierId = str(fd, 'supplierId');
-    const unitCost = parseBDT(str(fd, 'unitCost') ?? '0');
-    const reason = (str(fd, 'reason') ?? 'PURCHASE') as 'PURCHASE' | 'INITIAL_STOCK' | 'CUSTOMER_RETURN';
-    const location = str(fd, 'location');
-    const reference = str(fd, 'reference');
-    const warrantyDuration = str(fd, 'warrantyDuration') ? Number(str(fd, 'warrantyDuration')) : null;
-    const warrantyUnit = str(fd, 'warrantyUnit') ?? 'MONTHS';
-    const movements = await receiveStock({
-      productId,
-      supplierId,
-      unitCost,
-      reason,
-      serialNumbers: product.trackingType === 'SERIAL' ? serialNumbers : undefined,
-      quantity: product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
-      warrantyMonths: warrantyUnit === 'MONTHS' ? warrantyDuration : null,
-      warrantyDays: warrantyUnit === 'DAYS' ? warrantyDuration : null,
-      unitCondition: str(fd, 'unitCondition') === 'REFURBISHED' ? 'REFURBISHED' : 'NEW',
-      location,
-      reference,
-      note: str(fd, 'note'),
-      actorId: actor.id,
-      idempotencyKey: str(fd, 'idempotencyKey') ?? '',
-    });
-    count = movements.reduce((n, m) => n + m.quantity, 0);
-    labelReceiptId = movements[0]?.id;
-    receipt = {
-      productId,
-      productName: product.name,
-      sku: product.sku,
-      trackingType: product.trackingType,
-      count,
-      unitCost,
-      totalCost: unitCost * count,
-      supplierId,
-      reason,
-      reference,
-      location,
-    };
-    await writeAudit({
-      actorId: actor.id,
-      action: 'stock.in',
-      entity: 'StockMovement',
-      entityId: movements[0]?.id,
-      after: { movementIds: movements.map((movement) => movement.id), productId, count, unitCondition: str(fd, 'unitCondition') === 'REFURBISHED' ? 'REFURBISHED' : 'NEW', warrantyDuration, warrantyUnit },
-    });
+    const result = await receiveStock({ ...parsed.data, actorId: actor.id }, db, await requestAuditIp());
+    receipt = result.receipt;
   } catch (err) {
-    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
+    if (err instanceof z.ZodError) return { fieldErrors: receiptFieldErrors(err) };
+    if (err && typeof err === 'object' && 'code' in err && (err.code === 'P2034' || err.code === 'P2002')) {
+      return { error: 'Stock changed during this request. Retry the same receipt.' };
+    }
     return { error: message(err) };
   }
 
+  revalidatePath('/');
   revalidatePath('/products');
   revalidatePath(`/products/${productId}`);
+  revalidatePath('/stock/in');
   revalidatePath('/stock/movements');
+  revalidatePath('/suppliers/returns');
+  revalidatePath('/suppliers/analytics');
 
   return {
-    ok: `Received ${count} × ${product.name} into stock.`,
-    labelReceiptId,
+    ok: `Received ${receipt.count} × ${receipt.productName} into stock.`,
+    labelReceiptId: receipt.id,
     receipt,
   };
 }

@@ -108,40 +108,7 @@ export type CreateSupplierInput = z.infer<typeof createSupplierSchema>;
  * SERIAL products take a list of serials (one unit each).
  * QUANTITY products take a count.
  */
-export const receiveStockSchema = z
-  .object({
-    productId: z.string().uuid(),
-    supplierId: z.string().uuid().optional().nullable(),
-    unitCost: paisa,
-    reason: z.enum(['PURCHASE', 'INITIAL_STOCK', 'CUSTOMER_RETURN']).default('PURCHASE'),
-
-    // SERIAL path
-    serialNumbers: z.array(z.string().min(1).max(120).trim()).optional(),
-    warrantyMonths: z.number().int().min(0).max(120).optional().nullable(),
-    warrantyDays: z.number().int().min(0).max(3650).optional().nullable(),
-    unitCondition: z.enum(['NEW', 'REFURBISHED']).default('NEW'),
-    location: z.string().max(100).optional().nullable(),
-
-    // QUANTITY path
-    quantity: z.number().int().positive().optional(),
-
-    reference: z.string().max(100).optional().nullable(),
-    note: z.string().max(1000).optional().nullable(),
-    actorId: z.string(),
-    idempotencyKey: z.string().min(8),
-  })
-  .refine((i) => Boolean(i.serialNumbers?.length) !== Boolean(i.quantity), {
-    message: 'Provide device numbers/IMEIs for individually tracked products or a quantity for bulk/count-based products.',
-  })
-  .refine(
-    (i) => !i.serialNumbers || new Set(i.serialNumbers).size === i.serialNumbers.length,
-    { message: 'Duplicate serial numbers in this batch', path: ['serialNumbers'] },
-  )
-  .refine(
-    (i) => i.warrantyMonths == null || i.warrantyDays == null,
-    { message: 'Choose either days or months for the warranty.', path: ['warrantyDays'] },
-  );
-export type ReceiveStockInput = z.input<typeof receiveStockSchema>;
+export { receiveStockSchema, type ReceiveStockInput } from '@/lib/stock-receipt';
 
 const inspectionResult = z.enum(INSPECTION_RESULTS);
 export const usedDeviceInspectionSchema = z.object({
