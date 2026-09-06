@@ -11,11 +11,11 @@ export const dynamic = 'force-dynamic';
 export default async function CheckoutPage({
   searchParams,
 }: {
-  searchParams: Promise<{ serial?: string }>;
+  searchParams: Promise<{ serial?: string; tradeIn?: string }>;
 }) {
   const actor = await requirePageCapability('CHECKOUT');
   const { locale } = await getSession();
-  const { serial = '' } = await searchParams;
+  const { serial = '', tradeIn } = await searchParams;
   const t = createTranslator(locale);
   const cart = await getOrCreateCart(actor.id);
   const [products, units, customers] = await Promise.all([
@@ -38,6 +38,7 @@ export default async function CheckoutPage({
       <CheckoutWorkspace
         key={serial || 'checkout'}
         cart={cart}
+        initialTradeInOpen={tradeIn === '1'}
         shopName={process.env.SHOP_NAME?.trim() || 'Irfan Gadget & Mobile'}
         shopLogoDataUri={process.env.SHOP_LOGO_DATA_URI?.trim() || INVOICE_LOGO_SRC}
         initialIdentifier={serial}
@@ -45,6 +46,7 @@ export default async function CheckoutPage({
         products={products.map((product) => ({
           id: product.id,
           name: product.name,
+          model: product.model,
           sku: product.sku,
           trackingType: product.trackingType,
           onHand: product.trackingType === 'SERIAL'
@@ -66,6 +68,7 @@ export default async function CheckoutPage({
             listUnitPrice: unit.askingPrice ?? (unit.usedGrade === 'REFURBISHED' ? unit.costPrice : product.defaultSalePrice),
             staffMaxDiscount: product.staffMaxDiscount,
             knownDefects: unit.knownDefects ?? null,
+            cosmeticCondition: unit.cosmeticCondition ?? null,
             warrantyMonths: unit.warrantyMonths ?? null,
             warrantyDays: unit.warrantyDays ?? null,
           }] : [];

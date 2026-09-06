@@ -16,7 +16,7 @@ import {
   acceptUsedDeviceSchema, regularCheckoutPaymentSchema,
   type CreateCustomerInput, type AcceptUsedDeviceInput,
 } from '@/schemas';
-import { acceptUsedDeviceInTransaction } from '@/services/used-devices';
+import { acceptUsedDeviceInTransaction, assertUsedDeviceEligible } from '@/services/used-devices';
 import { installmentAmounts, installmentDates } from '@/services/emi';
 
 const checkoutSubmissionSchema = checkoutSchema.extend({
@@ -90,23 +90,14 @@ export async function saveTradeInDraft(raw: AcceptUsedDeviceInput & { cartId: st
   const input = acceptUsedDeviceSchema.parse({ ...raw, acquisitionType: 'TRADE_IN' });
   return db.transaction(async (tx) => {
     const cart = await ownedCart(tx, raw.cartId, input.actorId);
-    const product = await tx.products.findById(input.productId);
-    if (!product?.isActive || product.trackingType !== 'SERIAL') {
-      throw new Error('Choose an active serial-tracked phone product.');
-    }
-    const duplicate = await tx.units.findBySerial(input.serialNo);
-    if (duplicate && duplicate.status !== 'VOID') {
-      throw new Error(`Device number ${input.serialNo} already exists (${duplicate.status.replaceAll('_', ' ').toLowerCase()}).`);
-    }
-    if (duplicate && duplicate.productId !== input.productId) {
-      throw new Error(`Device number ${input.serialNo} belongs to a different product and cannot be revived here.`);
-    }
+    await assertUsedDeviceEligible(tx, input.productId, input.serialNo);
     const draft: TradeInCartDraft = {
       productId: input.productId,
       serialNo: input.serialNo,
       grade: input.grade,
       batteryHealth: input.batteryHealth ?? null,
       inspectionResults: input.inspectionResults,
+      cosmeticCondition: input.cosmeticCondition ?? null,
       knownDefects: input.knownDefects ?? null,
       includedAccessories: input.includedAccessories ?? null,
       askingPrice: input.askingPrice,
@@ -361,6 +352,7 @@ export async function checkoutCart(raw: {
             serialNo: incomingTradeInUnit.serialNo,
             grade: incomingTradeInUnit.usedGrade,
             acquisitionValue: tradeInCredit,
+            cosmeticCondition: incomingTradeInUnit.cosmeticCondition ?? null,
           }
         : null,
       completedAt: now,
@@ -424,6 +416,7 @@ export async function checkoutCart(raw: {
         id: uuidv7(), saleId: sale.id, movementId: movement.id,
         productName: product.name, sku: product.sku, serialNo: unit?.serialNo ?? null,
         listUnitPrice: item.listUnitPrice, warrantyMonths: unit?.warrantyMonths ?? null,
+        cosmeticCondition: unit?.cosmeticCondition ?? null,
         warrantyDays: unit?.warrantyDays ?? null, usedGrade: unit?.usedGrade ?? null,
         knownDefects: unit?.knownDefects ?? null, position: item.position, createdAt: now,
       };

@@ -130,6 +130,14 @@ export type UsedAcquisitionType = (typeof USED_ACQUISITION_TYPES)[number];
 export const INSPECTION_RESULTS = ['WORKING', 'DEFECTIVE', 'NOT_TESTED', 'NOT_APPLICABLE'] as const;
 export type InspectionResult = (typeof INSPECTION_RESULTS)[number];
 export type UsedDeviceInspection = Record<string, InspectionResult>;
+export const COSMETIC_WEAR = ['NO_VISIBLE_WEAR', 'LIGHT_SCRATCHES', 'NOTICEABLE_WEAR', 'HEAVY_WEAR', 'DAMAGED'] as const;
+export type CosmeticWear = (typeof COSMETIC_WEAR)[number];
+export interface CosmeticCondition {
+  screen: CosmeticWear | null;
+  frame: CosmeticWear | null;
+  back: CosmeticWear | null;
+  note: string | null;
+}
 
 export interface User {
   id: string;
@@ -220,6 +228,7 @@ export interface ProductUnit {
   usedGrade: UsedDeviceGrade | null;
   batteryHealth: number | null;
   inspectionResults: UsedDeviceInspection | null;
+  cosmeticCondition?: CosmeticCondition | null;
   knownDefects: string | null;
   includedAccessories: string | null;
   askingPrice: Paisa | null;
@@ -357,6 +366,7 @@ export interface TradeInCartDraft {
   grade: UsedDeviceGrade;
   batteryHealth: number | null;
   inspectionResults: Record<string, InspectionResult>;
+  cosmeticCondition?: CosmeticCondition | null;
   knownDefects: string | null;
   includedAccessories: string | null;
   askingPrice: Paisa;
@@ -422,6 +432,7 @@ export interface SaleSettlement {
 
 /** Immutable incoming-device summary printed with a completed trade-in sale. */
 export interface TradeInSaleSnapshot {
+  cosmeticCondition?: CosmeticCondition | null;
   productName: string;
   sku: string;
   serialNo: string;
@@ -440,6 +451,7 @@ export interface SaleItem {
   warrantyMonths: number | null;
   warrantyDays?: number | null;
   usedGrade: UsedDeviceGrade | null;
+  cosmeticCondition?: CosmeticCondition | null;
   knownDefects: string | null;
   position: number;
   createdAt: string;

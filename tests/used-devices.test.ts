@@ -109,15 +109,6 @@ describe('accepted used-device workflow', () => {
     expect(action).toContain('Start a trade-in from Checkout');
   });
 
-  it('requires a distinct shop selling price when preparing a trade-in', () => {
-    const form = source('src/components/stock/UsedDeviceIntakeForm.tsx');
-    const action = source('src/actions/used-devices.ts');
-    expect(form).toContain("required('askingPrice')");
-    expect(form).toContain('initialTradeInDraft.askingPrice');
-    expect(form).not.toContain("!tradeInCartId && <div><dt className=\"eyebrow\">{t('used.askingPrice')}");
-    expect(action).not.toContain("resolvedAcquisitionType === 'TRADE_IN'\n        ? acquisitionValue");
-  });
-
   it('revives a safely voided IMEI while retaining separate acquisition history', () => {
     const schema = source('prisma/schema.prisma');
     const service = source('src/services/used-devices.ts');

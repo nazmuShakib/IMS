@@ -123,7 +123,7 @@ export interface ProductUnitRepository {
     id: string,
     patch: Partial<Pick<ProductUnit,
       'costPrice' | 'warrantyMonths' | 'warrantyDays' | 'location' | 'note' | 'usedGrade' |
-      'batteryHealth' | 'inspectionResults' | 'knownDefects' |
+      'batteryHealth' | 'inspectionResults' | 'cosmeticCondition' | 'knownDefects' |
       'includedAccessories' | 'askingPrice'>>,
   ): Promise<ProductUnit>;
 

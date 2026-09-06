@@ -77,6 +77,7 @@ function product(row: Awaited<ReturnType<Client['product']['findUniqueOrThrow']>
 function unit(row: Awaited<ReturnType<Client['productUnit']['findUniqueOrThrow']>>): ProductUnit {
   return {
     ...row,
+    cosmeticCondition: row.cosmeticCondition as ProductUnit['cosmeticCondition'],
     inspectionResults: row.inspectionResults as UsedDeviceInspection | null,
     receivedAt: iso(row.receivedAt),
     soldAt: row.soldAt ? iso(row.soldAt) : null,
@@ -238,7 +239,7 @@ function saleSearchWhere(filters: SaleFilters): Prisma.SaleWhereInput {
 }
 
 function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow']>>): SaleItem {
-  return { ...row, createdAt: iso(row.createdAt) };
+  return { ...row, cosmeticCondition: row.cosmeticCondition as ProductUnit['cosmeticCondition'], createdAt: iso(row.createdAt) };
 }
 
 function saleSettlement(row: Awaited<ReturnType<Client['saleSettlement']['findUniqueOrThrow']>>): SaleSettlement {
@@ -283,9 +284,10 @@ function productPatch(
 }
 
 function unitData(value: ProductUnit): Prisma.ProductUnitUncheckedCreateInput {
-  const { inspectionResults, ...rest } = value;
+  const { inspectionResults, cosmeticCondition, ...rest } = value;
   return {
     ...rest,
+    cosmeticCondition: cosmeticCondition ? cosmeticCondition as unknown as Prisma.InputJsonValue : Prisma.DbNull,
     inspectionResults: inspectionResults ?? Prisma.DbNull,
     receivedAt: new Date(value.receivedAt),
     soldAt: value.soldAt ? new Date(value.soldAt) : null,
@@ -296,9 +298,10 @@ function unitData(value: ProductUnit): Prisma.ProductUnitUncheckedCreateInput {
 }
 
 function unitPatch(value: Partial<ProductUnit>): Prisma.ProductUnitUncheckedUpdateManyInput {
-  const { receivedAt, soldAt, warrantyExpiresAt, createdAt, updatedAt, inspectionResults, ...rest } = value;
+  const { receivedAt, soldAt, warrantyExpiresAt, createdAt, updatedAt, inspectionResults, cosmeticCondition, ...rest } = value;
   return {
     ...rest,
+    ...(cosmeticCondition !== undefined ? { cosmeticCondition: cosmeticCondition ? cosmeticCondition as unknown as Prisma.InputJsonValue : Prisma.DbNull } : {}),
     ...(inspectionResults !== undefined
       ? { inspectionResults: inspectionResults ?? Prisma.DbNull }
       : {}),
@@ -912,7 +915,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async createItem(value) {
         return saleItem(await client.saleItem.create({
-          data: { ...value, createdAt: new Date(value.createdAt) },
+          data: { ...value, cosmeticCondition: value.cosmeticCondition ? value.cosmeticCondition as unknown as Prisma.InputJsonValue : Prisma.DbNull, createdAt: new Date(value.createdAt) },
         }));
       },
       async findItems(saleId) {
@@ -937,6 +940,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             warrantyMonths: row.warrantyMonths,
             warrantyDays: row.warrantyDays,
             usedGrade: row.usedGrade,
+            cosmeticCondition: row.cosmeticCondition as ProductUnit['cosmeticCondition'],
             knownDefects: row.knownDefects,
             position: row.position,
             createdAt: iso(row.createdAt),

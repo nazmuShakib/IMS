@@ -1519,3 +1519,17 @@ html[lang="bn"] .eyebrow {
   }
 
 }
+
+/* Intake uses the same control sizes and available width as other stock forms. */
+.used-intake-form { width: 100%; min-width: 0; }
+.used-intake-form .intake-section { border: 1px solid var(--color-rule); border-radius: 3px; background: var(--color-card); padding: 16px; }
+.used-intake-form .intake-section h2 { font-size: 16px; font-weight: 600; }
+.used-intake-form [aria-invalid="true"] { border-color: var(--color-out); }
+.intake-link { display: inline-flex; min-height: 36px; align-items: center; padding: 8px 12px; border: 1px solid var(--color-rule); border-radius: 3px; }
+.intake-panel { margin: 0 0 0 auto; width: min(1200px, 92vw); max-width: 100vw; height: 100dvh; max-height: 100dvh; border-radius: 8px 0 0 8px; }
+.intake-panel[open] { animation: intake-panel-enter 300ms cubic-bezier(0.22, 1, 0.36, 1); }
+.intake-panel[open]::backdrop { animation: intake-backdrop-enter 300ms ease-out; }
+@keyframes intake-panel-enter { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes intake-backdrop-enter { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 639px) { .intake-panel { width: 100vw; border-radius: 0; } }
+@media (prefers-reduced-motion: reduce) { .intake-panel[open], .intake-panel[open]::backdrop { animation: none; } }

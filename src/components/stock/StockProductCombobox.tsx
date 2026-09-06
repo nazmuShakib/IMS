@@ -6,7 +6,7 @@ import type { ProductDTO } from '@/lib/dto';
 import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function StockProductCombobox({ products, value, disabled, error, onChange }: {
-  products: ProductDTO[];
+  products: Pick<ProductDTO, 'id' | 'name' | 'sku' | 'barcode' | 'model' | 'isActive' | 'trackingType'>[];
   value: string;
   disabled: boolean;
   error?: string;
@@ -35,13 +35,13 @@ export function StockProductCombobox({ products, value, disabled, error, onChang
   function choose(id: string) { close(); onChange(id); }
   function openList() { setQuery(''); setActiveIndex(0); setOpen(true); }
 
-  return <div ref={rootRef} onBlur={(event) => {
+  return <div data-product-picker ref={rootRef} onBlur={(event) => {
     if (!event.currentTarget.contains(event.relatedTarget as Node | null)) close();
   }}>
     <label htmlFor={id} className="eyebrow mb-1.5 block">{t('common.product')}</label>
     <input type="hidden" name="productId" value={value} />
     <div className="relative">
-      <div className={`flex h-9 items-center rounded-[3px] border bg-card transition-colors focus-within:border-signal ${error ? 'border-out' : 'border-rule'}`}>
+      <div data-product-picker-control className={`flex h-9 items-center rounded-[3px] border bg-card transition-colors focus-within:border-signal ${error ? 'border-out' : 'border-rule'}`}>
         <Search className="ml-2.5 size-4 shrink-0 text-graphite" aria-hidden="true" />
         <input ref={inputRef} id={id} role="combobox" aria-expanded={open} aria-controls={`${id}-list`}
           aria-autocomplete="list" aria-activedescendant={open && matches[activeIndex] ? `${id}-option-${activeIndex}` : undefined}

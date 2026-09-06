@@ -1280,6 +1280,17 @@ photo storage, consignment workflow, or “for parts” grade.
   acquisition, and exactly one `+1 PURCHASE` movement. A trade-in starts only
   from Checkout and is stored provisionally inside that actor's cart draft; it
   creates no unit, movement, credit, or acquisition until the linked sale commits.
+- The shared intake form has explicit purchase and trade-in modes. Trade-ins
+  open in a checkout panel and save without navigating away; invalid legacy
+  cart links never fall back to a purchase. Form parsing, strict money validation,
+  and serial eligibility checks are shared with server actions. EMI credit
+  constraints are shown before final checkout confirmation.
+- Optional `cosmeticCondition` records Screen, Frame, Back, and appearance notes
+  separately from functional inspection. Grades remain manually chosen. Missing
+  appearance on legacy records means not recorded. Unit details carry appearance,
+  and completed sale items and incoming trade-in summaries snapshot it for invoices.
+  Migration `20260905170000_used_phone_appearance` adds nullable JSON columns to
+  product units and sale items and must precede deployment of the new application.
 - Itemized pre-sale `RefurbishmentExpense` rows increase the exact unit cost while
   preserving the original acquisition value. They can be added only while the
   used phone remains in stock.

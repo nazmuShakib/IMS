@@ -11,6 +11,23 @@ import {
   type UpdateUsedDeviceInput,
 } from '@/schemas';
 
+export class UsedDeviceEligibilityError extends Error {
+  constructor(message: string, public field: 'productId' | 'serialNo') { super(message); }
+}
+
+export async function assertUsedDeviceEligible(tx: Repositories, productId: string, serialNo: string) {
+  const product = await tx.products.findById(productId);
+  if (!product?.isActive || product.trackingType !== 'SERIAL') {
+    throw new UsedDeviceEligibilityError('Choose an active serial-tracked phone product.', 'productId');
+  }
+  const existingUnit = await tx.units.findBySerial(serialNo);
+  if (existingUnit) {
+    try { await assertVoidedUnitCanBeReceivedAgain(tx, existingUnit, productId); }
+    catch (error) { throw new UsedDeviceEligibilityError((error as Error).message, 'serialNo'); }
+  }
+  return { product, existingUnit };
+}
+
 export interface AcceptedUsedDevice {
   unit: ProductUnit;
   acquisition: UsedDeviceAcquisition;
@@ -50,6 +67,7 @@ export async function updateUsedDeviceDetails(raw: UpdateUsedDeviceInput): Promi
     return tx.units.updateDetails(unit.id, {
       usedGrade: input.grade,
       batteryHealth: input.batteryHealth ?? null,
+      cosmeticCondition: input.cosmeticCondition ?? null,
       knownDefects: input.knownDefects ?? null,
       includedAccessories: input.includedAccessories ?? null,
       askingPrice: input.askingPrice,
@@ -84,12 +102,7 @@ export async function acceptUsedDeviceInTransaction(
       return { unit, acquisition: replay, movement };
     }
 
-    const product = await tx.products.findById(input.productId);
-    if (!product?.isActive || product.trackingType !== 'SERIAL') {
-      throw new Error('Choose an active serial-tracked phone product.');
-    }
-    const existingUnit = await tx.units.findBySerial(input.serialNo);
-    if (existingUnit) await assertVoidedUnitCanBeReceivedAgain(tx, existingUnit, product.id);
+    const { product, existingUnit } = await assertUsedDeviceEligible(tx, input.productId, input.serialNo);
 
     const now = new Date().toISOString();
     const unitValues: ProductUnit = {
@@ -110,6 +123,7 @@ export async function acceptUsedDeviceInTransaction(
       usedGrade: input.grade,
       batteryHealth: input.batteryHealth ?? null,
       inspectionResults: input.inspectionResults,
+      cosmeticCondition: input.cosmeticCondition ?? null,
       knownDefects: input.knownDefects ?? null,
       includedAccessories: input.includedAccessories ?? null,
       askingPrice: input.askingPrice,
@@ -131,6 +145,7 @@ export async function acceptUsedDeviceInTransaction(
           usedGrade: unitValues.usedGrade,
           batteryHealth: unitValues.batteryHealth,
           inspectionResults: unitValues.inspectionResults,
+          cosmeticCondition: unitValues.cosmeticCondition,
           knownDefects: unitValues.knownDefects,
           includedAccessories: unitValues.includedAccessories,
           askingPrice: unitValues.askingPrice,

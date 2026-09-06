@@ -19,6 +19,10 @@ import {
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
+import { TradeInPanel } from "./TradeInPanel";
+import { tradeInEmiError } from "@/lib/used-device-form";
+import { cosmeticSummary } from "@/lib/cosmetic-condition";
+import type { CosmeticCondition } from "@/domain/types";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 
@@ -63,6 +67,7 @@ import { domainLabel } from "@/lib/i18n/domain";
 import { emiCheckoutFieldsSchema, regularCheckoutPaymentSchema } from "@/schemas";
 
 export interface CheckoutProductOption {
+  model?: string | null;
   id: string;
   name: string;
   sku: string;
@@ -82,6 +87,7 @@ export interface CheckoutUnitOption {
   usedGrade: string | null;
   listUnitPrice: number;
   staffMaxDiscount: number;
+  cosmeticCondition?: CosmeticCondition | null;
   knownDefects: string | null;
   warrantyMonths: number | null;
   warrantyDays: number | null;
@@ -102,6 +108,7 @@ export interface CheckoutLine {
   position: number;
   onHand: number;
   usedGrade: string | null;
+  cosmeticCondition?: CosmeticCondition | null;
   knownDefects: string | null;
   warrantyMonths: number | null;
   warrantyDays: number | null;
@@ -246,6 +253,7 @@ function CartLineEditor({
                 : `${line.warrantyMonths} ${line.warrantyMonths === 1 ? t('used.warrantyMonth') : t('used.warrantyMonths')}`}
             </p>
           )}
+          {cosmeticSummary(line.cosmeticCondition, t) && <p className="mt-1 text-xs text-graphite">{cosmeticSummary(line.cosmeticCondition, t)}</p>}
           {line.knownDefects && <p className="mt-1 max-w-xl text-[11px] text-out">{t('used.knownDefects')}: {line.knownDefects}</p>}
           <p className="mt-1 text-[11px] text-charcoal">
             {t("checkout.listPrice", { price: formatBDT(line.listUnitPrice) })}
@@ -383,7 +391,8 @@ function CartLineEditor({
 }
 
 export function CheckoutWorkspace({
-  cart,
+  cart: serverCart,
+  initialTradeInOpen = false,
   shopName,
   shopLogoDataUri,
   initialIdentifier,
@@ -394,6 +403,7 @@ export function CheckoutWorkspace({
   role,
 }: {
   cart: CartDraft;
+  initialTradeInOpen?: boolean;
   shopName: string;
   shopLogoDataUri: string | null;
   initialIdentifier?: string;
@@ -405,6 +415,16 @@ export function CheckoutWorkspace({
 }) {
   const { locale, t, message } = useI18n();
   const router = useRouter();
+  const [tradeInDraft, setTradeInDraft] = useState(serverCart.tradeInDraft);
+  const [editingTradeIn, setEditingTradeIn] = useState(false);
+  const previouslyEditingTradeIn = useRef(false);
+  useEffect(() => {
+    if (previouslyEditingTradeIn.current && !editingTradeIn) document.querySelector<HTMLButtonElement>('[data-trade-in-trigger]')?.focus();
+    previouslyEditingTradeIn.current = editingTradeIn;
+  }, [editingTradeIn]);
+  useEffect(() => { if (initialTradeInOpen && role !== "STAFF") setEditingTradeIn(true); }, [initialTradeInOpen, role]);
+  const cart = useMemo(() => ({ ...serverCart, tradeInDraft }), [serverCart, tradeInDraft]);
+  useEffect(() => { setTradeInDraft(serverCart.tradeInDraft); }, [serverCart.id, serverCart.tradeInDraft]);
   const [checkoutKey, setCheckoutKey] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [saleMode, setSaleMode] = useState<"CASH" | "EMI">("CASH");
@@ -494,6 +514,7 @@ export function CheckoutWorkspace({
     setIdentificationType("");
     setIdentificationNumber("");
     setPaymentMethod("CASH");
+    setTradeInPayoutMethod("CASH");
     setPaymentStatus("PAID");
     setReference("");
     setNote("");
@@ -521,6 +542,8 @@ export function CheckoutWorkspace({
   }, [cart.id, cart.tradeInDraft, discardLocalDraft, router]);
 
   function requestCheckoutConfirmation() {
+    const creditError = tradeInEmiError(cart.tradeInDraft?.acquisitionValue ?? 0, { isEmi, total, downPayment });
+    if (creditError) { setAddState({ error: t(creditError) }); return; }
     if (isEmi) {
       const parsed = emiCheckoutFieldsSchema.safeParse({
         isEmi: true,
@@ -570,7 +593,7 @@ export function CheckoutWorkspace({
         const expired = typeof stored.updatedAt !== "number"
           || Date.now() - stored.updatedAt >= LOCAL_DRAFT_TTL_MS;
         if (stored.version !== LOCAL_DRAFT_VERSION || stored.cartId !== cart.id) {
-          window.localStorage.removeItem(storageKey);
+          discardLocalDraft();
         } else if (expired) {
           void expireDraft();
           restoredLines = [];
@@ -598,6 +621,7 @@ export function CheckoutWorkspace({
               position,
               onHand: product.trackingType === "SERIAL" ? 1 : product.onHand,
               usedGrade: unit?.usedGrade ?? null,
+              cosmeticCondition: unit?.cosmeticCondition ?? null,
               knownDefects: unit?.knownDefects ?? null,
               warrantyMonths: unit?.warrantyMonths ?? null,
               warrantyDays: unit?.warrantyDays ?? null,
@@ -623,9 +647,9 @@ export function CheckoutWorkspace({
     orderedLinesRef.current = restoredLines;
     setOrderedLines(restoredLines);
     setDraftHydrated(true);
-  // Initial hydration must run once for this signed-in user's checkout.
+  // Restore once per cart, not whenever its provisional trade-in changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expireDraft, storageKey]);
+  }, [cart.id, storageKey]);
 
   useEffect(() => {
     // Hydration and persistence effects can run during the same initial commit.
@@ -731,8 +755,8 @@ export function CheckoutWorkspace({
   );
 
   useEffect(() => {
-    if (clearTradeInState.ok) setConfirmingTradeInRemoval(false);
-  }, [clearTradeInState.ok]);
+    if (clearTradeInState.ok) { setConfirmingTradeInRemoval(false); setTradeInDraft(null); }
+  }, [clearTradeInState]);
 
   useEffect(() => {
     if (!reorderState.ok && !reorderState.error) return;
@@ -918,6 +942,7 @@ export function CheckoutWorkspace({
       position: orderedLinesRef.current.length,
       onHand: product.trackingType === "SERIAL" ? 1 : product.onHand,
       usedGrade: unit?.usedGrade ?? null,
+      cosmeticCondition: unit?.cosmeticCondition ?? null,
       knownDefects: unit?.knownDefects ?? null,
       warrantyMonths: unit?.warrantyMonths ?? null,
       warrantyDays: unit?.warrantyDays ?? null,
@@ -935,7 +960,7 @@ export function CheckoutWorkspace({
   );
 
   useCheckoutScanner({
-    disabled: checkingOut || clearingTradeIn || confirmingCheckout || confirmingTradeInRemoval || creatingCustomer,
+    disabled: editingTradeIn || checkingOut || clearingTradeIn || confirmingCheckout || confirmingTradeInRemoval || creatingCustomer,
     onScan: handlePageScan,
   });
 
@@ -1364,11 +1389,10 @@ export function CheckoutWorkspace({
                   <p className="mb-2 text-[11px] text-graphite">{t("checkout.tradeInDraftHelp")}</p>
                   <div className="rounded-[3px] border border-rule bg-plate/30 p-3 text-[12px]">
                     <p className="font-semibold">{tradeInProduct?.name ?? t("common.product")} · <span className="tnum">{cart.tradeInDraft.serialNo}</span></p>
+                    {cosmeticSummary(cart.tradeInDraft.cosmeticCondition, t) && <p className="mt-1 text-graphite">{cosmeticSummary(cart.tradeInDraft.cosmeticCondition, t)}</p>}
                     <p className="mt-1 text-graphite">{cart.tradeInDraft.sellerName} · {formatBDT(cart.tradeInDraft.acquisitionValue)}</p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <Link href={`/stock/used-intake?cart=${cart.id}`} className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3 text-[13px] hover:bg-plate">
-                        {t("checkout.editTradeIn")}
-                      </Link>
+                      <Button data-trade-in-trigger type="button" variant="ghost" onClick={() => setEditingTradeIn(true)}>{t("checkout.editTradeIn")}</Button>
                       <Button type="button" variant="danger" onClick={() => setConfirmingTradeInRemoval(true)} disabled={clearingTradeIn}>
                         {t("checkout.removeTradeIn")}
                       </Button>
@@ -1380,11 +1404,10 @@ export function CheckoutWorkspace({
                 <div>
                   <p className="eyebrow mb-1.5">{t("checkout.tradeInCredit")}</p>
                   <p className="mb-2 text-[11px] text-graphite">{t("checkout.tradeInHelp")}</p>
-                  <Link href={`/stock/used-intake?cart=${cart.id}`} className="mb-2 inline-flex h-9 items-center rounded-[3px] border border-teal-700 bg-teal-700 px-3 text-[13px] font-medium text-white transition-colors hover:border-teal-800 hover:bg-teal-800">
-                    {t("checkout.prepareTradeIn")}
-                  </Link>
+                  <Button data-trade-in-trigger type="button" variant="ghost" className="!border-teal-700 !bg-teal-700 !text-white hover:!border-teal-800 hover:!bg-teal-800" onClick={() => setEditingTradeIn(true)}>{t("checkout.prepareTradeIn")}</Button>
                 </div>
               )}
+              {tradeInEmiError(tradeInCredit, { isEmi, total, downPayment }) && <p role="alert" className="text-sm text-out">{t(tradeInEmiError(tradeInCredit, { isEmi, total, downPayment })!)}</p>}
               {tradeInCashPayout > 0 ? (
                 <Field label={t("checkout.tradeInPayoutMethod")} hint={t("checkout.tradeInPayoutHelp", { amount: formatBDT(tradeInCashPayout) })}>
                   <Select
@@ -1476,7 +1499,8 @@ export function CheckoutWorkspace({
                 className="h-11 w-full rounded-[8px] bg-gradient-to-r from-signal to-blue-700 shadow-lg shadow-signal/25 hover:from-signal/90 hover:to-blue-700/90"
                 onClick={requestCheckoutConfirmation}
                 disabled={
-                  checkingOut ||
+                  editingTradeIn || checkingOut ||
+                  Boolean(tradeInEmiError(tradeInCredit, { isEmi, total, downPayment })) ||
                   hasInvalidLines ||
                   orderedLines.length === 0 ||
                   !checkoutKey ||
@@ -1635,6 +1659,7 @@ export function CheckoutWorkspace({
                               <tr key={line.id} className="border-b border-rule align-top">
                                 <td className="px-2 py-2.5">
                                   <p className="font-semibold">{line.productName}</p>
+                                  {cosmeticSummary(line.cosmeticCondition, t) && <p className="mt-1 text-graphite">{cosmeticSummary(line.cosmeticCondition, t)}</p>}
                                   <p className="tnum text-[10px] text-graphite">
                                     {line.sku}{line.serialNo ? ` · ${t("checkout.serialImei")}: ${line.serialNo}` : ""}
                                   </p>
@@ -1661,6 +1686,7 @@ export function CheckoutWorkspace({
                               </p>
                               <p className="mt-1 text-[11px] text-graphite">
                                 {t("used.grade")}: {tradeInGrade}
+                                {cosmeticSummary(cart.tradeInDraft.cosmeticCondition, t) && <span className="block">{cosmeticSummary(cart.tradeInDraft.cosmeticCondition, t)}</span>}
                               </p>
                             </div>
                             <div className="text-left sm:text-right">
@@ -1794,6 +1820,13 @@ export function CheckoutWorkspace({
         </div>
       </div>
     )}
+    {editingTradeIn && role !== "STAFF" && <TradeInPanel cartId={cart.id} draft={cart.tradeInDraft}
+        products={products.filter(product => product.trackingType === 'SERIAL')}
+        customer={customers.find(customer => customer.id === selectedCustomerId) ?? null}
+        context={{ isEmi, total, downPayment }}
+        onClose={() => { setEditingTradeIn(false); if (initialTradeInOpen) window.history.replaceState(null, '', '/checkout'); }}
+        onSaved={draft => { setTradeInDraft(draft); setEditingTradeIn(false); setAddState({ ok: t('used.tradeInSaved') }); if (initialTradeInOpen) window.history.replaceState(null, '', '/checkout'); }} />}
+
     </div>
   );
 }

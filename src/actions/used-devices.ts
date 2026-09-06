@@ -1,18 +1,21 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
 import { z } from 'zod';
 
 import { writeAudit } from '@/lib/audit';
 import { parseBDT } from '@/lib/money';
 import { requireCapability } from '@/lib/session';
-import { acceptUsedDevice, addRefurbishmentExpense, updateUsedDeviceDetails } from '@/services/used-devices';
+import { acceptUsedDevice, addRefurbishmentExpense, updateUsedDeviceDetails, UsedDeviceEligibilityError } from '@/services/used-devices';
 import { saveTradeInDraft } from '@/services/checkout';
 import type { AcceptUsedDeviceInput } from '@/schemas';
-import type { InspectionResult, UsedAcquisitionType, UsedDeviceGrade } from '@/domain/types';
+import { usedDeviceFormInput, usedDeviceFieldsSchema, usedDeviceFieldErrors } from '@/lib/used-device-form';
+import { parseReceiptCost } from '@/lib/stock-receipt';
+import { cosmeticFormInput } from '@/lib/cosmetic-condition';
+import type { TradeInCartDraft, UsedAcquisitionType, UsedDeviceGrade } from '@/domain/types';
 
 export interface UsedDeviceActionState {
+  tradeInDraft?: TradeInCartDraft;
   error?: string;
   ok?: string;
   fieldErrors?: Record<string, string>;
@@ -26,12 +29,6 @@ export interface UsedDeviceActionState {
   };
 }
 
-const inspectionKeys = [
-  'imeiMatches', 'activationLockClear', 'networkAndSim', 'wifi', 'bluetooth',
-  'display', 'touchscreen', 'cameras', 'microphone', 'speakers', 'chargingPort',
-  'buttons', 'biometrics', 'frameAndBack', 'waterDamageFree', 'battery',
-] as const;
-
 function str(data: FormData, name: string): string | null {
   const value = data.get(name);
   return typeof value === 'string' && value.trim() ? value.trim() : null;
@@ -42,52 +39,9 @@ function message(error: unknown): string {
   return error instanceof Error ? error.message : 'Something went wrong.';
 }
 
-function fieldErrors(error: z.ZodError): Record<string, string> {
-  const output: Record<string, string> = {};
-  for (const issue of error.issues) output[issue.path.join('.') || '_'] ??= issue.message;
-  return output;
-}
-
-function inputFromForm(
-  data: FormData,
-  actorId: string,
-  acquisitionType?: UsedAcquisitionType,
-): AcceptUsedDeviceInput {
-  if (data.get('ownershipConfirmed') !== 'on') {
-    throw new Error('Confirm that the seller owns the device.');
-  }
-  const inspectionResults = Object.fromEntries(
-    inspectionKeys.map((key) => [key, (str(data, `inspection.${key}`) ?? 'NOT_TESTED') as InspectionResult]),
-  ) as AcceptUsedDeviceInput['inspectionResults'];
-  const warrantyDuration = str(data, 'warrantyDuration') ? Number(str(data, 'warrantyDuration')) : null;
-  const warrantyUnit = str(data, 'warrantyUnit') ?? 'MONTHS';
-  const resolvedAcquisitionType = acquisitionType ?? (str(data, 'acquisitionType') ?? '') as UsedAcquisitionType;
-  const acquisitionValue = parseBDT(str(data, 'acquisitionValue') ?? '');
-  const askingPriceText = str(data, 'askingPrice');
-  return {
-    productId: str(data, 'productId') ?? '',
-    serialNo: str(data, 'serialNo') ?? '',
-    grade: (str(data, 'grade') ?? '') as UsedDeviceGrade,
-    batteryHealth: str(data, 'batteryHealth') ? Number(str(data, 'batteryHealth')) : null,
-    inspectionResults,
-    knownDefects: str(data, 'knownDefects'),
-    includedAccessories: str(data, 'includedAccessories'),
-    askingPrice: askingPriceText ? parseBDT(askingPriceText) : parseBDT(''),
-    warrantyMonths: warrantyUnit === 'MONTHS' ? warrantyDuration : null,
-    warrantyDays: warrantyUnit === 'DAYS' ? warrantyDuration : null,
-    location: str(data, 'location'),
-    acquisitionType: resolvedAcquisitionType,
-    sellerName: str(data, 'sellerName') ?? '',
-    sellerPhone: str(data, 'sellerPhone') ?? '',
-    identificationType: str(data, 'identificationType'),
-    identificationNumber: str(data, 'identificationNumber'),
-    acquisitionValue,
-    ownershipConfirmed: true,
-    reference: str(data, 'reference'),
-    note: str(data, 'note'),
-    actorId,
-    idempotencyKey: str(data, 'idempotencyKey') ?? '',
-  };
+const fieldErrors = usedDeviceFieldErrors;
+function inputFromForm(data: FormData, actorId: string, acquisitionType?: UsedAcquisitionType): AcceptUsedDeviceInput {
+  return usedDeviceFieldsSchema.parse(usedDeviceFormInput(data, acquisitionType === 'TRADE_IN' ? 'trade-in' : 'purchase', actorId));
 }
 
 export async function acceptUsedDeviceAction(
@@ -97,7 +51,7 @@ export async function acceptUsedDeviceAction(
   const actor = await requireCapability('MANAGE_USED_DEVICES');
   try {
     const input = inputFromForm(data, actor.id);
-    if (input.acquisitionType === 'TRADE_IN') {
+    if (str(data, 'acquisitionType') === 'TRADE_IN') {
       throw new Error('Start a trade-in from Checkout so the credit and sale complete together.');
     }
     const result = await acceptUsedDevice(input);
@@ -132,6 +86,7 @@ export async function acceptUsedDeviceAction(
       },
     };
   } catch (error) {
+    if (error instanceof UsedDeviceEligibilityError) return { error: message(error), fieldErrors: { [error.field]: message(error) } };
     if (error instanceof z.ZodError) return { error: message(error), fieldErrors: fieldErrors(error) };
     return { error: message(error) };
   }
@@ -155,12 +110,13 @@ export async function saveTradeInDraftAction(
       entityId: cart.id,
       after: { serialNo: cart.tradeInDraft?.serialNo, acquisitionValue: cart.tradeInDraft?.acquisitionValue },
     });
+    revalidatePath('/checkout');
+    return { ok: 'used.tradeInSaved', tradeInDraft: cart.tradeInDraft! };
   } catch (error) {
+    if (error instanceof UsedDeviceEligibilityError) return { error: message(error), fieldErrors: { [error.field]: message(error) } };
     if (error instanceof z.ZodError) return { error: message(error), fieldErrors: fieldErrors(error) };
     return { error: message(error) };
   }
-  revalidatePath('/checkout');
-  redirect('/checkout');
 }
 
 export async function addRefurbishmentExpenseAction(
@@ -186,6 +142,7 @@ export async function addRefurbishmentExpenseAction(
     revalidatePath('/reports');
     return { ok: 'Refurbishment cost added to this phone.' };
   } catch (error) {
+    if (error instanceof UsedDeviceEligibilityError) return { error: message(error), fieldErrors: { [error.field]: message(error) } };
     if (error instanceof z.ZodError) return { error: message(error), fieldErrors: fieldErrors(error) };
     return { error: message(error) };
   }
@@ -205,7 +162,8 @@ export async function updateUsedDeviceAction(
       batteryHealth: str(data, 'batteryHealth') ? Number(str(data, 'batteryHealth')) : null,
       knownDefects: str(data, 'knownDefects'),
       includedAccessories: str(data, 'includedAccessories'),
-      askingPrice: parseBDT(str(data, 'askingPrice') ?? ''),
+      cosmeticCondition: cosmeticFormInput(data) as AcceptUsedDeviceInput['cosmeticCondition'],
+      askingPrice: parseReceiptCost(str(data, 'askingPrice') ?? ''),
       warrantyMonths: warrantyUnit === 'MONTHS' ? warrantyDuration : null,
       warrantyDays: warrantyUnit === 'DAYS' ? warrantyDuration : null,
       actorId: actor.id,
@@ -221,6 +179,7 @@ export async function updateUsedDeviceAction(
     revalidatePath('/checkout');
     return { ok: 'Used-phone details updated.' };
   } catch (error) {
+    if (error instanceof UsedDeviceEligibilityError) return { error: message(error), fieldErrors: { [error.field]: message(error) } };
     if (error instanceof z.ZodError) return { error: message(error), fieldErrors: fieldErrors(error) };
     return { error: message(error) };
   }

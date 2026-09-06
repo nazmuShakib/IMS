@@ -80,6 +80,7 @@ export interface ProductUnitDTO {
   usedGrade: ProductUnit['usedGrade'];
   batteryHealth: number | null;
   inspectionResults: ProductUnit['inspectionResults'];
+  cosmeticCondition?: ProductUnit['cosmeticCondition'];
   knownDefects: string | null;
   includedAccessories: string | null;
   askingPrice: Paisa | null;
@@ -105,6 +106,7 @@ export function toProductUnitDTO(u: ProductUnit, role: Role): ProductUnitDTO {
     usedGrade: u.usedGrade ?? null,
     batteryHealth: u.batteryHealth ?? null,
     inspectionResults: u.inspectionResults ?? null,
+    cosmeticCondition: u.cosmeticCondition ?? null,
     knownDefects: u.knownDefects ?? null,
     includedAccessories: u.includedAccessories ?? null,
     askingPrice: u.askingPrice ?? null,

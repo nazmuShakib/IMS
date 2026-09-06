@@ -1,5 +1,6 @@
 'use client';
 
+import { cosmeticSummary } from '@/lib/cosmetic-condition';
 import { useActionState, useEffect, useRef, useState, useTransition, type CSSProperties, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -289,6 +290,7 @@ export function InvoiceView({
                     <strong>{item.productName}</strong>
                     <span className="tnum">Code (SKU) {item.sku}{item.serialNo ? ` · Device no. ${item.serialNo}` : ''}</span>
                     {item.usedGrade && <span>Used phone · {item.usedGrade === 'REFURBISHED' ? 'Refurbished' : item.usedGrade.replace('GRADE_', 'Grade ')}</span>}
+                    {cosmeticSummary(item.cosmeticCondition, t) && <span>{t('used.appearance')}: {cosmeticSummary(item.cosmeticCondition, t)}</span>}
                     {item.knownDefects && <span>Declared defects: {item.knownDefects}</span>}
                     {item.warrantyDays
                       ? <span>{item.warrantyDays} {item.warrantyDays === 1 ? 'day' : 'days'} warranty</span>
@@ -308,6 +310,7 @@ export function InvoiceView({
             <section className="invoice-trade-in">
               <span>Trade-in device</span>
               <strong>{sale.tradeInDetails.productName}</strong>
+              {cosmeticSummary(sale.tradeInDetails.cosmeticCondition, t) && <p>{cosmeticSummary(sale.tradeInDetails.cosmeticCondition, t)}</p>}
               <p className="tnum">Code (SKU) {sale.tradeInDetails.sku} · Device no. {sale.tradeInDetails.serialNo}</p>
               <p>{sale.tradeInDetails.grade === 'REFURBISHED' ? 'Refurbished' : sale.tradeInDetails.grade.replace('GRADE_', 'Grade ')} · Credit {formatBDT(sale.tradeInDetails.acquisitionValue)}</p>
             </section>

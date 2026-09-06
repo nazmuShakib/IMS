@@ -1,5 +1,6 @@
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 
+import { cosmeticSummary } from '@/lib/cosmetic-condition';
 import type { EmiInstallment, InvoiceItem, Sale, SaleSettlement } from '@/domain/types';
 import { emiInvoiceSummary, emiScheduleRows, emiScheduleDate, type EmiInvoiceData } from '@/lib/emi-presentation';
 import { emiDisplayStatus } from '@/lib/emi-summary';
@@ -134,9 +135,10 @@ function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { install
     height += wrappedLines(identity, chars) * 3;
     if (item.usedGrade) height += 3.2;
     height += wrappedLines(item.knownDefects, chars) * 3.2;
+    height += wrappedLines(cosmeticSummary(item.cosmeticCondition), chars) * 3.2;
     if (item.warrantyDays || item.warrantyMonths) height += 3.2;
   }
-  if (sale.tradeInDetails) height += 20 + wrappedLines(sale.tradeInDetails.productName, chars) * 3.2;
+  if (sale.tradeInDetails) height += 20 + wrappedLines(sale.tradeInDetails.productName, chars) * 3.2 + wrappedLines(cosmeticSummary(sale.tradeInDetails.cosmeticCondition), chars) * 3.2;
   if (sale.reference) height += wrappedLines(`Ref: ${sale.reference}`, chars) * 3;
   if (emi) height += 55 + emi.installments.length * (widthMm === 58 ? 19 : 15);
   if (sale.note) height += 8 + wrappedLines(sale.note, chars) * 3.2;
@@ -225,6 +227,7 @@ function InvoiceDocument({
               <Text>{item.productName}</Text>
               <Text style={styles.muted}>Code (SKU) {item.sku}{item.serialNo ? ` / Device no. ${item.serialNo}` : ''}</Text>
               {item.usedGrade && <Text style={styles.muted}>Used phone / {item.usedGrade === 'REFURBISHED' ? 'Refurbished' : item.usedGrade.replace('GRADE_', 'Grade ')}</Text>}
+              {cosmeticSummary(item.cosmeticCondition) && <Text style={styles.muted}>{cosmeticSummary(item.cosmeticCondition)}</Text>}
               {item.knownDefects && <Text style={styles.muted}>Declared defects: {item.knownDefects}</Text>}
               {item.warrantyDays
                 ? <Text style={styles.muted}>{item.warrantyDays} {item.warrantyDays === 1 ? 'day' : 'days'} warranty</Text>
@@ -241,6 +244,7 @@ function InvoiceDocument({
           <View style={styles.tradeIn} wrap={false}>
             <Text style={styles.label}>Trade-in device</Text>
             <Text>{sale.tradeInDetails.productName}</Text>
+            {cosmeticSummary(sale.tradeInDetails.cosmeticCondition) && <Text>{cosmeticSummary(sale.tradeInDetails.cosmeticCondition)}</Text>}
             <Text style={styles.muted}>Code (SKU) {sale.tradeInDetails.sku} / Device no. {sale.tradeInDetails.serialNo}</Text>
             <Text style={styles.muted}>{sale.tradeInDetails.grade === 'REFURBISHED' ? 'Refurbished' : sale.tradeInDetails.grade.replace('GRADE_', 'Grade ')} / Credit {money(sale.tradeInDetails.acquisitionValue)}</Text>
           </View>
@@ -367,7 +371,8 @@ function ThermalInvoiceDocument({
           <Text style={thermalStyles.itemName}>{item.productName}</Text>
           <Text style={thermalStyles.muted}>Code (SKU) {item.sku}{item.serialNo ? ` / Device no. ${item.serialNo}` : ''}</Text>
           {item.usedGrade && <Text style={thermalStyles.muted}>Used phone · {item.usedGrade === 'REFURBISHED' ? 'Refurbished' : item.usedGrade.replace('GRADE_', 'Grade ')}</Text>}
-          {item.knownDefects && <Text style={thermalStyles.muted}>Declared defects: {item.knownDefects}</Text>}
+          {cosmeticSummary(item.cosmeticCondition) && <Text style={thermalStyles.muted}>{cosmeticSummary(item.cosmeticCondition)}</Text>}
+              {item.knownDefects && <Text style={thermalStyles.muted}>Declared defects: {item.knownDefects}</Text>}
           {item.warrantyDays ? <Text style={thermalStyles.muted}>{item.warrantyDays} day warranty</Text> : item.warrantyMonths ? <Text style={thermalStyles.muted}>{item.warrantyMonths} month warranty</Text> : null}
         </View>
         <Text style={thermalStyles.itemQty}>{item.quantity}</Text>
@@ -376,6 +381,7 @@ function ThermalInvoiceDocument({
       {sale.tradeInDetails && <View style={thermalStyles.box} wrap={false}>
         <Text style={thermalStyles.label}>Trade-in device</Text>
         <Text>{sale.tradeInDetails.productName}</Text>
+            {cosmeticSummary(sale.tradeInDetails.cosmeticCondition) && <Text>{cosmeticSummary(sale.tradeInDetails.cosmeticCondition)}</Text>}
         <Text style={thermalStyles.muted}>{sale.tradeInDetails.sku} / {sale.tradeInDetails.serialNo}</Text>
         <View style={thermalStyles.line}><Text>Credit</Text><Text>-{money(sale.tradeInCredit)}</Text></View>
       </View>}

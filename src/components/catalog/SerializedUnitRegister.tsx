@@ -1,5 +1,6 @@
 'use client';
 
+import { cosmeticSummary } from '@/lib/cosmetic-condition';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
@@ -336,6 +337,7 @@ export function SerializedUnitRegister({
                 <div><dt className="eyebrow">{t('used.warrantyDuration')}</dt><dd className="mt-1">{detailsUnit.warrantyDays ? `${detailsUnit.warrantyDays} ${detailsUnit.warrantyDays === 1 ? t('used.warrantyDay') : t('used.warrantyDays')}` : detailsUnit.warrantyMonths ? `${detailsUnit.warrantyMonths} ${detailsUnit.warrantyMonths === 1 ? t('used.warrantyMonth') : t('used.warrantyMonths')}` : t('common.notRecorded')}</dd></div>
                 <div><dt className="eyebrow">{t('common.location')}</dt><dd className="mt-1">{detailsUnit.location || t('common.notRecorded')}</dd></div>
                 <div><dt className="eyebrow">{t('labels.received')}</dt><dd className="mt-1">{dhaka(detailsUnit.receivedAt, locale)}</dd></div>
+                <div className="sm:col-span-2"><dt className="eyebrow">{t('used.appearance')}</dt><dd className="mt-1 whitespace-pre-wrap">{cosmeticSummary(detailsUnit.cosmeticCondition, t) || t('common.notRecorded')}</dd></div>
                 <div className="sm:col-span-2"><dt className="eyebrow">{t('used.knownDefects')}</dt><dd className="mt-1 whitespace-pre-wrap">{detailsUnit.knownDefects || t('common.notRecorded')}</dd></div>
                 <div className="sm:col-span-2"><dt className="eyebrow">{t('used.accessories')}</dt><dd className="mt-1 whitespace-pre-wrap">{detailsUnit.includedAccessories || t('common.notRecorded')}</dd></div>
               </dl>

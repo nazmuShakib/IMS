@@ -20,6 +20,7 @@ import {
 } from '@/domain/types';
 import { isBangladeshMobile } from '@/lib/phone';
 import { parseBDT } from '@/lib/money';
+import { cosmeticConditionSchema } from '@/lib/cosmetic-condition';
 
 /**
  * ONE schema per input, shared by the client form (react-hook-form) and the
@@ -136,6 +137,7 @@ export const acceptUsedDeviceSchema = z.object({
   grade: z.enum(USED_DEVICE_GRADES),
   batteryHealth: z.number().int().min(0).max(100).optional().nullable(),
   inspectionResults: usedDeviceInspectionSchema,
+  cosmeticCondition: cosmeticConditionSchema.optional().nullable(),
   knownDefects: z.string().trim().max(2000).optional().nullable(),
   includedAccessories: z.string().trim().max(1000).optional().nullable(),
   askingPrice: paisa,
@@ -190,6 +192,7 @@ export const updateUsedDeviceSchema = z.object({
   unitId: z.string().uuid(),
   grade: z.enum(USED_DEVICE_GRADES),
   batteryHealth: z.number().int().min(0).max(100).optional().nullable(),
+  cosmeticCondition: cosmeticConditionSchema.optional().nullable(),
   knownDefects: z.string().trim().max(2000).optional().nullable(),
   includedAccessories: z.string().trim().max(1000).optional().nullable(),
   askingPrice: paisa,
