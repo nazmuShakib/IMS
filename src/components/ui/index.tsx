@@ -39,7 +39,7 @@ export function Field({
 }: {
   label: ReactNode;
   hint?: string;
-  error?: string;
+  error?: ReactNode;
   children: ReactNode;
 }) {
   return (

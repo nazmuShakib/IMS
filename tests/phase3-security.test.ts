@@ -244,6 +244,7 @@ describe('authentication and audit architecture', () => {
       source('src/actions/catalog.ts'),
       source('src/actions/stock.ts'),
       source('src/services/stock.ts'),
+      source('src/services/stock-removal.ts'),
     ].join('\n');
     for (const action of [
       'auth.login',

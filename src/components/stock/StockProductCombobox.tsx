@@ -5,12 +5,14 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { ProductDTO } from '@/lib/dto';
 import { useI18n } from '@/components/i18n/I18nProvider';
 
-export function StockProductCombobox({ products, value, disabled, error, onChange }: {
+export function StockProductCombobox({ products, value, disabled, error, onChange, includeArchived = false, emptyMessage }: {
   products: Pick<ProductDTO, 'id' | 'name' | 'sku' | 'barcode' | 'model' | 'isActive' | 'trackingType'>[];
   value: string;
   disabled: boolean;
   error?: string;
   onChange: (id: string) => void;
+  includeArchived?: boolean;
+  emptyMessage?: string;
 }) {
   const { t } = useI18n();
   const id = useId();
@@ -22,9 +24,9 @@ export function StockProductCombobox({ products, value, disabled, error, onChang
   const selected = products.find((item) => item.id === value);
   const matches = useMemo(() => {
     const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return products.filter((item) => item.isActive && terms.every((term) =>
+    return products.filter((item) => (item.isActive || includeArchived) && terms.every((term) =>
       `${item.name} ${item.sku} ${item.barcode ?? ''} ${item.model ?? ''}`.toLowerCase().includes(term)));
-  }, [products, query]);
+  }, [products, query, includeArchived]);
 
   useEffect(() => {
     if (open) document.getElementById(`${id}-option-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' });
@@ -75,13 +77,13 @@ export function StockProductCombobox({ products, value, disabled, error, onChang
         {matches.length ? matches.map((item, index) => <div key={item.id} id={`${id}-option-${index}`} role="option" aria-selected={item.id === value}
           className={`flex cursor-pointer items-center justify-between gap-3 px-3 py-2 ${activeIndex === index ? 'bg-signal/10' : 'hover:bg-plate'}`}
           onMouseEnter={() => setActiveIndex(index)} onMouseDown={(event) => { event.preventDefault(); choose(item.id); }}>
-          <span className="min-w-0"><span className="block truncate text-[13px] font-medium">{item.name}</span>
+          <span className="min-w-0"><span className="block truncate text-[13px] font-medium">{item.name}{!item.isActive && ` · ${t('removal.archived')}`}</span>
             <span className="tnum mt-0.5 block truncate text-[11px] text-graphite">{item.sku} · {t(item.trackingType === 'SERIAL' ? 'products.serialTracking' : 'products.bulkTracking')}</span></span>
           {item.id === value && <Check className="size-4 shrink-0 text-signal" aria-hidden="true" />}
         </div>) : <p className="p-5 text-center text-sm text-graphite">{t('stock.noProductResults')}</p>}
       </div>}
     </div>
     {error && <p id={`${id}-error`} className="mt-1 text-xs text-out">{error}</p>}
-    {products.length === 0 && <p className="mt-2 text-sm text-graphite">{t('stock.noActiveProducts')}</p>}
+    {products.length === 0 && <p className="mt-2 text-sm text-graphite">{emptyMessage ?? t('stock.noActiveProducts')}</p>}
   </div>;
 }

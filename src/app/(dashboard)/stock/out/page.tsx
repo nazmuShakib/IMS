@@ -18,10 +18,10 @@ export default async function StockOutPage({
   const { serial } = await searchParams;
 
   const [products, suppliers] = await Promise.all([
-    db.products.findAll({ activeOnly: true }),
+    db.products.findAll(),
     db.suppliers.findAll(),
   ]);
-  const bulk = products.filter((p) => p.trackingType === 'QUANTITY');
+  const bulk = products.filter((p) => p.trackingType === 'QUANTITY' && (p.isActive || p.quantityOnHand > 0));
 
   return (
     <>

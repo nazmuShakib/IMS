@@ -579,8 +579,8 @@ describe('Phase 8 stock and invoice invariants', () => {
   it('uses Checkout as the only user-facing sale path', () => {
     const stockAction = source('src/actions/stock.ts');
     const stockForm = source('src/components/stock/StockOutForm.tsx');
-    expect(stockAction).toContain("if (reason === 'SALE')");
-    expect(stockAction).toContain('Use Checkout for every sale');
+    expect(stockAction).toContain('removalFieldsSchema.safeParse');
+    expect(source('src/lib/stock-removal.ts')).toContain("['DAMAGE', 'LOSS', 'SHOP_USE', 'GIFT', 'RETURN_TO_SUPPLIER']");
     expect(stockForm).not.toContain("['SALE', 'Sold to a customer']");
     expect(checkout).toContain("reason: 'SALE'");
   });

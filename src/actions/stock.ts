@@ -10,9 +10,10 @@ import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
 import { requestAuditIp, writeAudit } from '@/lib/audit';
 import { receiptFieldsSchema, receiptFormInput, receiptFieldErrors, serialBatchSchema, type StockReceipt } from '@/lib/stock-receipt';
-import { correctMovement, receiveStock, recordStockOut } from '@/services/stock';
-import { createSupplierReturn } from '@/services/supplier-returns';
-import type { MovementReason, UnitStatus } from '@/domain/types';
+import { correctMovement, receiveStock } from '@/services/stock';
+import { removeStock } from '@/services/stock-removal';
+import { removalFieldsSchema, removalFormInput, removalFieldErrors, removalSerialSchema, RemovalValidationError, type RemovalActionState } from '@/lib/stock-removal';
+import type { UnitStatus } from '@/domain/types';
 
 /**
  * Phase 2 (PLAN.md §16). These are thin — every one of them just validates the
@@ -63,6 +64,7 @@ export interface SerialLookup {
   productName: string;
   sku: string;
   suggestedPrice: number;
+  isActive: boolean;
 }
 
 /**
@@ -76,30 +78,19 @@ export async function lookupSerial(
 ): Promise<{ error?: string; found?: SerialLookup }> {
   const actor = await requireCapability('REMOVE_STOCK');
   const { role } = actor;
-  const serial = str(fd, 'serialNo');
-  if (!serial) return { error: 'Enter a device number or IMEI' };
-
-  const unit = await db.units.findBySerial(serial);
-  if (!unit) return { error: `No item with device number ${serial}. Check the number, or receive it first.` };
-
-  if (unit.status !== 'IN_STOCK') {
-    return {
-      error: `That unit is ${unit.status.replace('_', ' ').toLowerCase()}, so it isn't in stock. Nothing to take out.`,
-    };
+  const parsed = removalSerialSchema.safeParse(str(fd, 'serialNo') ?? '');
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? 'removal.invalid' };
+  try {
+    const unit = await db.units.findBySerial(parsed.data);
+    if (!unit) return { error: 'removal.serialNotFound' };
+    if (unit.status !== 'IN_STOCK') return { error: 'removal.deviceUnavailable' };
+    const product = await db.products.findById(unit.productId);
+    if (!product) return { error: 'removal.productUnavailable' };
+    return { found: { unit: toProductUnitDTO(unit, role), productId: product.id, productName: product.name,
+      sku: product.sku, suggestedPrice: product.defaultSalePrice, isActive: product.isActive } };
+  } catch {
+    return { error: 'removal.lookupFailed' };
   }
-
-  const product = await db.products.findById(unit.productId);
-  if (!product) return { error: 'That unit points at a product that no longer exists.' };
-
-  return {
-    found: {
-      unit: toProductUnitDTO(unit, role),
-      productId: product.id,
-      productName: product.name,
-      sku: product.sku,
-      suggestedPrice: product.defaultSalePrice,
-    },
-  };
 }
 
 /* --- Stock in -------------------------------------------------------------- */
@@ -179,95 +170,30 @@ export async function receiveStockAction(
 /* --- Stock out ------------------------------------------------------------- */
 
 export async function stockOutAction(
-  _prev: StockActionState,
+  _prev: RemovalActionState,
   fd: FormData,
-): Promise<StockActionState> {
+): Promise<RemovalActionState> {
   const actor = await requireCapability('REMOVE_STOCK');
-
-  const productId = str(fd, 'productId');
-  if (!productId) return { error: 'Missing product' };
-
-  const product = await db.products.findById(productId);
-  if (!product) return { error: 'Product not found' };
-
-  const reason = (str(fd, 'reason') ?? 'DAMAGE') as MovementReason;
-  if (reason === 'SALE') {
-    return { error: 'Use Checkout for every sale so an invoice and complete sale record are created.' };
-  }
-  const qtyRaw = str(fd, 'quantity');
-
+  // Checkout remains the only sale path; this form cannot post legacy reasons.
+  const parsed = removalFieldsSchema.safeParse(removalFormInput(fd));
+  if (!parsed.success) return { outcome: 'rejected', fieldErrors: removalFieldErrors(parsed.error) };
+  let result: Awaited<ReturnType<typeof removeStock>>;
   try {
-    const common = {
-      productId,
-      serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? undefined) : undefined,
-      quantity:
-        product.trackingType === 'QUANTITY' && qtyRaw ? Number(qtyRaw) : undefined,
-      salePrice: undefined,
-      customerName: null,
-      customerPhone: null,
-      reference: str(fd, 'reference'),
-      note: str(fd, 'note'),
-      actorId: actor.id,
-      idempotencyKey: str(fd, 'idempotencyKey') ?? '',
-    };
-    const result = reason === 'RETURN_TO_SUPPLIER'
-      ? await createSupplierReturn({
-          ...common,
-          reason,
-          supplierId: str(fd, 'supplierId') ?? '',
-          returnReason: (str(fd, 'returnReason') ?? 'OTHER') as 'SLOW_MOVING' | 'EXCESS_STOCK' | 'WRONG_ITEM' | 'DEFECTIVE' | 'RECALL' | 'OTHER',
-        })
-      : { movement: await recordStockOut({
-          ...common,
-          reason: reason as 'DAMAGE' | 'LOSS' | 'INTERNAL_USE' | 'SHOP_USE' | 'GIFT',
-        }), supplierReturn: undefined };
-    const { movement } = result;
-    await writeAudit({
-      actorId: actor.id,
-      action: 'stock.out',
-      entity: 'StockMovement',
-      entityId: movement.id,
-      after: movement,
-    });
-    if (result.supplierReturn) {
-      await writeAudit({
-        actorId: actor.id,
-        action: 'supplier_return.create',
-        entity: 'SupplierReturn',
-        entityId: result.supplierReturn.id,
-        after: result.supplierReturn,
-      });
-    }
-    revalidatePath('/products');
-    revalidatePath(`/products/${productId}`);
-    revalidatePath('/stock/movements');
-    revalidatePath('/suppliers/returns');
-    const what = product.trackingType === 'SERIAL' ? str(fd, 'serialNo') : `${qtyRaw} × ${product.name}`;
-    return {
-      ok: `Removed ${what}.`,
-      supplierReturn: result.supplierReturn
-        ? {
-            id: result.supplierReturn.id,
-            returnNumber: result.supplierReturn.returnNumber,
-            productName: product.name,
-            sku: product.sku,
-            serialNo: product.trackingType === 'SERIAL' ? (str(fd, 'serialNo') ?? null) : null,
-            quantity: product.trackingType === 'SERIAL' ? 1 : Number(qtyRaw),
-          }
-        : undefined,
-    };
+    result = await removeStock({ ...parsed.data, actorId: actor.id }, db, await requestAuditIp());
   } catch (err) {
-    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
-    if (err instanceof Error && (
-      err.message.includes('Invalid `client.')
-      || err.message.includes('Error occurred during query execution')
-      || err.message.includes('ConnectorError')
-    )) {
-      console.error('Stock removal database error:', err);
-      return { error: 'The stock removal could not be completed. Please try again or contact an administrator.' };
-    }
-    return { error: message(err) };
+    if (err instanceof RemovalValidationError) return { outcome: 'rejected', fieldErrors: { [err.field]: err.message },
+      available: err.available, unavailableSerial: err.field === 'serialNo' };
+    if (err instanceof z.ZodError) return { outcome: 'rejected', fieldErrors: removalFieldErrors(err) };
+    if (err instanceof Error && err.message === 'removal.keyMismatch') return { outcome: 'rejected', error: err.message };
+    // A lost response or commit acknowledgement is not proof that stock stayed unchanged.
+    console.error('Stock removal could not be confirmed:', err);
+    return { outcome: 'unconfirmed', error: 'removal.unconfirmed' };
   }
+  // Cache failures must not turn a committed removal into a reported failure.
+  try {
+    for (const path of ['/', '/products', `/products/${result.receipt.productId}`, '/stock/out', '/stock/movements', '/suppliers/returns', '/suppliers/analytics']) revalidatePath(path);
+  } catch (err) { console.error('Stock removal refresh failed:', err); }
+  return result;
 }
 
 /* --- Corrections ----------------------------------------------------------- */

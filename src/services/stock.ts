@@ -294,6 +294,20 @@ export async function receiveStock(
 // STOCK OUT  — a "sale" is this, with reason=SALE and a salePrice. PLAN.md §1.1.
 // ---------------------------------------------------------------------------
 
+export async function assertStockOutReplay(input: StockOutInput, existing: StockMovement, tx: Repositories) {
+  const unit = existing.unitId ? await tx.units.findById(existing.unitId) : null;
+  if (existing.type !== 'OUT' || existing.actorId !== input.actorId || existing.productId !== input.productId
+    || existing.reason !== input.reason || existing.quantity !== -(input.serialNo ? 1 : input.quantity ?? 0)
+    || Boolean(existing.unitId) !== Boolean(input.serialNo)
+    || (input.serialNo && unit?.serialNo.toLowerCase() !== input.serialNo.trim().toLowerCase())
+    || existing.supplierId !== (input.supplierId ?? null)
+    || existing.reference !== (input.reference ?? null) || existing.note !== (input.note ?? null)
+    || existing.unitPrice !== (input.salePrice ?? null)
+    || existing.customerName !== (input.customerName ?? null) || existing.customerPhone !== (input.customerPhone ?? null)) {
+    throw new Error('removal.keyMismatch');
+  }
+}
+
 export async function recordStockOut(raw: StockOutInput): Promise<StockMovement> {
   const input = stockOutSchema.parse(raw);
 
@@ -310,7 +324,10 @@ export async function recordStockOutInTransaction(
 
   {
     const existing = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
-    if (existing) return existing;
+    if (existing) {
+      await assertStockOutReplay(input, existing, tx);
+      return existing;
+    }
 
     const product = await tx.products.findById(input.productId);
     if (!product) throw new Error(`Product not found: ${input.productId}`);

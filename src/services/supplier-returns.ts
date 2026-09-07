@@ -9,57 +9,62 @@ import {
   type SettleSupplierReturnInput,
   type CancelSupplierReturnInput,
 } from '@/schemas';
-import { correctMovementInTransaction, recordStockOutInTransaction } from '@/services/stock';
+import { assertStockOutReplay, correctMovementInTransaction, recordStockOutInTransaction } from '@/services/stock';
 
 export async function createSupplierReturn(raw: CreateSupplierReturnInput) {
   const input = createSupplierReturnSchema.parse(raw);
-  return db.transaction(async (tx) => {
-    const replayMovement = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
-    if (replayMovement) {
-      const replay = await tx.supplierReturns.findByMovement(replayMovement.id);
-      if (replay) return { supplierReturn: replay, movement: replayMovement };
-      throw new Error('The stock movement exists without its supplier-return record. Contact an administrator.');
-    }
+  return db.transaction(tx => createSupplierReturnInTransaction(input, tx));
+}
 
-    const supplier = await tx.suppliers.findById(input.supplierId);
-    if (!supplier || !supplier.isActive) throw new Error('Choose an active supplier.');
+export async function createSupplierReturnInTransaction(raw: CreateSupplierReturnInput, tx: Repositories) {
+  const input = createSupplierReturnSchema.parse(raw);
+  const replayMovement = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
+  if (replayMovement) {
+    const replay = await tx.supplierReturns.findByMovement(replayMovement.id);
+    await assertStockOutReplay(input, replayMovement, tx);
+    if (replay && replay.reason !== input.returnReason) throw new Error('removal.keyMismatch');
+    if (replay) return { supplierReturn: replay, movement: replayMovement };
+    throw new Error('The stock movement exists without its supplier-return record. Contact an administrator.');
+  }
 
-    const movement = await recordStockOutInTransaction({
-      productId: input.productId,
-      reason: 'RETURN_TO_SUPPLIER',
-      serialNo: input.serialNo,
-      quantity: input.quantity,
-      supplierId: supplier.id,
-      salePrice: undefined,
-      customerName: null,
-      customerPhone: null,
-      reference: input.reference,
-      note: input.note,
-      actorId: input.actorId,
-      idempotencyKey: input.idempotencyKey,
-    }, tx);
+  const supplier = await tx.suppliers.findById(input.supplierId);
+  if (!supplier || !supplier.isActive) throw new Error('Choose an active supplier.');
 
-    const now = new Date().toISOString();
-    const supplierReturn = await tx.supplierReturns.create({
-      id: uuidv7(),
-      returnNumber: await tx.supplierReturns.nextReturnNumber(new Date(now)),
-      movementId: movement.id,
-      supplierId: supplier.id,
-      reason: input.returnReason,
-      status: 'PENDING',
-      recoveredAmount: null,
-      recoveryMethod: null,
-      settlementReference: null,
-      settlementNote: null,
-      createdById: input.actorId,
-      settledById: null,
-      sentAt: now,
-      settledAt: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-    return { supplierReturn, movement };
+  const movement = await recordStockOutInTransaction({
+    productId: input.productId,
+    reason: 'RETURN_TO_SUPPLIER',
+    serialNo: input.serialNo,
+    quantity: input.quantity,
+    supplierId: supplier.id,
+    salePrice: undefined,
+    customerName: null,
+    customerPhone: null,
+    reference: input.reference,
+    note: input.note,
+    actorId: input.actorId,
+    idempotencyKey: input.idempotencyKey,
+  }, tx);
+
+  const now = new Date().toISOString();
+  const supplierReturn = await tx.supplierReturns.create({
+    id: uuidv7(),
+    returnNumber: await tx.supplierReturns.nextReturnNumber(new Date(now)),
+    movementId: movement.id,
+    supplierId: supplier.id,
+    reason: input.returnReason,
+    status: 'PENDING',
+    recoveredAmount: null,
+    recoveryMethod: null,
+    settlementReference: null,
+    settlementNote: null,
+    createdById: input.actorId,
+    settledById: null,
+    sentAt: now,
+    settledAt: null,
+    createdAt: now,
+    updatedAt: now,
   });
+  return { supplierReturn, movement };
 }
 
 export async function cancelSupplierReturn(raw: CancelSupplierReturnInput, repositories: Repositories = db) {
