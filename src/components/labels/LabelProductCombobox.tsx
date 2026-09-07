@@ -3,7 +3,8 @@
 import { Check, ChevronDown, Search } from 'lucide-react';
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent } from 'react';
 
-import type { LabelProductOption } from '@/components/labels/StockLabelStudio';
+import type { LabelProductOption } from '@/lib/label-print';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function LabelProductCombobox({
   products,
@@ -20,6 +21,7 @@ export function LabelProductCombobox({
   emptyMessage: string;
   onChange: (productId: string) => void;
 }) {
+  const { t } = useI18n();
   const listboxId = useId();
   const rootRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -51,6 +53,10 @@ export function LabelProductCombobox({
     document.addEventListener('mousedown', closeOnOutsideClick);
     return () => document.removeEventListener('mousedown', closeOnOutsideClick);
   }, []);
+
+  useEffect(() => {
+    if (open) document.getElementById(`${listboxId}-option-${activeIndex}`)?.scrollIntoView?.({ block: 'nearest' });
+  }, [activeIndex, open, listboxId]);
 
   function openList() {
     if (disabled) return;
@@ -86,7 +92,9 @@ export function LabelProductCombobox({
   }
 
   return (
-    <div ref={rootRef} className="relative">
+    <div ref={rootRef} className="relative" onBlur={event => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) { setOpen(false); setQuery(''); }
+    }}>
       <div className="flex h-9 items-center rounded-[3px] border border-rule bg-card focus-within:border-signal">
         <Search aria-hidden="true" className="ml-2.5 size-4 shrink-0 text-graphite" />
         <input
@@ -148,7 +156,7 @@ export function LabelProductCombobox({
               <span className="min-w-0">
                 <span className="block truncate text-[13px] font-medium text-ink">{product.name}</span>
                 <span className="tnum mt-0.5 block truncate text-[11px] text-graphite">
-                  {product.sku}{product.barcode ? ` · ${product.barcode}` : ''}{product.isActive ? '' : ' · inactive'}
+                  {product.sku}{product.barcode ? ` · ${product.barcode}` : ''}{product.isActive ? '' : ` · ${t('labels.inactive')}`}
                 </span>
               </span>
               {product.id === value && <Check aria-hidden="true" className="size-4 shrink-0 text-signal" />}

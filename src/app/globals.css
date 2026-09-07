@@ -437,7 +437,7 @@ html[lang="bn"] .eyebrow {
    cannot drift from the output.
 --------------------------------------------------------------------------- */
 
-.label-print-area {
+.label-print-area, .label-print-notice {
   display: none;
 }
 
@@ -445,7 +445,7 @@ html[lang="bn"] .eyebrow {
   display: grid;
   grid-template-columns: repeat(auto-fill, 38mm);
   gap: 3mm;
-  min-width: max-content;
+  min-width: 0;
 }
 
 .stock-label {
@@ -555,6 +555,8 @@ html[lang="bn"] .eyebrow {
     display: contents !important;
   }
 
+  .label-print-notice { display: block; padding: 1rem; }
+
   .label-screen-only {
     display: none !important;
   }
@@ -579,6 +581,9 @@ html[lang="bn"] .eyebrow {
   .stock-label-print-root[data-layout="thermal"] .stock-label + .stock-label {
     break-before: page;
   }
+
+  .label-a4-sheet { page: label-a4; break-inside: avoid; }
+  .label-a4-sheet + .label-a4-sheet { break-before: page; }
 
   .stock-label-print-root[data-layout="a4"] .label-print-grid {
     display: grid;

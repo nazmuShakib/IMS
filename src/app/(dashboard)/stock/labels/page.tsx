@@ -15,7 +15,11 @@ export default async function StockLabelsPage({
   const actor = await requirePageCapability('PRINT_LABELS');
   const { locale } = await getSession();
   const t = createTranslator(locale);
-  const params = await searchParams;
+  const rawParams = await searchParams;
+  const malformed = Object.values(rawParams).some(value => value !== undefined && (typeof value !== 'string' || !value.trim()));
+  const params = Object.fromEntries(Object.entries(rawParams).filter(([, value]) => typeof value === 'string' && value.trim())) as { product?: string; receipt?: string; unit?: string };
+  let selectionError = malformed ? 'labels.selectionUnavailable' : undefined;
+  let receiptCount: number | undefined;
 
   const [products, brands] = await Promise.all([
     db.products.findAll(),
@@ -25,11 +29,16 @@ export default async function StockLabelsPage({
 
   let receipt = params.receipt ? await db.movements.findById(params.receipt) : null;
   if (receipt?.type !== 'IN' || receipt.quantity <= 0) receipt = null;
+  if (params.receipt && !receipt) selectionError = 'labels.selectionUnavailable';
+  if (receipt && params.product && receipt.productId !== params.product) selectionError = 'labels.selectionUnavailable';
+  if (params.receipt && params.unit) selectionError = 'labels.selectionUnavailable';
 
   const selectedProductId = receipt?.productId ?? params.product ?? null;
   const selectedProduct = selectedProductId
     ? products.find((product) => product.id === selectedProductId) ?? null
     : null;
+
+  if ((selectedProductId && !selectedProduct) || (params.unit && !selectedProduct)) selectionError = 'labels.selectionUnavailable';
 
   const productOptions: LabelProductOption[] = products.map((product) => ({
     id: product.id,
@@ -80,13 +89,18 @@ export default async function StockLabelsPage({
           .map((movement) => movement.unitId)
           .filter((id): id is string => Boolean(id)),
       );
+      receiptCount = receiptUnitIds.size;
       initialUnitIds = units.filter((unit) => receiptUnitIds.has(unit.id)).map((unit) => unit.id);
+      if (!receiptCount || initialUnitIds.length !== receiptCount) selectionError = 'labels.selectionUnavailable';
     } else if (params.unit && units.some((unit) => unit.id === params.unit)) {
       initialUnitIds = [params.unit];
-    }
+    } else if (params.unit) selectionError = 'labels.selectionUnavailable';
   } else if (receipt && selectedProduct?.trackingType === 'QUANTITY') {
     initialCopies = Math.max(1, receipt.quantity);
+    receiptCount = receipt.quantity;
   }
+
+  if (params.unit && selectedProduct?.trackingType !== 'SERIAL') selectionError = 'labels.selectionUnavailable';
 
   // A stable order keeps receipt selections and printed sheets predictable.
   units = [...units].sort((a, b) => b.receivedAt.localeCompare(a.receivedAt));
@@ -100,7 +114,10 @@ export default async function StockLabelsPage({
         />
       </div>
       <StockLabelStudio
-        key={`${selectedProductId ?? 'none'}-${params.receipt ?? ''}-${params.unit ?? ''}`}
+        selectionContext={JSON.stringify([selectedProductId, params.receipt, params.unit])}
+        selectionError={selectionError}
+        receiptCount={receiptCount}
+        receiptId={params.receipt}
         products={productOptions}
         product={selectedOption}
         units={units.map((unit) => ({

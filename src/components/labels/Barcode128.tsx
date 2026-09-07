@@ -1,26 +1,14 @@
-import { encodeCode128 } from '@/lib/code128';
-
-const LABEL_WIDTH_DOTS = 304; // 38 mm at 203 DPI, rounded to a whole printer dot.
-const DOT_WIDTH_MM = 25.4 / 203;
+'use client';
+import { labelBarcodeFit } from '@/lib/label-print';
+import { useI18n } from '@/components/i18n/I18nProvider';
 
 export function Barcode128({ value }: { value: string }) {
-  let modules: string;
-  try {
-    modules = encodeCode128(value).modules;
-  } catch {
-    return (
-      <div className="flex h-full items-center justify-center border border-dashed border-out text-[6px] text-out">
-        Identifier cannot be encoded
-      </div>
-    );
-  }
-
-  // Thermal output is rasterized at 203 DPI. Stretching the symbol to the
-  // container gives modules fractional widths, which rasterize into uneven
-  // bars. Use the widest whole-dot module size that fits the physical label so
-  // every bar edge lands on the printer grid.
-  const moduleDots = Math.max(1, Math.floor(LABEL_WIDTH_DOTS / modules.length));
-  const physicalWidthMm = modules.length * moduleDots * DOT_WIDTH_MM;
+  const { t } = useI18n();
+  const fit = labelBarcodeFit(value);
+  if (fit.error) return <div className="flex h-full items-center justify-center border border-dashed border-out text-[6px] text-out">{t(fit.error)}</div>;
+  const { modules } = fit.encoding!;
+  const moduleDots = fit.moduleDots!;
+  const physicalWidthMm = fit.widthMm!;
 
   const bars: Array<{ x: number; width: number }> = [];
   let start = -1;
@@ -34,7 +22,7 @@ export function Barcode128({ value }: { value: string }) {
 
   return (
     <svg
-      aria-label={`Code 128 barcode for ${value}`}
+      aria-label={t('labels.barcodeFor', { value })}
       className="mx-auto block h-full max-w-full"
       data-module-dots={moduleDots}
       preserveAspectRatio="none"
