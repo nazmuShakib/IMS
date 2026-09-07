@@ -257,6 +257,8 @@ export interface StockMovement {
   warrantyClaimId?: string | null;
   createdAt: string;
   /** NOTE: no updatedAt. Append-only. */
+  /** Business event time; old JSON records fall back to their recording time. */
+  occurredAt?: string;
 }
 
 export interface WarrantyClaim {
@@ -412,6 +414,8 @@ export interface Sale {
   refundAmount: Paisa | null;
   refundMethod: PaymentMethod | null;
   voidIdempotencyKey: string | null;
+  /** Business event time; old JSON records fall back to their recording time. */
+  occurredAt?: string;
 }
 
 export interface SaleSettlement {
@@ -428,6 +432,8 @@ export interface SaleSettlement {
   recordedByName: string;
   recordedAt: string;
   createdAt: string;
+  /** Business event time; old JSON records fall back to their recording time. */
+  occurredAt?: string;
 }
 
 /** Immutable incoming-device summary printed with a completed trade-in sale. */

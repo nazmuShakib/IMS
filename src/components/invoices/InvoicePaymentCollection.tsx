@@ -1,5 +1,7 @@
 'use client';
 
+import { settlementOccurredAt } from '@/lib/sale-timing';
+
 import { useActionState, useEffect, useMemo, useState, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
@@ -198,7 +200,8 @@ export function InvoicePaymentCollection({
                 {orderedSettlements.map((entry) => (
                   <tr key={entry.id} className="border-b border-rule last:border-b-0">
                     <td className="px-3 py-2.5">
-                      <span className="block">{formatDateTime(entry.recordedAt, locale)}</span>
+                      <span className="block">{formatDateTime(settlementOccurredAt(entry), locale)}</span>
+                      {settlementOccurredAt(entry) !== entry.recordedAt && <span className="block text-[10px] text-graphite">{t("invoice.recordedOn")}: {formatDateTime(entry.recordedAt, locale)}</span>}
                       <span className="tnum mt-0.5 block text-[10px] text-graphite">{entry.receiptNumber}</span>
                     </td>
                     {hasNonCustomerSettlement && <td className={`px-3 py-2.5 font-medium ${entry.type === 'TRADE_IN_PAYOUT' ? 'text-out' : entry.type === 'TRADE_IN_PAYOUT_RECOVERY' ? 'text-signal' : 'text-ok'}`}>{settlementLabel(entry)}</td>}

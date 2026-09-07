@@ -1,3 +1,5 @@
+
+import { saleOccurredAt } from '@/lib/sale-timing';
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 
 import { cosmeticSummary } from '@/lib/cosmetic-condition';
@@ -139,6 +141,7 @@ function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { install
     if (item.warrantyDays || item.warrantyMonths) height += 3.2;
   }
   if (sale.tradeInDetails) height += 20 + wrappedLines(sale.tradeInDetails.productName, chars) * 3.2 + wrappedLines(cosmeticSummary(sale.tradeInDetails.cosmeticCondition), chars) * 3.2;
+  if (saleOccurredAt(sale) !== sale.completedAt) height += 10;
   if (sale.reference) height += wrappedLines(`Ref: ${sale.reference}`, chars) * 3;
   if (emi) height += 55 + emi.installments.length * (widthMm === 58 ? 19 : 15);
   if (sale.note) height += 8 + wrappedLines(sale.note, chars) * 3.2;
@@ -212,8 +215,9 @@ function InvoiceDocument({
             {sale.customerPhone && <Text style={styles.muted}>{sale.customerPhone}</Text>}
           </View>
           <View style={styles.metaBox}>
-            <Text style={styles.label}>Date</Text>
-            <Text>{dateTime(sale.completedAt)}</Text>
+            <Text style={styles.label}>Sale date</Text>
+            <Text> {dateTime(saleOccurredAt(sale))}</Text>
+            {saleOccurredAt(sale) !== sale.completedAt && <Text>Recorded on: {dateTime(sale.completedAt)}</Text>}
             <Text style={styles.muted}>Served by {sale.actorName}</Text>
             {sale.reference && <Text style={styles.muted}>Ref: {sale.reference}</Text>}
           </View>
@@ -356,7 +360,8 @@ function ThermalInvoiceDocument({
         </View>
         <View style={[widthMm === 80 ? thermalStyles.metaColumn : {}, widthMm === 58 ? thermalStyles.metaDate58 : {}]}>
           <Text style={thermalStyles.label}>Date</Text>
-          <Text>{dateTime(sale.completedAt)}</Text>
+          <Text>Sale date: {dateTime(saleOccurredAt(sale))}</Text>
+            {saleOccurredAt(sale) !== sale.completedAt && <Text>Recorded on: {dateTime(sale.completedAt)}</Text>}
           {sale.reference && <Text style={thermalStyles.muted}>Ref: {sale.reference}</Text>}
         </View>
       </View>

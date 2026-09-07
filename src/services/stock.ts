@@ -499,6 +499,7 @@ export async function correctMovementInTransaction(
 
     return tx.movements.record({
       ...original,
+      occurredAt: now,
       id: uuidv7(),
       type: 'ADJUST',
       reason: 'CORRECTION',

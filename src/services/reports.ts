@@ -1,3 +1,4 @@
+import { movementOccurredAt } from '@/lib/sale-timing';
 import type {
   MovementReason,
   MovementType,
@@ -171,8 +172,8 @@ function allowedProduct(product: Product | undefined, filters: ReportFilters): p
     && (!filters.brandId || product!.brandId === filters.brandId);
 }
 
-function inPeriod(movement: StockMovement, filters: ReportFilters, now: Date): boolean {
-  const when = new Date(movement.createdAt).getTime();
+function inPeriod(movement: StockMovement, filters: ReportFilters, now: Date, businessTime = false): boolean {
+  const when = new Date(businessTime ? movementOccurredAt(movement) : movement.createdAt).getTime();
   return when >= startBoundary(filters.from).getTime() && when <= endBoundary(filters.to, now).getTime();
 }
 
@@ -211,11 +212,11 @@ function saleRows(ctx: Context, filters: ReportFilters, now: Date): ReportResult
   const buckets = new Map<string, { label: string; quantity: number; revenue: Paisa; cogs: Paisa }>();
   for (const movement of ctx.movements) {
     const product = ctx.productById.get(movement.productId);
-    if (!inPeriod(movement, filters, now) || !allowedProduct(product, filters) || economicReason(movement, byId) !== 'SALE') continue;
+    if (!inPeriod(movement, filters, now, true) || !allowedProduct(product, filters) || economicReason(movement, byId) !== 'SALE') continue;
     let key: string; let label: string;
     if (groupBy === 'category') { key = product.categoryId; label = ctx.categoryNames.get(key) ?? 'Unknown'; }
     else if (groupBy === 'brand') { key = product.brandId ?? 'unbranded'; label = product.brandId ? (ctx.brandNames.get(product.brandId) ?? 'Unknown') : 'Unbranded'; }
-    else { key = dhakaKey(movement.createdAt, groupBy === 'month'); label = key; }
+    else { key = dhakaKey(movementOccurredAt(movement), groupBy === 'month'); label = key; }
     const bucket = buckets.get(key) ?? { label, quantity: 0, revenue: 0, cogs: 0 };
     bucket.quantity += -movement.quantity;
     bucket.revenue += movement.unitPrice === null ? 0 : -movement.quantity * movement.unitPrice;
@@ -238,7 +239,7 @@ function profitRows(ctx: Context, filters: ReportFilters, now: Date): ReportResu
   const buckets = new Map<string, { product: Product; quantity: number; revenue: Paisa; cogs: Paisa }>();
   for (const movement of ctx.movements) {
     const product = ctx.productById.get(movement.productId);
-    if (!inPeriod(movement, filters, now) || !allowedProduct(product, filters) || economicReason(movement, byId) !== 'SALE') continue;
+    if (!inPeriod(movement, filters, now, true) || !allowedProduct(product, filters) || economicReason(movement, byId) !== 'SALE') continue;
     const bucket = buckets.get(product.id) ?? { product, quantity: 0, revenue: 0, cogs: 0 };
     bucket.quantity += -movement.quantity; bucket.revenue += movement.unitPrice === null ? 0 : -movement.quantity * movement.unitPrice; bucket.cogs += -movement.quantity * movement.unitCost; buckets.set(product.id, bucket);
   }
@@ -315,9 +316,9 @@ function movementRows(ctx: Context, filters: ReportFilters, now: Date): ReportRe
     return inPeriod(movement, filters, now) && allowedProduct(product, filters) && (!filters.type || movement.type === filters.type) && (!filters.reason || movement.reason === filters.reason) && (!filters.actorId || movement.actorId === filters.actorId);
   }).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map((movement) => {
     const product = ctx.productById.get(movement.productId)!;
-    return { id: movement.id, cells: { date: movement.createdAt, product: product.name, sku: product.sku, type: movement.type, reason: movement.reason.replaceAll('_', ' '), quantity: movement.quantity, unitCost: movement.unitCost, unitPrice: movement.unitPrice, actor: movement.actorId ? (ctx.actorNames.get(movement.actorId) ?? 'Unknown user') : 'System', reference: movement.reference } };
+    return { id: movement.id, cells: { date: movement.createdAt, occurredAt: movementOccurredAt(movement), product: product.name, sku: product.sku, type: movement.type, reason: movement.reason.replaceAll('_', ' '), quantity: movement.quantity, unitCost: movement.unitCost, unitPrice: movement.unitPrice, actor: movement.actorId ? (ctx.actorNames.get(movement.actorId) ?? 'Unknown user') : 'System', reference: movement.reference } };
   });
-  return { kind: 'movements', title: 'Movement audit', description: 'Append-only inventory ledger with complete operational filters.', generatedAt: now.toISOString(), columns: [{ key: 'date', label: 'Date', type: 'date' }, { key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'type', label: 'Type', type: 'text' }, { key: 'reason', label: 'Reason', type: 'text' }, { key: 'quantity', label: 'Qty', type: 'number' }, ...moneyCols([['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']]), { key: 'actor', label: 'Actor', type: 'text' }, { key: 'reference', label: 'Reference', type: 'text' }], rows, totals: { quantity: sum(rows, 'quantity') } };
+  return { kind: 'movements', title: 'Movement audit', description: 'Append-only inventory ledger with complete operational filters.', generatedAt: now.toISOString(), columns: [{ key: 'date', label: 'Recorded on', type: 'date' }, { key: 'occurredAt', label: 'Actual time', type: 'date' }, { key: 'product', label: 'Product', type: 'text' }, { key: 'sku', label: 'Product code (SKU)', type: 'text' }, { key: 'type', label: 'Type', type: 'text' }, { key: 'reason', label: 'Reason', type: 'text' }, { key: 'quantity', label: 'Qty', type: 'number' }, ...moneyCols([['unitCost', 'Unit cost'], ['unitPrice', 'Unit price']]), { key: 'actor', label: 'Actor', type: 'text' }, { key: 'reference', label: 'Reference', type: 'text' }], rows, totals: { quantity: sum(rows, 'quantity') } };
 }
 
 export async function getReport(

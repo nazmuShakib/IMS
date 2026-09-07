@@ -1,5 +1,10 @@
 "use client";
 
+import { hasPermission } from '@/lib/permissions';
+import { z } from "zod";
+
+import { dhakaLocalInput, parseDhakaSaleTime, resolveSaleTime } from '@/lib/sale-timing';
+
 import {
   useActionState,
   useCallback,
@@ -127,6 +132,9 @@ function previewDate(value: string, locale: "en" | "bn"): string {
 
 interface StoredCheckoutDraft {
   version: 1;
+  checkoutKey?: string;
+  saleTiming?: "now" | "earlier";
+  saleOccurredAt?: string;
   cartId: string;
   updatedAt: number;
   lines: Array<Pick<CheckoutLine, "id" | "productId" | "unitId" | "quantity" | "actualUnitPrice">>;
@@ -438,6 +446,10 @@ export function CheckoutWorkspace({
   const [tradeInPayoutMethod, setTradeInPayoutMethod] = useState<PaymentMethod>("CASH");
   const [reference, setReference] = useState("");
   const [note, setNote] = useState("");
+  const [saleTiming, setSaleTiming] = useState<"now" | "earlier">("now");
+  const [saleOccurredAt, setSaleOccurredAt] = useState("");
+  const [timingError, setTimingError] = useState("");
+
   const [emiErrors, setEmiErrors] = useState<Record<string, string>>({});
   const [regularErrors, setRegularErrors] = useState<Record<string, string>>({});
   const [confirmingCheckout, setConfirmingCheckout] = useState(false);
@@ -472,17 +484,24 @@ export function CheckoutWorkspace({
     clearTradeInDraftAction,
     {},
   );
+  useEffect(() => {
+    if (!checkoutState.timingError) return;
+    setConfirmingCheckout(false);
+    setTimingError(checkoutState.timingError);
+    requestAnimationFrame(() => document.getElementById("actual-sale-time")?.focus());
+  }, [checkoutState]);
   const storageKey = `ims:checkout-draft:v${LOCAL_DRAFT_VERSION}:${cart.actorId}`;
   const [draftHydrated, setDraftHydrated] = useState(false);
   const skipPersistRef = useRef(false);
   const expiryInFlightRef = useRef(false);
   const hasInvalidLines = invalidLineIds.size > 0;
   const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Dhaka" }).format(new Date());
+  const saleDay = saleTiming === "earlier" && parseDhakaSaleTime(saleOccurredAt) ? saleOccurredAt.slice(0, 10) : today;
   const maxEmiDueDate = useMemo(() => {
-    const value = new Date(`${today}T12:00:00.000Z`);
+    const value = new Date(`${saleDay}T12:00:00.000Z`);
     value.setUTCDate(value.getUTCDate() + 31);
     return value.toISOString().slice(0, 10);
-  }, [today]);
+  }, [saleDay]);
 
   function clearEmiError(field: string) {
     setEmiErrors((current) => { const next = { ...current }; delete next[field]; return next; });
@@ -517,7 +536,11 @@ export function CheckoutWorkspace({
     setTradeInPayoutMethod("CASH");
     setPaymentStatus("PAID");
     setReference("");
+    setCheckoutKey(crypto.randomUUID());
     setNote("");
+    setSaleTiming("now");
+    setSaleOccurredAt("");
+    setTimingError("");
     setAddState({});
   }, [setLineOrder, storageKey]);
 
@@ -542,6 +565,18 @@ export function CheckoutWorkspace({
   }, [cart.id, cart.tradeInDraft, discardLocalDraft, router]);
 
   function requestCheckoutConfirmation() {
+    try { resolveSaleTime({ saleTiming, saleOccurredAt }, role); setTimingError(""); }
+    catch (error) {
+      const detail = error instanceof z.ZodError ? error.issues[0]?.message : undefined;
+      setTimingError(detail ?? "Enter a valid actual sale date and time.");
+      document.getElementById("actual-sale-time")?.focus();
+      return;
+    }
+    if (isEmi && (emiFirstDueDate < saleDay || emiFirstDueDate > maxEmiDueDate)) {
+      setEmiErrors({ firstDueDate: "First installment date must be on the sale date or within the following 31 days." });
+      document.querySelector<HTMLInputElement>('[name="emiFirstDueDate"]')?.focus();
+      return;
+    }
     const creditError = tradeInEmiError(cart.tradeInDraft?.acquisitionValue ?? 0, { isEmi, total, downPayment });
     if (creditError) { setAddState({ error: t(creditError) }); return; }
     if (isEmi) {
@@ -582,10 +617,11 @@ export function CheckoutWorkspace({
     });
   }, []);
 
-  useEffect(() => setCheckoutKey(crypto.randomUUID()), []);
+
 
   useLayoutEffect(() => {
     let restoredLines = lines;
+    setCheckoutKey(crypto.randomUUID());
     try {
       const raw = window.localStorage.getItem(storageKey);
       if (raw) {
@@ -627,6 +663,7 @@ export function CheckoutWorkspace({
               warrantyDays: unit?.warrantyDays ?? null,
             } satisfies CheckoutLine];
           });
+          if (typeof stored.checkoutKey === "string" && stored.checkoutKey.length >= 8) setCheckoutKey(stored.checkoutKey);
           setSelectedCustomerId(typeof stored.customerId === "string" ? stored.customerId : "");
           setSaleMode(stored.saleMode === "EMI" ? "EMI" : "CASH");
           if ([3, 6, 9, 12].includes(Number(stored.emiTerm))) setEmiTerm(stored.emiTerm as 3 | 6 | 9 | 12);
@@ -639,6 +676,8 @@ export function CheckoutWorkspace({
           setTradeInPayoutMethod(stored.tradeInPayoutMethod ?? "CASH");
           setReference(typeof stored.reference === "string" ? stored.reference : "");
           setNote(typeof stored.note === "string" ? stored.note : "");
+          setSaleTiming(stored.saleTiming === "earlier" ? "earlier" : "now");
+          setSaleOccurredAt(typeof stored.saleOccurredAt === "string" ? stored.saleOccurredAt : "");
         }
       }
     } catch {
@@ -662,6 +701,7 @@ export function CheckoutWorkspace({
     }
     const draft: StoredCheckoutDraft = {
       version: LOCAL_DRAFT_VERSION,
+      checkoutKey,
       cartId: cart.id,
       updatedAt: Date.now(),
       lines: orderedLines.map(({ id, productId, unitId, quantity, actualUnitPrice }) => ({
@@ -679,11 +719,13 @@ export function CheckoutWorkspace({
       tradeInPayoutMethod,
       reference,
       note,
+      saleTiming,
+      saleOccurredAt,
     };
     window.localStorage.setItem(storageKey, JSON.stringify(draft));
     const expiryTimer = window.setTimeout(() => void expireDraft(), LOCAL_DRAFT_TTL_MS);
     return () => window.clearTimeout(expiryTimer);
-  }, [draftHydrated, emiDownPayment, emiFirstDueDate, emiTerm, expireDraft, identificationNumber, identificationType, note, orderedLines, paymentMethod, paymentStatus, reference, saleMode, selectedCustomerId, storageKey, tradeInPayoutMethod]);
+  }, [checkoutKey, saleTiming, saleOccurredAt, draftHydrated, emiDownPayment, emiFirstDueDate, emiTerm, expireDraft, identificationNumber, identificationType, note, orderedLines, paymentMethod, paymentStatus, reference, saleMode, selectedCustomerId, storageKey, tradeInPayoutMethod]);
 
   useLayoutEffect(() => {
     const previous = previousLinePositionsRef.current;
@@ -1206,7 +1248,7 @@ export function CheckoutWorkspace({
               {t("checkout.empty")}
             </p>
           ) : (
-            <div ref={cartLinesRef}>
+            <div ref={cartLinesRef} inert={confirmingCheckout || checkingOut}>
               {orderedLines.map((line) => (
                 <CartLineEditor
                   key={line.id}
@@ -1269,6 +1311,8 @@ export function CheckoutWorkspace({
         <form id="checkout-form" action={completeAction}>
           <input type="hidden" name="cartId" value={cart.id} />
           <input type="hidden" name="idempotencyKey" value={checkoutKey} />
+          <input type="hidden" name="saleTiming" value={saleTiming} />
+          <input type="hidden" name="saleOccurredAt" value={saleOccurredAt} />
           <input type="hidden" name="localCartLines" value={JSON.stringify(orderedLines.map((line) => ({
             clientId: line.id,
             productId: line.productId,
@@ -1278,7 +1322,7 @@ export function CheckoutWorkspace({
           })))} />
           <Card className="p-4">
             <p className="eyebrow mb-4">{t("checkout.customerPayment")}</p>
-            <div className="space-y-4">
+            <div className="space-y-4" inert={confirmingCheckout || checkingOut}>
               <Field label={t("checkout.saleType")}>
                 <Select name="saleMode" value={saleMode} onChange={(event) => setSaleMode(event.target.value as "CASH" | "EMI")}>
                   <option value="CASH">{t("checkout.regularSale")}</option>
@@ -1320,8 +1364,8 @@ export function CheckoutWorkspace({
                     <Field label={t("checkout.optionalDownPayment")} error={emiErrors.downPayment ? message(emiErrors.downPayment) : undefined}>
                       <Input name="emiDownPayment" inputMode="numeric" step="1" value={emiDownPayment} onChange={(event) => { setEmiDownPayment(event.target.value); clearEmiError('downPayment'); }} placeholder="0" />
                     </Field>
-                    <Field label={t("checkout.firstInstallmentDate")} hint={t("checkout.firstInstallmentHint")} error={emiErrors.firstDueDate ? message(emiErrors.firstDueDate) : undefined}>
-                      <Input name="emiFirstDueDate" type="date" min={today} max={maxEmiDueDate} value={emiFirstDueDate} onChange={(event) => { setEmiFirstDueDate(event.target.value); clearEmiError('firstDueDate'); }} />
+                    <Field label={t("checkout.firstInstallmentDate")} hint={t("checkout.firstInstallmentHint")} error={emiErrors.firstDueDate ? <span id="emi-date-error" role="alert">{message(emiErrors.firstDueDate)}</span> : undefined}>
+                      <Input name="emiFirstDueDate" aria-invalid={Boolean(emiErrors.firstDueDate)} aria-describedby={emiErrors.firstDueDate ? "emi-date-error" : undefined} type="date" min={saleDay} max={maxEmiDueDate} value={emiFirstDueDate} onChange={(event) => { setEmiFirstDueDate(event.target.value); clearEmiError('firstDueDate'); }} />
                     </Field>
                     <Field label={t("checkout.identificationType")} error={emiErrors.identificationType ? message(emiErrors.identificationType) : undefined}>
                       <Select name="identificationType" value={identificationType} onChange={(event) => { setIdentificationType(event.target.value as typeof identificationType); clearEmiError('identificationType'); }}>
@@ -1432,6 +1476,27 @@ export function CheckoutWorkspace({
               <Field label={t("checkout.invoiceNote")}>
                 <Textarea name="note" value={note} onChange={(event) => setNote(event.target.value)} rows={3} />
               </Field>
+              {(hasPermission(role, "RECORD_EARLIER_SALE") || saleTiming === "earlier") && (
+                <div className="space-y-2">
+                  <label className="flex items-center gap-2 text-[13px]">
+                    <input type="checkbox" checked={saleTiming === "earlier"} disabled={checkingOut || confirmingCheckout}
+                      onChange={(event) => { setSaleTiming(event.target.checked ? "earlier" : "now"); if (event.target.checked) setSaleOccurredAt(dhakaLocalInput()); setTimingError(""); }} />
+                    {t("checkout.earlierSale")}
+                  </label>
+                  {saleTiming === "earlier" && (
+                    <Field label={t("checkout.actualSaleTime")}>
+                      <Input id="actual-sale-time" type="datetime-local" value={saleOccurredAt}
+                        min={dhakaLocalInput(new Date(Date.now() - 168 * 3600_000))} max={dhakaLocalInput()}
+                        disabled={checkingOut || confirmingCheckout} aria-invalid={Boolean(timingError)}
+                        aria-describedby={timingError ? "sale-time-help sale-time-error" : "sale-time-help"}
+                        onChange={(event) => { setSaleOccurredAt(event.target.value); setTimingError(""); }} />
+                      <p id="sale-time-help" className="mt-1 text-[12px] text-graphite">{t("checkout.earlierSaleHelp")}</p>
+                      <p className="mt-1 text-[12px] text-graphite">{t("checkout.earlierPaymentHelp")}</p>
+                    </Field>
+                  )}
+                  {timingError && <p id="sale-time-error" role="alert" className="text-[12px] text-out">{message(timingError)}</p>}
+                </div>
+              )}
             </div>
 
             <div className="mt-5" />
@@ -1583,6 +1648,11 @@ export function CheckoutWorkspace({
                     </h2>
                     <p id="complete-sale-description" className="mt-1 text-[12px] text-graphite">
                       {t("checkout.invoicePreviewHelp")}
+                      {saleTiming === "earlier" && parseDhakaSaleTime(saleOccurredAt) && (
+                        <span className="mt-2 block font-semibold text-ink">{t("checkout.actualSaleTime")}: {new Intl.DateTimeFormat(locale === "bn" ? "bn-BD" : "en-BD", { timeZone: "Asia/Dhaka", dateStyle: "medium", timeStyle: "short" }).format(new Date(parseDhakaSaleTime(saleOccurredAt)!))}
+                          {" · "}{t("checkout.reportMonth")}: {new Intl.DateTimeFormat(locale === "bn" ? "bn-BD" : "en-BD", { timeZone: "Asia/Dhaka", month: "long", year: "numeric" }).format(new Date(parseDhakaSaleTime(saleOccurredAt)!))}
+                        </span>
+                      )}
                     </p>
                   </div>
 
@@ -1758,6 +1828,7 @@ export function CheckoutWorkspace({
                   </div>
 
                   <div className="shrink-0 border-t border-rule bg-card px-4 py-3 sm:px-5">
+                    <Message state={checkoutState} />
                     <p className="mb-3 text-[11px] text-out">{t("checkout.cannotUndo")}</p>
                     <div className="flex flex-wrap justify-end gap-2">
                     <Button

@@ -134,7 +134,7 @@ function operatingExpense(
 }
 
 function movement(row: Awaited<ReturnType<Client['stockMovement']['findUniqueOrThrow']>>): StockMovement {
-  return { ...row, createdAt: iso(row.createdAt) };
+  return { ...row, occurredAt: iso(row.occurredAt), createdAt: iso(row.createdAt) };
 }
 
 function warrantyClaim(row: Awaited<ReturnType<Client['warrantyClaim']['findUniqueOrThrow']>>): WarrantyClaim {
@@ -167,6 +167,7 @@ function sale(row: Awaited<ReturnType<Client['sale']['findUniqueOrThrow']>>): Sa
     ...row,
     amountPaid: row.amountPaid ?? 0,
     tradeInDetails: row.tradeInDetails as TradeInSaleSnapshot | null,
+    occurredAt: iso(row.occurredAt),
     completedAt: iso(row.completedAt),
     createdAt: iso(row.createdAt),
     voidedAt: row.voidedAt ? iso(row.voidedAt) : null,
@@ -221,7 +222,7 @@ function saleSearchWhere(filters: SaleFilters): Prisma.SaleWhereInput {
 
   return {
     status: filters.status,
-    completedAt: filters.from || filters.to
+    occurredAt: filters.from || filters.to
       ? { gte: filters.from, lte: filters.to }
       : undefined,
     customerId: filters.customerType === 'WALK_IN'
@@ -243,7 +244,7 @@ function saleItem(row: Awaited<ReturnType<Client['saleItem']['findUniqueOrThrow'
 }
 
 function saleSettlement(row: Awaited<ReturnType<Client['saleSettlement']['findUniqueOrThrow']>>): SaleSettlement {
-  return { ...row, recordedAt: iso(row.recordedAt), createdAt: iso(row.createdAt) };
+  return { ...row, occurredAt: iso(row.occurredAt), recordedAt: iso(row.recordedAt), createdAt: iso(row.createdAt) };
 }
 
 function auditLog(row: Awaited<ReturnType<Client['auditLog']['findUniqueOrThrow']>>): AuditLog {
@@ -316,7 +317,7 @@ function unitPatch(value: Partial<ProductUnit>): Prisma.ProductUnitUncheckedUpda
 }
 
 function movementData(value: StockMovement): Prisma.StockMovementUncheckedCreateInput {
-  return { ...value, createdAt: new Date(value.createdAt) };
+  return { ...value, occurredAt: new Date(value.occurredAt ?? value.createdAt), createdAt: new Date(value.createdAt) };
 }
 
 function friendlyDatabaseError(error: unknown): never {
@@ -824,7 +825,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async create(value) {
         return saleSettlement(await client.saleSettlement.create({
-          data: { ...value, recordedAt: new Date(value.recordedAt), createdAt: new Date(value.createdAt) },
+          data: { ...value, occurredAt: new Date(value.occurredAt ?? value.recordedAt), recordedAt: new Date(value.recordedAt), createdAt: new Date(value.createdAt) },
         }));
       },
     },
@@ -840,7 +841,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async findAll(limit = 100) {
         return (await client.sale.findMany({
-          orderBy: { completedAt: 'desc' },
+          orderBy: { occurredAt: 'desc' },
           take: Math.max(1, Math.min(limit, 500)),
         })).map(sale);
       },
@@ -859,7 +860,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       async search(filters, limit = 200, offset = 0) {
         return (await client.sale.findMany({
           where: saleSearchWhere(filters),
-          orderBy: { completedAt: 'desc' },
+          orderBy: { occurredAt: 'desc' },
           skip: Math.max(0, offset),
           take: limit === null ? undefined : Math.max(1, Math.min(limit, 500)),
         })).map(sale);
@@ -879,7 +880,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       async findByCustomer(customerId) {
         return (await client.sale.findMany({
           where: { customerId },
-          orderBy: { completedAt: 'desc' },
+          orderBy: { occurredAt: 'desc' },
         })).map(sale);
       },
       async create(value) {
@@ -889,6 +890,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
             tradeInDetails: value.tradeInDetails
               ? value.tradeInDetails as unknown as Prisma.InputJsonValue
               : Prisma.DbNull,
+            occurredAt: new Date(value.occurredAt ?? value.completedAt),
             completedAt: new Date(value.completedAt),
             createdAt: new Date(value.createdAt),
           },

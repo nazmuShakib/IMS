@@ -184,3 +184,23 @@ src/proxy.ts             coarse cookie redirect (not authorization)
 
 Returns/refunds, purchase orders, VAT invoices, camera scanning, and multi-branch
 inventory remain deferred. See `PLAN.md`.
+
+## Recording an earlier sale
+
+Admins and Managers can enable **Record an earlier sale** in checkout and enter
+its actual date and time in Asia/Dhaka, up to 168 hours before entry. This applies
+to ordinary sales, EMI, and trade-ins. Future dates are rejected. Existing
+invoices cannot be backdated.
+
+Sales reports, invoice dates, and outgoing warranties use the actual sale time.
+The entry timestamps remain available in invoices and the audit trail. Stock is
+posted when checkout completes, using current device cost or bulk average cost;
+historical inventory balances and costs are not recalculated. Initial payments
+and immediate trade-in payouts use the actual sale time. Later collections use
+the existing payment workflow. EMI due dates are anchored to the actual sale day.
+
+Before deploying this feature, run `npm run db:deploy` against the intended
+database to apply `20260907120000_sale_occurrence_times`. The additive migration
+backfills existing records without changing their dates. Run it before starting
+code that reads the new columns. Invoice and receipt numbering still uses the
+recording year.

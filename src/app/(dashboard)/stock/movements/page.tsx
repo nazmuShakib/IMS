@@ -1,3 +1,4 @@
+import { movementOccurredAt } from '@/lib/sale-timing';
 import Link from 'next/link';
 
 import { db } from '@/repositories';
@@ -258,7 +259,7 @@ export default async function MovementsPage({
                     const invoiceOwnedTradeIn = Boolean(linkedSale && movement.reason === 'TRADE_IN');
                     return (
                       <tr key={movement.id} className={`border-b border-rule-soft last:border-0 ${isCorrection ? 'bg-plate/40' : ''}`}>
-                        <td className="tnum whitespace-nowrap px-4 py-2.5 text-[12px] text-graphite">{stamp(movement.createdAt, locale)}</td>
+                        <td className="tnum whitespace-nowrap px-4 py-2.5 text-[12px] text-graphite">{stamp(movement.createdAt, locale)}{movementOccurredAt(movement) !== movement.createdAt && <span className="block text-ink">{locale === "bn" ? "প্রকৃত সময়" : "Actual time"}: {stamp(movementOccurredAt(movement), locale)}</span>}</td>
                         <td className="px-4 py-2.5">
                           {product ? <Link href={`/products/${product.id}`} className="text-[13px] hover:text-signal">{product.name}</Link> : <span className="text-[13px] text-graphite">—</span>}
                           {serial && <span className="mt-1 block"><SerialChip serial={serial} dim /></span>}

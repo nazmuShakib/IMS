@@ -1,3 +1,4 @@
+import { saleTimingShape, saleTimingSchema, resolveSaleTime, saleOccurredAt, parseDhakaSaleTime } from '@/lib/sale-timing';
 import { z } from 'zod';
 
 import type {
@@ -17,9 +18,10 @@ import {
   type CreateCustomerInput, type AcceptUsedDeviceInput,
 } from '@/schemas';
 import { acceptUsedDeviceInTransaction, assertUsedDeviceEligible } from '@/services/used-devices';
-import { installmentAmounts, installmentDates } from '@/services/emi';
+import { installmentAmounts, installmentDates, installmentStatusForDate } from '@/services/emi';
 
 const checkoutSubmissionSchema = checkoutSchema.extend({
+  ...saleTimingShape,
   actorName: z.string().min(1),
   actorRole: z.enum(['ADMIN', 'MANAGER', 'STAFF']),
   lines: localCheckoutLinesSchema,
@@ -157,11 +159,13 @@ export function checkoutTransactionTimeout(lineCount: number): number {
 
 function ownedCheckoutReplay(
   replay: Sale,
-  input: Pick<z.infer<typeof checkoutSubmissionSchema>, 'actorId' | 'cartId'>,
+  input: Pick<z.infer<typeof checkoutSubmissionSchema>, 'actorId' | 'cartId' | 'saleTiming' | 'saleOccurredAt'>,
 ): Sale {
   if (replay.actorId !== input.actorId || replay.checkoutCartId !== input.cartId) {
     throw new Error('This checkout request belongs to a different cart or seller. Start a fresh checkout.');
   }
+  const expected = input.saleTiming === 'earlier' ? parseDhakaSaleTime(input.saleOccurredAt) : replay.completedAt;
+  if (saleOccurredAt(replay) !== expected) throw new Error('This checkout request used a different sale time. Start a fresh checkout.');
   return replay;
 }
 
@@ -171,6 +175,8 @@ function ownedCheckoutReplay(
  * only a protected trade-in draft may live on CartDraft.
  */
 export async function checkoutCart(raw: {
+  saleTiming?: 'now' | 'earlier';
+  saleOccurredAt?: string;
   cartId: string;
   actorId: string;
   actorName: string;
@@ -192,6 +198,7 @@ export async function checkoutCart(raw: {
   auditIp: string | null;
 }, repositories: Repositories = db): Promise<Sale> {
   const input = checkoutSubmissionSchema.parse(raw);
+  saleTimingSchema.parse(input);
   return repositories.transaction(async (tx) => {
     let replay = await tx.sales.findByIdempotencyKey(input.idempotencyKey);
     if (replay) return ownedCheckoutReplay(replay, input);
@@ -210,6 +217,8 @@ export async function checkoutCart(raw: {
     if (cart.tradeInDraft && !hasPermission(input.actorRole, 'MANAGE_USED_DEVICES')) {
       throw new Error('Manager or Admin approval is required to complete a checkout with a trade-in.');
     }
+    const now = new Date().toISOString();
+    const occurredAt = resolveSaleTime(input, input.actorRole, new Date(now));
     const customer = input.customerId ? await tx.customers.findById(input.customerId) : null;
     if (input.customerId && !customer?.isActive) throw new Error('The selected customer is unavailable.');
 
@@ -228,8 +237,8 @@ export async function checkoutCart(raw: {
       if (!input.emiTermMonths) throw new Error('Choose a valid EMI term.');
       if (!input.emiFirstDueDate) throw new Error('Choose the first installment date.');
       const firstDueDate = new Date(input.emiFirstDueDate);
-      if (!isEmiFirstDueDateAllowed(firstDueDate)) {
-        throw new Error('First installment date must be today or within the next 31 days.');
+      if (!isEmiFirstDueDateAllowed(firstDueDate, new Date(occurredAt))) {
+        throw new Error('First installment date must be on the sale date or within the following 31 days.');
       }
       await tx.customers.update(customer.id, {
         identificationType: input.identificationType,
@@ -281,7 +290,6 @@ export async function checkoutCart(raw: {
       });
     }
 
-    const now = new Date().toISOString();
     const invoiceNumber = await tx.sales.nextInvoiceNumber(new Date(now));
     const subtotal = resolved.reduce((sum, row) => sum + row.item.listUnitPrice * row.item.quantity, 0);
     const total = resolved.reduce((sum, row) => sum + row.item.actualUnitPrice * row.item.quantity, 0);
@@ -306,7 +314,7 @@ export async function checkoutCart(raw: {
           ownershipConfirmed: true,
           actorId: input.actorId,
           idempotencyKey: `${input.idempotencyKey}:trade-in`,
-        } as AcceptUsedDeviceInput, tx)
+        } as AcceptUsedDeviceInput, tx, { occurredAt, recordedAt: now })
       : null;
     const incomingTradeInUnit = acceptedTradeIn?.unit ?? null;
     const incomingTradeInProduct = incomingTradeInUnit
@@ -355,6 +363,7 @@ export async function checkoutCart(raw: {
             cosmeticCondition: incomingTradeInUnit.cosmeticCondition ?? null,
           }
         : null,
+      occurredAt,
       completedAt: now,
       createdAt: now,
       voidedAt: null,
@@ -380,6 +389,7 @@ export async function checkoutCart(raw: {
         note: input.note,
         recordedById: input.actorId,
         recordedByName: input.actorName,
+        occurredAt,
         recordedAt: now,
         createdAt: now,
       });
@@ -391,11 +401,11 @@ export async function checkoutCart(raw: {
       if (unit) {
         await tx.units.transitionStatus(unit.id, 'IN_STOCK', 'SOLD', {
           salePrice: item.actualUnitPrice,
-          soldAt: now,
+          soldAt: occurredAt,
           warrantyExpiresAt: unit.warrantyDays
-            ? addDays(now, unit.warrantyDays)
+            ? addDays(occurredAt, unit.warrantyDays)
             : unit.warrantyMonths
-              ? addCalendarMonths(now, unit.warrantyMonths)
+              ? addCalendarMonths(occurredAt, unit.warrantyMonths)
               : null,
         });
       } else {
@@ -409,7 +419,7 @@ export async function checkoutCart(raw: {
         customerName: customer?.name ?? null, customerPhone: customer?.phone ?? null,
         reference: invoiceNumber, note: input.note, actorId: input.actorId,
         idempotencyKey: `${input.idempotencyKey}:${index + 1}`, reversesId: null,
-        warrantyClaimId: null, createdAt: now,
+        warrantyClaimId: null, occurredAt, createdAt: now,
       });
 
       const saleItem: SaleItem = {
@@ -432,7 +442,7 @@ export async function checkoutCart(raw: {
         contractNumber: await tx.emi.nextContractNumber(new Date(now)),
         saleId: sale.id,
         customerId: customer!.id,
-        status: financedAmount === 0 ? 'PAID' : 'ACTIVE',
+        status: financedAmount === 0 ? 'PAID' : dhakaDateKey(input.emiFirstDueDate!) < dhakaDateKey(now) ? 'OVERDUE' : 'ACTIVE',
         termMonths,
         normalPrice: subtotal,
         emiTotal: total,
@@ -444,7 +454,7 @@ export async function checkoutCart(raw: {
         createdByName: input.actorName,
         createdAt: now,
         updatedAt: now,
-        completedAt: financedAmount === 0 ? now : null,
+        completedAt: financedAmount === 0 ? occurredAt : null,
         voidedAt: null,
       });
       const dates = installmentDates(new Date(input.emiFirstDueDate!), termMonths);
@@ -453,8 +463,8 @@ export async function checkoutCart(raw: {
         await tx.emi.createInstallment({
           id: uuidv7(), contractId, sequence: index + 1,
           dueDate: dates[index]!.toISOString(), amountDue: amounts[index]!, amountPaid: 0,
-          status: financedAmount === 0 ? 'PAID' : 'UPCOMING',
-          paidAt: financedAmount === 0 ? now : null, createdAt: now, updatedAt: now,
+          status: installmentStatusForDate({ amountDue: amounts[index]!, amountPaid: 0, dueDate: dates[index]!.toISOString() }, dhakaDateKey(now)),
+          paidAt: financedAmount === 0 ? occurredAt : null, createdAt: now, updatedAt: now,
         });
       }
     }
@@ -467,6 +477,9 @@ export async function checkoutCart(raw: {
       entityId: sale.id,
       before: null,
       after: {
+        saleTiming: input.saleTiming,
+        occurredAt,
+        recordedAt: now,
         invoiceNumber: sale.invoiceNumber,
         customerId: sale.customerId,
         paymentMethod: sale.paymentMethod,

@@ -165,7 +165,7 @@ export function DashboardRecentActivity({ activity }: { activity: Record<'day' |
       {rows.length === 0 ? <EmptyState title={t('dashboard.noMovementPeriod')} /> : <TableViewport className="max-h-96"><div className="divide-y divide-rule-soft">{rows.map((item) => {
         const correction = item.reason === 'CORRECTION';
         return <Link key={item.id} href={`/products/${item.productId}`} className="flex items-start justify-between gap-3 px-4 py-2.5 hover:bg-plate/50">
-          <span><span className="text-[12px] font-medium">{item.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{item.reason.replaceAll('_', ' ')} · {item.actorName} · {dhaka(item.createdAt)}</span></span>
+          <span><span className="text-[12px] font-medium">{item.productName}</span><span className="mt-0.5 block text-[10px] text-graphite">{item.reason.replaceAll('_', ' ')} · {item.actorName} · {dhaka(item.createdAt)}</span>{item.occurredAt && item.occurredAt !== item.createdAt && <span className="block text-[10px] text-ink">{t("checkout.actualSaleTime")}: {dhaka(item.occurredAt)}</span>}</span>
           <span className={`tnum text-right text-[12px] font-medium ${correction ? 'text-low' : item.quantity > 0 ? 'text-ok' : 'text-out'}`}>{correction ? t(item.quantity > 0 ? 'dashboard.correctionRestored' : 'dashboard.correctionRemoved', { count: Math.abs(item.quantity) }) : `${item.quantity > 0 ? '+' : ''}${item.quantity}`}</span>
         </Link>;
       })}</div></TableViewport>}

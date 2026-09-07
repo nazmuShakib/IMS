@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ProductUnit, TradeInCartDraft, UsedDeviceAcquisition, StockMovement } from '@/domain/types';
 import type { Repositories } from '@/repositories';
 import { usedDeviceInspectionGroups } from '@/lib/used-device-inspection';
@@ -55,6 +55,7 @@ beforeEach(() => {
   } as unknown as Repositories;
   mock.transaction.mockReset().mockImplementation(async fn => fn(tx));
 });
+afterEach(() => vi.useRealTimers());
 describe('used-phone service behavior', () => {
   it('saves appearance provisionally without creating stock, then receives exactly once', async () => {
     await saveTradeInDraft({ ...input, cartId });
@@ -81,23 +82,29 @@ describe('used-phone service behavior', () => {
     tx.products.findById = async () => null;
     await expect(assertUsedDeviceEligible(tx, productId, 'new')).rejects.toMatchObject({ field: 'productId' });
   });
-  it('snapshots appearance for both the incoming trade-in and outgoing resale', async () => {
+  it.each([2000000, 3500000])('keeps trade-in time, payouts, and snapshots fixed (credit=%i)', async credit => {
+    vi.useFakeTimers(); vi.setSystemTime('2026-09-01T04:00:00.000Z');
     const received = await acceptUsedDevice(input);
-    await saveTradeInDraft({ ...input, serialNo: 'INCOMING-2', cartId });
+    await saveTradeInDraft({ ...input, acquisitionValue: credit, serialNo: 'INCOMING-2', cartId });
     let savedSale: Record<string, unknown> | null = null;
     const items: Record<string, unknown>[] = [];
     Object.assign(tx, {
       sales: { findByIdempotencyKey: async () => null, nextInvoiceNumber: async () => 'INV-1', create: async (sale: Record<string, unknown>) => { savedSale = structuredClone(sale); return sale; }, createItem: async (item: Record<string, unknown>) => { items.push(structuredClone(item)); } },
       auditLogs: { create: async () => ({}) },
+      saleSettlements: { nextReceiptNumber: async () => 'TIP-2026-1', create: vi.fn(async value => value) },
     });
     const repository = { transaction: async (fn: (tx: Repositories) => unknown) => fn(tx) } as Repositories;
-    await checkoutCart({ cartId, actorId: 'actor', actorName: 'Manager', actorRole: 'MANAGER', idempotencyKey: 'checkout-key',
+    await checkoutCart({ saleTiming: 'earlier', saleOccurredAt: '2026-08-31T23:30', cartId, actorId: 'actor', actorName: 'Manager', actorRole: 'MANAGER', idempotencyKey: 'checkout-key',
       lines: [{ clientId: 'line', productId, unitId: received.unit.id, quantity: 1, actualUnitPrice: 3000000 }],
       customerId: null, paymentMethod: 'CASH', tradeInPayoutMethod: 'CASH', paymentStatus: 'PAID', reference: null, note: null,
       isEmi: false, emiTermMonths: null, emiDownPayment: 0, emiFirstDueDate: null, identificationType: null, identificationNumber: null, auditIp: null,
     }, repository);
+    expect(units[1].receivedAt).toBe('2026-08-31T17:30:00.000Z');
+    expect(acquisitions[1]).toMatchObject({ acquiredAt: '2026-08-31T17:30:00.000Z', createdAt: '2026-09-01T04:00:00.000Z' });
+    expect(movements.find(m => m.reason === 'TRADE_IN')).toMatchObject({ occurredAt: '2026-08-31T17:30:00.000Z', createdAt: '2026-09-01T04:00:00.000Z' });
     expect(items[0].cosmeticCondition).toEqual(appearance);
-    expect(savedSale).toMatchObject({ tradeInDetails: { cosmeticCondition: appearance }, tradeInCredit: 2000000 });
+    expect(savedSale).toMatchObject({ tradeInDetails: { cosmeticCondition: appearance }, tradeInCredit: credit });
+    if (credit > 3000000) expect(tx.saleSettlements.create).toHaveBeenCalledWith(expect.objectContaining({ amount: 500000, occurredAt: '2026-08-31T17:30:00.000Z', recordedAt: '2026-09-01T04:00:00.000Z' }));
     units[0].cosmeticCondition = { ...appearance, screen: 'DAMAGED' };
     expect(items[0].cosmeticCondition).toEqual(appearance);
     expect(draft).toBeNull(); expect(acquisitions[1].tradeInSaleId).toBeTruthy();

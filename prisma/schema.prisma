@@ -524,6 +524,7 @@ model StockMovement {
   supplierReturn  SupplierReturn?
 
   /// ⚠️ No updatedAt. This table is append-only by design.
+  occurredAt DateTime @default(now())
   createdAt DateTime @default(now())
 
   @@index([productId, createdAt])
@@ -534,6 +535,7 @@ model StockMovement {
   @@index([supplierId])
   @@index([supplierId, createdAt])
   @@index([warrantyClaimId])
+  @@index([occurredAt])
   @@map("stock_movements")
 }
 
@@ -722,6 +724,7 @@ model Sale {
   tradeInDetails Json?
 
   completedAt DateTime @default(now())
+  occurredAt  DateTime @default(now())
   createdAt   DateTime @default(now())
 
   // A void preserves the original invoice and records the compensating action.
@@ -743,6 +746,7 @@ model Sale {
   @@index([actorId, completedAt])
   @@index([completedAt])
   @@index([paymentStatus, completedAt])
+  @@index([occurredAt])
   @@map("sales")
 }
 
@@ -761,10 +765,12 @@ model SaleSettlement {
   recordedBy     User               @relation("SaleSettlementRecordedBy", fields: [recordedById], references: [id], onDelete: Restrict)
   recordedByName String
   recordedAt     DateTime           @default(now())
+  occurredAt     DateTime           @default(now())
   createdAt      DateTime           @default(now())
 
   @@index([saleId, recordedAt])
   @@index([type, recordedAt])
+  @@index([occurredAt])
   @@map("sale_settlements")
 }
 

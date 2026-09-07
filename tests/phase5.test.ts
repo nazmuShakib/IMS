@@ -52,6 +52,17 @@ function repositories(movementRows: StockMovement[] = movements): Repositories {
 }
 
 describe('Phase 5 calculations', () => {
+  it('attributes a late month-end sale to its actual month and keeps the audit on entry time', async () => {
+    const late = movement({ id: 'late', occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' });
+    const repo = repositories([late]);
+    const june = await getReport({ report: 'sales', from: '2026-06-01', to: '2026-06-30', groupBy: 'month' }, { now, repositories: repo });
+    const july = await getReport({ report: 'sales', from: '2026-07-01', to: '2026-07-31' }, { now, repositories: repo });
+    const audit = await getReport({ report: 'movements', from: '2026-07-01', to: '2026-07-31' }, { now, repositories: repo });
+    expect(june.totals.revenue).toBe(80_000);
+    expect(july.totals.revenue).toBe(0);
+    expect(audit.rows[0].cells).toMatchObject({ date: late.createdAt, occurredAt: late.occurredAt });
+  });
+
   it('cancels a reversed sale instead of overstating revenue, COGS, or profit', async () => {
     const report = await getReport({ report: 'sales' }, { now, repositories: repositories() });
     expect(report.totals).toMatchObject({ quantity: 1, revenue: 80_000, cogs: 50_000, profit: 30_000 });

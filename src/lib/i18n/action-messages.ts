@@ -1,6 +1,13 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const bnMessages: Record<string, string> = {
+  'Enter a valid actual sale date and time.': 'প্রকৃত বিক্রয়ের সঠিক তারিখ ও সময় লিখুন।',
+  'Only Admins and Managers can record an earlier sale.': 'শুধু অ্যাডমিন ও ম্যানেজার আগে সম্পন্ন হওয়া বিক্রয় রেকর্ড করতে পারবেন।',
+  'The actual sale time cannot be in the future.': 'প্রকৃত বিক্রয়ের সময় ভবিষ্যতে হতে পারবে না।',
+  'The actual sale time must be within the last seven days.': 'প্রকৃত বিক্রয়ের সময় গত সাত দিনের মধ্যে হতে হবে।',
+  'This checkout request used a different sale time. Start a fresh checkout.': 'এই চেকআউট অনুরোধে অন্য বিক্রয়ের সময় ছিল। নতুন চেকআউট শুরু করুন।',
+  'First installment date must be on the sale date or within the following 31 days.': 'প্রথম কিস্তির তারিখ বিক্রয়ের দিন অথবা তার পরবর্তী ৩১ দিনের মধ্যে হতে হবে।',
+
   'Enter a discount greater than zero. Use Record payment for a payoff without a discount.': 'শূন্যের বেশি ছাড় লিখুন। ছাড় ছাড়া সম্পূর্ণ পরিশোধের জন্য পেমেন্ট রেকর্ড করুন ব্যবহার করুন।',
   'This request key belongs to a different EMI payment. Refresh and try again.': 'এই অনুরোধটি অন্য EMI পেমেন্টের সঙ্গে যুক্ত। রিফ্রেশ করে আবার চেষ্টা করুন।',
   'A record with this name already exists.': 'এই নামে একটি রেকর্ড ইতিমধ্যে আছে।',

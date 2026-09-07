@@ -1,6 +1,13 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const en = {
+  "checkout.earlierSale": "Record an earlier sale",
+  "checkout.actualSaleTime": "Actual sale date and time (Dhaka)",
+  "checkout.earlierSaleHelp": "Choose a time within the last seven days. Sales reports and warranty coverage use this date.",
+  "checkout.earlierPaymentHelp": "Paid and EMI down payment mean money collected at the sale time. Immediate trade-in payouts also use this time. Record later collections separately.",
+  "checkout.reportMonth": "Report month",
+  "invoice.recordedOn": "Recorded on",
+
   "removal.device": "Device number / IMEI",
   "removal.serialRequired": "Enter a device number or IMEI.",
   "removal.serialLong": "Use a device number of 120 characters or fewer.",
@@ -1578,7 +1585,7 @@ const en = {
   'checkout.months': '{count} months',
   'checkout.optionalDownPayment': 'Optional down payment (৳)',
   'checkout.firstInstallmentDate': 'First installment date',
-  'checkout.firstInstallmentHint': 'Today or within the next 31 days',
+  'checkout.firstInstallmentHint': 'On the sale date or within the following 31 days',
   'checkout.identificationType': 'Identification type',
   'checkout.chooseIdentification': 'Choose identification',
   'checkout.nid': 'National ID (NID)',
@@ -1637,7 +1644,7 @@ const en = {
   'invoice.paymentHistory': 'Payment and payout history',
   'invoice.customerPaymentHistory': 'Payment history',
   'invoice.receipt': 'Receipt',
-  'invoice.date': 'Date',
+  'invoice.date': 'Sale date',
   'invoice.type': 'Type',
   'invoice.amount': 'Amount',
   'invoice.method': 'Method',
@@ -1658,6 +1665,13 @@ const en = {
 export type MessageKey = keyof typeof en;
 
 const bn: Record<MessageKey, string> = {
+  "checkout.earlierSale": "আগে সম্পন্ন হওয়া বিক্রয় রেকর্ড করুন",
+  "checkout.actualSaleTime": "প্রকৃত বিক্রয়ের তারিখ ও সময় (ঢাকা)",
+  "checkout.earlierSaleHelp": "গত সাত দিনের মধ্যে সময় বেছে নিন। বিক্রয় প্রতিবেদন ও ওয়ারেন্টিতে এই তারিখ ব্যবহৃত হবে।",
+  "checkout.earlierPaymentHelp": "পরিশোধিত এবং ইএমআই অগ্রিম অর্থ বলতে বিক্রয়ের সময় পাওয়া টাকা বোঝায়। ট্রেড-ইনের তাৎক্ষণিক ফেরত অর্থেও এই সময় প্রযোজ্য। পরে পাওয়া টাকা আলাদাভাবে রেকর্ড করুন।",
+  "checkout.reportMonth": "প্রতিবেদনের মাস",
+  "invoice.recordedOn": "রেকর্ড করার সময়",
+
   "removal.device": "ডিভাইস নম্বর / IMEI",
   "removal.serialRequired": "ডিভাইস নম্বর বা IMEI লিখুন।",
   "removal.serialLong": "ডিভাইস নম্বর সর্বোচ্চ ১২০ অক্ষরের হতে হবে।",
@@ -3235,7 +3249,7 @@ const bn: Record<MessageKey, string> = {
   'checkout.months': '{count} মাস',
   'checkout.optionalDownPayment': 'ঐচ্ছিক ডাউন পেমেন্ট (৳)',
   'checkout.firstInstallmentDate': 'প্রথম কিস্তির তারিখ',
-  'checkout.firstInstallmentHint': 'আজ অথবা পরবর্তী ৩১ দিনের মধ্যে',
+  'checkout.firstInstallmentHint': 'বিক্রয়ের দিন অথবা তার পরবর্তী ৩১ দিনের মধ্যে',
   'checkout.identificationType': 'পরিচয়পত্রের ধরন',
   'checkout.chooseIdentification': 'পরিচয়পত্র নির্বাচন করুন',
   'checkout.nid': 'জাতীয় পরিচয়পত্র (NID)',
@@ -3294,7 +3308,7 @@ const bn: Record<MessageKey, string> = {
   'invoice.paymentHistory': 'পরিশোধ ও নগদ প্রদানের ইতিহাস',
   'invoice.customerPaymentHistory': 'পরিশোধের ইতিহাস',
   'invoice.receipt': 'রসিদ',
-  'invoice.date': 'তারিখ',
+  'invoice.date': 'বিক্রয়ের তারিখ',
   'invoice.type': 'ধরন',
   'invoice.amount': 'পরিমাণ',
   'invoice.method': 'মাধ্যম',

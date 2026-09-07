@@ -1,3 +1,4 @@
+import { saleOccurredAt } from '@/lib/sale-timing';
 import Link from 'next/link';
 
 import { Badge, Card, Input, PageHeader, Select } from '@/components/ui';
@@ -68,21 +69,21 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
     if (status && displayStatus !== status) return false;
     if (term && contract.termMonths !== Number(term)) return false;
     if (installmentStatus && !installments.some((item) => item.status === installmentStatus)) return false;
-    const createdDay = dhakaDateKey(contract.createdAt);
+    const createdDay = dhakaDateKey(sale ? saleOccurredAt(sale) : contract.createdAt);
     if (from && createdDay < from) return false;
     if (to && createdDay > to) return false;
     if (minOutstanding !== undefined && outstanding < minOutstanding) return false;
     if (maxOutstanding !== undefined && outstanding > maxOutstanding) return false;
     return !query || [contract.contractNumber, sale?.invoiceNumber, customer?.name, customer?.phone].some((value) => value?.toLowerCase().includes(query));
   })).sort((a, b) => {
-    if (order === 'oldest') return a.contract.createdAt.localeCompare(b.contract.createdAt);
+    if (order === 'oldest') return (a.sale ? saleOccurredAt(a.sale) : a.contract.createdAt).localeCompare(b.sale ? saleOccurredAt(b.sale) : b.contract.createdAt);
     if (order === 'outstanding-desc') return b.outstanding - a.outstanding;
     if (order === 'outstanding-asc') return a.outstanding - b.outstanding;
     if (order === 'total-desc') return b.contract.emiTotal - a.contract.emiTotal;
     if (order === 'total-asc') return a.contract.emiTotal - b.contract.emiTotal;
     if (order === 'customer-asc') return (a.customer?.name ?? '').localeCompare(b.customer?.name ?? '', 'en');
     if (order === 'customer-desc') return (b.customer?.name ?? '').localeCompare(a.customer?.name ?? '', 'en');
-    return b.contract.createdAt.localeCompare(a.contract.createdAt);
+    return (b.sale ? saleOccurredAt(b.sale) : b.contract.createdAt).localeCompare(a.sale ? saleOccurredAt(a.sale) : a.contract.createdAt);
   });
   const pageSize = 50;
   const pageCount = Math.max(1, Math.ceil(rows.length / pageSize));
@@ -129,7 +130,7 @@ export default async function EmiPage({ searchParams }: { searchParams: Promise<
     <Card className="overflow-auto">
       {rows.length === 0 ? <p className="p-8 text-center text-graphite">{t('emi.noMatches')}</p> : <table className="w-full min-w-[1050px] text-[13px]">
         <thead><tr className="border-b border-rule"><th className="eyebrow px-4 py-2.5 text-center">{t('emi.contract')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.invoice')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.started')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('common.customer')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.paymentPlan')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.total')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('emi.outstanding')}</th><th className="eyebrow px-4 py-2.5 text-center">{t('common.status')}</th></tr></thead>
-        <tbody>{pageRows.map(({ contract, sale, customer, outstanding: rowOutstanding, displayStatus }) => <tr key={contract.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-4 py-3 text-center"><Link href={`/emi/${contract.id}`} className="font-semibold text-signal hover:underline">{contract.contractNumber}</Link></td><td className="px-4 py-3 text-center"><Link href={`/invoices/${contract.saleId}`} className="text-signal hover:underline">{sale?.invoiceNumber ?? '—'}</Link></td><td className="px-4 py-3 text-center">{formatDhakaDateTime(contract.createdAt)}</td><td className="px-4 py-3 text-center"><span className="font-medium">{customer?.name ?? '—'}</span><span className="block text-[11px] text-graphite">{customer?.phone ?? ''}</span></td><td className="px-4 py-3 text-center">{t('emi.installments', { count: contract.termMonths })}</td><td className="tnum px-4 py-3 text-center">{formatBDT(contract.emiTotal)}</td><td className="tnum px-4 py-3 text-center font-medium">{formatBDT(rowOutstanding)}</td><td className="px-4 py-3 text-center"><Badge tone={contract.status === 'PAID' ? 'ok' : contract.status === 'OVERDUE' || contract.status === 'VOIDED' ? 'out' : contract.status === 'ACTIVE' ? 'signal' : 'neutral'}>{statusLabel(displayStatus)}</Badge></td></tr>)}</tbody>
+        <tbody>{pageRows.map(({ contract, sale, customer, outstanding: rowOutstanding, displayStatus }) => <tr key={contract.id} className="border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/40"><td className="px-4 py-3 text-center"><Link href={`/emi/${contract.id}`} className="font-semibold text-signal hover:underline">{contract.contractNumber}</Link></td><td className="px-4 py-3 text-center"><Link href={`/invoices/${contract.saleId}`} className="text-signal hover:underline">{sale?.invoiceNumber ?? '—'}</Link></td><td className="px-4 py-3 text-center">{formatDhakaDateTime(sale ? saleOccurredAt(sale) : contract.createdAt)}</td><td className="px-4 py-3 text-center"><span className="font-medium">{customer?.name ?? '—'}</span><span className="block text-[11px] text-graphite">{customer?.phone ?? ''}</span></td><td className="px-4 py-3 text-center">{t('emi.installments', { count: contract.termMonths })}</td><td className="tnum px-4 py-3 text-center">{formatBDT(contract.emiTotal)}</td><td className="tnum px-4 py-3 text-center font-medium">{formatBDT(rowOutstanding)}</td><td className="px-4 py-3 text-center"><Badge tone={contract.status === 'PAID' ? 'ok' : contract.status === 'OVERDUE' || contract.status === 'VOIDED' ? 'out' : contract.status === 'ACTIVE' ? 'signal' : 'neutral'}>{statusLabel(displayStatus)}</Badge></td></tr>)}</tbody>
       </table>}
       {rows.length > 0 && <nav className="flex flex-col gap-2 border-t border-rule px-4 py-3 text-[12px] sm:flex-row sm:items-center sm:justify-between" aria-label={t('emi.pagination')}>
         <p className="tnum text-graphite">{t('invoices.showing', { from: (page - 1) * pageSize + 1, to: Math.min(page * pageSize, rows.length), total: rows.length })}</p>

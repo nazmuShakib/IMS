@@ -106,6 +106,15 @@ function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])):
 }
 
 describe('Phase 4 dashboard', () => {
+  it('uses actual sale time for financial charts while retaining stock posting dates', async () => {
+    const repo = repositories();
+    repo.movements.findByDateRange = async () => [movement({ id: 'late', occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' })];
+    const dashboard = await getDashboard('ADMIN', now, repo);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+    expect(dashboard.monthRevenue).toBe(0);
+    expect(dashboard.recentActivity[0]).toMatchObject({ occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' });
+    expect(dashboard.dailyOperations.find(row => row.date === '2026-07-01')?.stockOut).toBe(1);
+  });
   it('derives operational and financial KPIs from stock and the append-only ledger', async () => {
     const dashboard = await getDashboard('ADMIN', now, repositories());
     expect(dashboard.totalUnits).toBe(11);

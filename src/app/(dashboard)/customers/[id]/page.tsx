@@ -1,3 +1,5 @@
+
+import { saleOccurredAt } from '@/lib/sale-timing';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -62,7 +64,7 @@ export default async function CustomerPage({ params }: { params: Promise<{ id: s
                   <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
                   {sale.status === 'VOIDED' && <span className="ml-2"><Badge tone="out">VOIDED</Badge></span>}
                 </td>
-                <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(sale.completedAt))}</td>
+                <td className="tnum px-4 py-3">{new Intl.DateTimeFormat('en-BD', { timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true }).format(new Date(saleOccurredAt(sale)))}</td>
                 <td className="px-4 py-3">{sale.paymentMethod.replaceAll('_', ' ')} · {sale.paymentStatus}</td>
                 <td className="tnum px-4 py-3 text-right">{formatBDT(sale.total)}</td>
               </tr>)}</tbody>

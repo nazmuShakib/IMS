@@ -45,6 +45,23 @@ beforeEach(() => {
 });
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); window.localStorage.clear(); });
 describe('trade-in integrated with checkout', () => {
+  it('keeps earlier sale time across trade-in editing and focuses invalid dates', async () => {
+    const data = stored(); data.saleTiming = 'earlier'; data.saleOccurredAt = ''; window.localStorage.setItem(storageKey, JSON.stringify(data));
+    await mount();
+    const review = [...document.querySelectorAll('button')].find(b => b.textContent?.includes('Complete sale'))!;
+    expect(review).toBeTruthy();
+    await click(review);
+    expect(document.activeElement?.id).toBe('actual-sale-time');
+    expect(document.querySelector('#actual-sale-time')?.getAttribute('aria-invalid')).toBe('true');
+    const value = new Date(Date.now() - 3600_000 + 6 * 3600_000).toISOString().slice(0, 16);
+    await act(async () => { const el = document.querySelector('#actual-sale-time')!; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await click(button('Edit trade-in')); await click(document.querySelector<HTMLButtonElement>('[aria-label="Close"]')!);
+    expect(stored().saleOccurredAt).toBe(value);
+    expect(new FormData(document.querySelector<HTMLFormElement>('#checkout-form')!).get('saleOccurredAt')).toBe(value);
+    await click(review);
+    expect(document.querySelector('#complete-sale-description')?.textContent).toContain('Report month');
+    expect((document.querySelector('#actual-sale-time') as HTMLInputElement).disabled).toBe(true);
+  });
   it('preserves customer, cart, discount, payment, and notes across saving and removing', async () => {
     await mount(); const before = stored();
     await click(button('Edit trade-in'));

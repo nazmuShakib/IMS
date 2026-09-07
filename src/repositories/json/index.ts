@@ -1,3 +1,4 @@
+import { saleOccurredAt } from '@/lib/sale-timing';
 import type {
   Brand,
   Category,
@@ -365,6 +366,7 @@ const units: ProductUnitRepository = {
 
 const movements: StockMovementRepository = {
   async record(movement) {
+    movement = { ...movement, occurredAt: movement.occurredAt ?? movement.createdAt };
     if (movement.quantity === 0) {
       throw new Error('A zero-quantity movement is meaningless'); // mirrors CHECK qty_nonzero
     }
@@ -591,8 +593,8 @@ async function matchingSales(filters: SaleFilters): Promise<Sale[]> {
   return rows
     .filter((item) => (
       (!filters.status || item.status === filters.status)
-      && (!filters.from || new Date(item.completedAt) >= filters.from)
-      && (!filters.to || new Date(item.completedAt) <= filters.to)
+      && (!filters.from || new Date(saleOccurredAt(item)) >= filters.from)
+      && (!filters.to || new Date(saleOccurredAt(item)) <= filters.to)
       && (
         !filters.customerType
         || (filters.customerType === 'WALK_IN' ? item.customerId === null : item.customerId !== null)
@@ -610,7 +612,7 @@ async function matchingSales(filters: SaleFilters): Promise<Sale[]> {
         item.actorName,
       ].some((value) => value?.toLowerCase().includes(query)))
     ))
-    .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+    .sort((a, b) => saleOccurredAt(b).localeCompare(saleOccurredAt(a)));
 }
 
 const sales: SaleRepository = {
@@ -625,7 +627,7 @@ const sales: SaleRepository = {
   },
   async findAll(limit = 100) {
     return (await readAll<Sale>('sales'))
-      .sort((a, b) => b.completedAt.localeCompare(a.completedAt))
+      .sort((a, b) => saleOccurredAt(b).localeCompare(saleOccurredAt(a)))
       .slice(0, limit);
   },
   async findVoidedByDateRange(from, to) {
@@ -656,9 +658,10 @@ const sales: SaleRepository = {
   async findByCustomer(customerId) {
     return (await readAll<Sale>('sales'))
       .filter((item) => item.customerId === customerId)
-      .sort((a, b) => b.completedAt.localeCompare(a.completedAt));
+      .sort((a, b) => saleOccurredAt(b).localeCompare(saleOccurredAt(a)));
   },
   async create(value) {
+    value = { ...value, occurredAt: value.occurredAt ?? value.completedAt };
     await writeAll('sales', [...await readAll<Sale>('sales'), value]);
     return value;
   },
@@ -739,6 +742,7 @@ const saleSettlements: SaleSettlementRepository = {
       .find((item) => item.idempotencyKey === idempotencyKey) ?? null;
   },
   async create(value) {
+    value = { ...value, occurredAt: value.occurredAt ?? value.recordedAt };
     const rows = await readAll<SaleSettlement>('sale-settlements');
     if (rows.some((item) => item.idempotencyKey === value.idempotencyKey)) {
       throw new Error('This payment or payout has already been recorded.');

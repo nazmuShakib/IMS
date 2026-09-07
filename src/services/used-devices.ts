@@ -90,6 +90,7 @@ export async function acceptUsedDevice(raw: AcceptUsedDeviceInput): Promise<Acce
 export async function acceptUsedDeviceInTransaction(
   raw: AcceptUsedDeviceInput,
   tx: Repositories,
+  timing?: { occurredAt: string; recordedAt: string },
 ): Promise<AcceptedUsedDevice> {
     const input = acceptUsedDeviceSchema.parse(raw);
     const replay = await tx.usedDeviceAcquisitions.findByIdempotencyKey(input.idempotencyKey);
@@ -104,7 +105,8 @@ export async function acceptUsedDeviceInTransaction(
 
     const { product, existingUnit } = await assertUsedDeviceEligible(tx, input.productId, input.serialNo);
 
-    const now = new Date().toISOString();
+    const now = timing?.recordedAt ?? new Date().toISOString();
+    const occurredAt = timing?.occurredAt ?? now;
     const unitValues: ProductUnit = {
       id: uuidv7(),
       serialNo: input.serialNo,
@@ -113,7 +115,7 @@ export async function acceptUsedDeviceInTransaction(
       costPrice: input.acquisitionValue,
       salePrice: null,
       supplierId: null,
-      receivedAt: now,
+      receivedAt: occurredAt,
       soldAt: null,
       warrantyMonths: input.warrantyMonths ?? null,
       warrantyDays: input.warrantyDays ?? null,
@@ -135,7 +137,7 @@ export async function acceptUsedDeviceInTransaction(
           costPrice: unitValues.costPrice,
           salePrice: null,
           supplierId: null,
-          receivedAt: now,
+          receivedAt: occurredAt,
           soldAt: null,
           warrantyMonths: unitValues.warrantyMonths,
           warrantyDays: unitValues.warrantyDays,
@@ -170,6 +172,7 @@ export async function acceptUsedDeviceInTransaction(
       actorId: input.actorId,
       idempotencyKey: input.idempotencyKey,
       reversesId: null,
+      occurredAt,
       createdAt: now,
     });
 
@@ -187,7 +190,7 @@ export async function acceptUsedDeviceInTransaction(
       acceptedById: input.actorId,
       reference: input.reference ?? null,
       note: input.note ?? null,
-      acquiredAt: now,
+      acquiredAt: occurredAt,
       createdAt: now,
       tradeInSaleId: null,
     });

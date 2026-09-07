@@ -1,3 +1,4 @@
+import { movementOccurredAt } from '@/lib/sale-timing';
 import type { EmiInstallment, Product, ProductUnit, Role, StockMovement, User } from '@/domain/types';
 import type { Paisa } from '@/lib/money';
 import { canSeeCosts } from '@/lib/permissions';
@@ -16,6 +17,7 @@ export interface DashboardProductRow {
 }
 
 export interface DashboardActivity {
+  occurredAt?: string;
   id: string;
   productId: string;
   productName: string;
@@ -401,6 +403,7 @@ export async function getDashboard(
         quantity: movement.quantity,
         actorId: movement.actorId,
         actorName: userById.get(movement.actorId ?? '') ?? (movement.actorId ? 'Authenticated user' : 'System'),
+        occurredAt: movementOccurredAt(movement),
         createdAt: movement.createdAt,
       };
     });
@@ -435,7 +438,7 @@ export async function getDashboard(
     const { currentStart } = periodBounds(now, period);
     const counts = new Map<string, number>();
     for (const movement of movements) {
-      if (new Date(movement.createdAt) < currentStart || movement.quantity >= 0 || !isEffectiveOperation(movement)) continue;
+      if (new Date(movementOccurredAt(movement)) < currentStart || movement.quantity >= 0 || !isEffectiveOperation(movement)) continue;
       counts.set(movement.productId, (counts.get(movement.productId) ?? 0) + Math.abs(movement.quantity));
     }
     const rows = activeProducts
@@ -472,7 +475,7 @@ export async function getDashboard(
       if (movement.quantity > 0) operation.stockIn += movement.quantity;
       if (movement.quantity < 0) operation.stockOut += Math.abs(movement.quantity);
     }
-    const financial = financials.get(key);
+    const financial = financials.get(dhakaDateKey(new Date(movementOccurredAt(movement))));
     // Performance charts show only sales that remain valid. Corrections and the
     // original movements they reverse stay in the ledger, but neither is drawn
     // as a new sale or as negative sales performance.
@@ -534,7 +537,7 @@ export async function getDashboard(
   let monthRevenue = 0;
   let monthCogs = 0;
   for (const movement of movements) {
-    if (new Date(movement.createdAt) < monthStart) continue;
+    if (new Date(movementOccurredAt(movement)) < monthStart) continue;
     if (!isEffectiveOperation(movement)) continue;
     const values = movementFinancials(movement, movementById);
     monthRevenue += values.revenue;
@@ -567,7 +570,7 @@ export async function getDashboard(
     let revenue = 0;
     let cogs = 0;
     for (const movement of movements) {
-      const occurredAt = new Date(movement.createdAt);
+      const occurredAt = new Date(movementOccurredAt(movement));
       if (occurredAt < from || occurredAt >= to) continue;
       if (!isEffectiveOperation(movement)) continue;
       const values = movementFinancials(movement, movementById);
@@ -581,7 +584,7 @@ export async function getDashboard(
       })
       .reduce((sum, expense) => sum + expense.amount, 0);
     const effectiveMovements = movements.filter((movement) => {
-      const occurredAt = new Date(movement.createdAt);
+      const occurredAt = new Date(movementOccurredAt(movement));
       return occurredAt >= from && occurredAt < to && isEffectiveOperation(movement);
     });
     const shrinkage = effectiveMovements

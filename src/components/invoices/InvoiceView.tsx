@@ -1,5 +1,7 @@
 'use client';
 
+import { saleOccurredAt } from '@/lib/sale-timing';
+
 import { cosmeticSummary } from '@/lib/cosmetic-condition';
 import { useActionState, useEffect, useRef, useState, useTransition, type CSSProperties, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -267,8 +269,9 @@ export function InvoiceView({
               {sale.customerPhone && <p>{sale.customerPhone}</p>}
             </div>
             <div>
-              <span>Date</span>
-              <strong>{dateTime(sale.completedAt)}</strong>
+              <span>{t("invoice.date")}</span>
+              <strong>{dateTime(saleOccurredAt(sale))}</strong>
+              {saleOccurredAt(sale) !== sale.completedAt && <p>{t("invoice.recordedOn")}: {dateTime(sale.completedAt)}</p>}
               <p className="invoice-served-by-standard">Served by {sale.actorName}</p>
               {sale.reference && <p>Ref: {sale.reference}</p>}
             </div>

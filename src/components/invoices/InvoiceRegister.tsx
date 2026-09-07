@@ -1,5 +1,7 @@
 'use client';
 
+import { saleOccurredAt } from '@/lib/sale-timing';
+
 import Link from 'next/link';
 import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
@@ -257,7 +259,7 @@ export function InvoiceRegister({
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
-                          <p className="tnum mt-1 text-[11px] text-graphite">{dateFormatter.format(new Date(sale.completedAt))}</p>
+                          <p className="tnum mt-1 text-[11px] text-graphite">{dateFormatter.format(new Date(saleOccurredAt(sale)))}</p>
                         </div>
                         <div className="flex flex-wrap justify-end gap-1.5">
                           {sale.status === 'VOIDED' && <Badge tone="out">{t('invoices.voided')}</Badge>}
@@ -303,7 +305,7 @@ export function InvoiceRegister({
                         <Link className="tnum font-medium text-signal" href={`/invoices/${sale.id}`}>{sale.invoiceNumber}</Link>
                         {sale.status === 'VOIDED' && <span className="ml-2"><Badge tone="out">{t('invoices.voided')}</Badge></span>}
                       </td>
-                      <td className="tnum px-4 py-3">{dateFormatter.format(new Date(sale.completedAt))}</td>
+                      <td className="tnum px-4 py-3">{dateFormatter.format(new Date(saleOccurredAt(sale)))}</td>
                       <td className="px-4 py-3">{sale.customerName ?? t('invoices.walkIn')}</td>
                       <td className="px-4 py-3">{sale.actorName}</td>
                       <td className="px-4 py-3">

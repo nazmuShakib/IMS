@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { z } from 'zod';
+import { saleTimingSchema } from '@/lib/sale-timing';
 
 import { requestAuditIp, writeAudit } from '@/lib/audit';
 import { actionErrorMessage } from '@/lib/action-error';
@@ -26,6 +27,7 @@ import {
 } from '@/schemas';
 
 export interface CheckoutActionState {
+  timingError?: string;
   error?: string;
   ok?: string;
 }
@@ -214,7 +216,9 @@ export async function checkoutAction(
       customerId,
       paymentStatus: str(fd, 'paymentStatus') ?? 'PAID',
     }) : null;
+    const timing = saleTimingSchema.parse({ saleTiming: str(fd, 'saleTiming') ?? 'now', saleOccurredAt: str(fd, 'saleOccurredAt') ?? '' });
     const sale = await checkoutCart({
+      ...timing,
       cartId,
       actorId: actor.id,
       actorName: actor.name,
@@ -232,7 +236,7 @@ export async function checkoutAction(
     });
     saleId = sale.id;
   } catch (error) {
-    return { error: message(error) };
+    return { error: message(error), timingError: error instanceof z.ZodError ? error.issues.find((issue) => ['saleTiming', 'saleOccurredAt'].includes(String(issue.path[0])))?.message : undefined };
   }
 
   revalidatePath('/');
