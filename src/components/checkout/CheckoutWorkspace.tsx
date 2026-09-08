@@ -20,7 +20,6 @@ import {
   GripVertical,
   ReceiptText,
   Trash2,
-  Undo2,
   UserPlus,
 } from "lucide-react";
 import Link from "next/link";
@@ -79,6 +78,7 @@ export interface CheckoutProductOption {
   trackingType: TrackingType;
   onHand: number;
   barcode: string | null;
+  costPrice?: number;
   listUnitPrice: number;
   staffMaxDiscount: number;
 }
@@ -90,6 +90,7 @@ export interface CheckoutUnitOption {
   sku: string;
   serialNo: string;
   usedGrade: string | null;
+  costPrice?: number;
   listUnitPrice: number;
   staffMaxDiscount: number;
   cosmeticCondition?: CosmeticCondition | null;
@@ -107,6 +108,7 @@ export interface CheckoutLine {
   serialNo: string | null;
   trackingType: TrackingType;
   quantity: number;
+  costPrice?: number;
   listUnitPrice: number;
   actualUnitPrice: number;
   staffMaxDiscount: number;
@@ -171,6 +173,7 @@ function CartLineEditor({
   onRemove,
   onValidityChange,
   staffMinimumPrice,
+  showCosts,
   isEmi,
 }: {
   line: CheckoutLine;
@@ -182,6 +185,7 @@ function CartLineEditor({
   onRemove: (lineId: string) => void;
   onValidityChange: (lineId: string, valid: boolean) => void;
   staffMinimumPrice: number | null;
+  showCosts: boolean;
   isEmi: boolean;
 }) {
   const { t } = useI18n();
@@ -264,7 +268,8 @@ function CartLineEditor({
           {cosmeticSummary(line.cosmeticCondition, t) && <p className="mt-1 text-xs text-graphite">{cosmeticSummary(line.cosmeticCondition, t)}</p>}
           {line.knownDefects && <p className="mt-1 max-w-xl text-[11px] text-out">{t('used.knownDefects')}: {line.knownDefects}</p>}
           <p className="mt-1 text-[11px] text-charcoal">
-            {t("checkout.listPrice", { price: formatBDT(line.listUnitPrice) })}
+            <span>{t("checkout.listPrice", { price: formatBDT(line.listUnitPrice) })}</span>
+            {showCosts && line.costPrice !== undefined && <span className="ml-3 inline-block">{t("checkout.costPrice", { price: formatBDT(line.costPrice) })}</span>}
           </p>
           </div>
         </div>
@@ -274,7 +279,9 @@ function CartLineEditor({
           )}
         </p>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-[9rem_10rem_auto]">
+      <div className={`mt-3 grid gap-y-3 ${line.trackingType === "QUANTITY"
+        ? "gap-x-4 sm:grid-cols-[9.5rem_10rem_minmax(0,1fr)]"
+        : "gap-x-2 sm:grid-cols-[9rem_10rem_auto]"}`}>
         {line.trackingType === "SERIAL" ? (
           <Field label={t("checkout.serialImei")}>
             <div className="flex min-h-10 items-center">
@@ -287,10 +294,10 @@ function CartLineEditor({
           </Field>
         ) : (
           <Field label={t("common.quantity")}>
-            <div className="inline-grid grid-cols-[2.5rem_4.5rem_2.5rem]">
+            <div className="grid w-[9.5rem] grid-cols-[2.5rem_4.5rem_2.5rem]">
               <button
                 type="button"
-                className="h-10 rounded-l-[3px] border border-rule bg-card text-[18px] leading-none text-ink transition-colors hover:border-signal hover:bg-signal-wash disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-9 items-center justify-center rounded-l-[3px] border border-r-0 border-rule bg-plate/50 text-[18px] leading-none text-ink transition-colors hover:bg-signal-wash hover:text-signal focus-visible:z-10 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label={t("checkout.decreaseQuantity")}
                 onClick={() => stepQuantity(-1)}
                 disabled={quantity <= 1}
@@ -298,7 +305,7 @@ function CartLineEditor({
                 −
               </button>
               <MonoInput
-                className="h-10 rounded-none px-1 text-center"
+                className="relative h-9 rounded-none px-1 text-center focus:z-10"
                 inputMode="numeric"
                 pattern="[0-9]*"
                 aria-label={t("common.quantity")}
@@ -320,7 +327,7 @@ function CartLineEditor({
               />
               <button
                 type="button"
-                className="h-10 rounded-r-[3px] border border-rule bg-card text-[18px] leading-none text-ink transition-colors hover:border-signal hover:bg-signal-wash disabled:cursor-not-allowed disabled:opacity-40"
+                className="inline-flex h-9 items-center justify-center rounded-r-[3px] border border-l-0 border-rule bg-plate/50 text-[18px] leading-none text-signal transition-colors hover:bg-signal-wash focus-visible:z-10 disabled:cursor-not-allowed disabled:opacity-40"
                 aria-label={t("checkout.increaseQuantity")}
                 onClick={() => stepQuantity(1)}
                 disabled={quantity >= maximumQuantity}
@@ -332,7 +339,7 @@ function CartLineEditor({
         )}
         <div className="grid grid-cols-[minmax(0,1fr)_2.25rem] items-end gap-2 sm:contents">
           <Field
-            label={isEmi ? t("checkout.emiSellingPrice") : t("products.sellingPrice")}
+            label={isEmi ? t("checkout.emiSellingPrice") : line.trackingType === "QUANTITY" ? t("checkout.pricePerItem") : t("products.sellingPrice")}
             hint={staffMinimumPrice !== null
               ? t('checkout.staffMinimumPrice', { price: formatBDT(staffMinimumPrice) })
               : undefined}
@@ -456,11 +463,6 @@ export function CheckoutWorkspace({
   const [confirmingTradeInRemoval, setConfirmingTradeInRemoval] = useState(false);
   const [creatingCustomer, setCreatingCustomer] = useState(false);
   const [highlightedLineId, setHighlightedLineId] = useState<string | null>(null);
-  const [lastScannedLine, setLastScannedLine] = useState<{
-    lineId: string;
-    previousQuantity: number | null;
-    productName: string;
-  } | null>(null);
   const [orderedLines, setOrderedLines] = useState(lines);
   const orderedLinesRef = useRef(lines);
   const scannerFormRef = useRef<HTMLFormElement>(null);
@@ -649,6 +651,7 @@ export function CheckoutWorkspace({
               serialNo: unit?.serialNo ?? null,
               trackingType: product.trackingType,
               quantity: product.trackingType === "SERIAL" ? 1 : Math.max(1, Math.min(product.onHand, Number(saved.quantity) || 1)),
+              costPrice: unit ? unit.costPrice : product.costPrice,
               listUnitPrice: unit?.listUnitPrice ?? product.listUnitPrice,
               actualUnitPrice: Number.isInteger(saved.actualUnitPrice) && saved.actualUnitPrice! >= 0
                 ? saved.actualUnitPrice!
@@ -884,10 +887,7 @@ export function CheckoutWorkspace({
 
   const markScannedLine = useCallback((
     lineId: string,
-    previousQuantity: number | null,
-    productName: string,
   ) => {
-    setLastScannedLine({ lineId, previousQuantity, productName });
     setHighlightedLineId(lineId);
     if (scanHighlightTimerRef.current !== null) {
       window.clearTimeout(scanHighlightTimerRef.current);
@@ -957,7 +957,7 @@ export function CheckoutWorkspace({
           count: existing.quantity + 1,
         }) });
         if (source === "scan") {
-          markScannedLine(existing.id, existing.quantity, product.name);
+          markScannedLine(existing.id);
         }
         return;
       }
@@ -978,6 +978,7 @@ export function CheckoutWorkspace({
       serialNo: unit?.serialNo ?? null,
       trackingType: product.trackingType,
       quantity: 1,
+      costPrice: unit ? unit.costPrice : product.costPrice,
       listUnitPrice,
       actualUnitPrice: listUnitPrice,
       staffMaxDiscount: unit?.staffMaxDiscount ?? product.staffMaxDiscount,
@@ -992,7 +993,7 @@ export function CheckoutWorkspace({
     setLineOrder(next);
     setAddState({ ok: t("checkout.productAdded", { product: product.name }) });
     if (source === "scan") {
-      markScannedLine(lineId, null, product.name);
+      markScannedLine(lineId);
     }
   }, [markScannedLine, playScanTone, products, setLineOrder, t, units]);
 
@@ -1017,24 +1018,6 @@ export function CheckoutWorkspace({
     event.currentTarget.reset();
   };
 
-  const undoLastScan = () => {
-    if (!lastScannedLine) return;
-    const next = lastScannedLine.previousQuantity === null
-      ? orderedLinesRef.current.filter((line) => line.id !== lastScannedLine.lineId)
-      : orderedLinesRef.current.map((line) => line.id === lastScannedLine.lineId
-          ? { ...line, quantity: lastScannedLine.previousQuantity ?? line.quantity }
-          : line);
-    setLineOrder(next.map((line, position) => ({ ...line, position })));
-    setInvalidLineIds((current) => {
-      const updated = new Set(current);
-      if (lastScannedLine.previousQuantity === null) updated.delete(lastScannedLine.lineId);
-      return updated;
-    });
-    setHighlightedLineId(null);
-    setAddState({ ok: t("checkout.scanUndone", { product: lastScannedLine.productName }) });
-    setLastScannedLine(null);
-  };
-
   const updateLocalLine = (lineId: string, patch: Pick<CheckoutLine, "quantity" | "actualUnitPrice">) => {
     setLineOrder(orderedLinesRef.current.map((line) => line.id === lineId ? { ...line, ...patch } : line));
   };
@@ -1046,7 +1029,6 @@ export function CheckoutWorkspace({
     setInvalidLineIds((current) => {
       const next = new Set(current); next.delete(lineId); return next;
     });
-    if (lastScannedLine?.lineId === lineId) setLastScannedLine(null);
   };
 
   const moveLine = useCallback((itemId: string, targetId: string): CheckoutLine[] => {
@@ -1179,12 +1161,7 @@ export function CheckoutWorkspace({
           </form>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <Message state={addState} />
-            {lastScannedLine && (
-              <Button type="button" variant="ghost" className="gap-1.5" onClick={undoLastScan}>
-                <Undo2 aria-hidden="true" className="size-4" />
-                {t("checkout.undoLastScan")}
-              </Button>
-            )}
+
           </div>
           <details className="mt-4 rounded-[3px] border border-rule bg-plate/20">
             <summary className="cursor-pointer px-3 py-2.5 text-[13px] font-medium">
@@ -1261,6 +1238,7 @@ export function CheckoutWorkspace({
                   onChange={updateLocalLine}
                   onRemove={removeLocalLine}
                   onValidityChange={handleLineValidity}
+                  showCosts={hasPermission(role, "VIEW_COSTS")}
                   staffMinimumPrice={role === 'STAFF'
                     ? Math.max(0, line.listUnitPrice - line.staffMaxDiscount)
                     : null}

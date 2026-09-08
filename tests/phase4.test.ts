@@ -106,14 +106,50 @@ function repositories(search = vi.fn(async () => [serialProduct, bulkProduct])):
 }
 
 describe('Phase 4 dashboard', () => {
-  it('uses actual sale time for financial charts while retaining stock posting dates', async () => {
+  it('attributes late sales to their actual day across revenue, stock movement, and stock value', async () => {
     const repo = repositories();
-    repo.movements.findByDateRange = async () => [movement({ id: 'late', occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' })];
+    repo.movements.findByDateRange = async () => [
+      movement({ id: 'received', type: 'IN', reason: 'PURCHASE', quantity: 1, unitPrice: null, createdAt: '2026-06-01T04:00:00.000Z' }),
+      movement({ id: 'late', occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' }),
+    ];
     const dashboard = await getDashboard('ADMIN', now, repo);
     if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
     expect(dashboard.monthRevenue).toBe(0);
     expect(dashboard.recentActivity[0]).toMatchObject({ occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' });
-    expect(dashboard.dailyOperations.find(row => row.date === '2026-07-01')?.stockOut).toBe(1);
+    expect(dashboard.dailyOperations.find(row => row.date === '2026-06-30')?.stockOut).toBe(1);
+    expect(dashboard.dailyOperations.find(row => row.date === '2026-07-01')?.stockOut).toBe(0);
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-06-29')?.stockValue).toBe(500);
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-06-30')).toMatchObject({ stockValue: 0, revenue: 800 });
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-07-01')).toMatchObject({ stockValue: 0, revenue: 0 });
+  });
+
+  it('includes late events before the chart range in its opening stock value exactly once', async () => {
+    const repo = repositories();
+    repo.movements.findByDateRange = async () => [
+      movement({ id: 'received', type: 'IN', reason: 'PURCHASE', quantity: 1, unitPrice: null, createdAt: '2026-05-01T04:00:00.000Z' }),
+      movement({ id: 'late', occurredAt: '2026-05-17T17:59:00.000Z', createdAt: '2026-05-19T04:00:00.000Z' }),
+    ];
+    const dashboard = await getDashboard('ADMIN', now, repo);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+    expect(dashboard.dailyFinancials[0]?.date).toBe('2026-05-18');
+    expect(dashboard.dailyFinancials.every(row => row.stockValue === 0)).toBe(true);
+  });
+
+  it('places incoming trade-in stock on the actual date and later corrections on their own date', async () => {
+    const repo = repositories();
+    repo.movements.findByDateRange = async () => [
+      movement({ id: 'incoming', type: 'IN', reason: 'TRADE_IN', quantity: 1, unitCost: 200, unitPrice: null, occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' }),
+      movement({ id: 'received', type: 'IN', reason: 'PURCHASE', quantity: 1, unitPrice: null, createdAt: '2026-06-01T04:00:00.000Z' }),
+      movement({ id: 'late', occurredAt: '2026-06-30T17:59:00.000Z', createdAt: '2026-07-01T04:00:00.000Z' }),
+      movement({ id: 'reversal', type: 'ADJUST', reason: 'CORRECTION', quantity: 1, reversesId: 'late', occurredAt: '2026-07-02T04:00:00.000Z', createdAt: '2026-07-02T04:00:00.000Z' }),
+    ];
+    const dashboard = await getDashboard('ADMIN', now, repo);
+    if (!dashboard.canSeeFinancials) throw new Error('Expected financial dashboard');
+    expect(dashboard.dailyOperations.find(row => row.date === '2026-06-30')?.stockIn).toBe(1);
+    expect(dashboard.dailyOperations.find(row => row.date === '2026-07-01')?.stockIn).toBe(0);
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-06-30')?.stockValue).toBe(200);
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-07-01')?.stockValue).toBe(200);
+    expect(dashboard.dailyFinancials.find(row => row.date === '2026-07-02')?.stockValue).toBe(700);
   });
   it('derives operational and financial KPIs from stock and the append-only ledger', async () => {
     const dashboard = await getDashboard('ADMIN', now, repositories());

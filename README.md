@@ -192,10 +192,12 @@ its actual date and time in Asia/Dhaka, up to 168 hours before entry. This appli
 to ordinary sales, EMI, and trade-ins. Future dates are rejected. Existing
 invoices cannot be backdated.
 
-Sales reports, invoice dates, and outgoing warranties use the actual sale time.
-The entry timestamps remain available in invoices and the audit trail. Stock is
-posted when checkout completes, using current device cost or bulk average cost;
-historical inventory balances and costs are not recalculated. Initial payments
+Sales reports, invoice dates, outgoing warranties, and stock movement/value
+charts use the actual sale time. Entry timestamps remain available on screen
+and in the audit trail. Stock is posted when checkout completes, using current
+device cost or bulk average cost. Historical charts attribute the stock change
+to its actual event date; stored costs and subsequent invoice costs are not
+recalculated. Initial payments
 and immediate trade-in payouts use the actual sale time. Later collections use
 the existing payment workflow. EMI due dates are anchored to the actual sale day.
 
@@ -204,3 +206,36 @@ database to apply `20260907120000_sale_occurrence_times`. The additive migration
 backfills existing records without changing their dates. Run it before starting
 code that reads the new columns. Invoice and receipt numbering still uses the
 recording year.
+
+### Preferred pagination style
+
+Use the compact style in
+[`CatalogPagination`](src/components/catalog/CatalogPagination.tsx) for new
+pagination and future updates to other lists. This is the user-approved project
+reference: 28px circular arrow/page controls, 12px text, a blue (`signal`)
+selected page, neutral (`plate`) arrow backgrounds, ellipses, and a small rounded
+`{count} / page` selector after Next. Keep the result count and controls outside
+the scrolling table. On mobile, show arrows with “Page X of Y”.
+
+Reuse the implementation, preserving accessible labels, focus rings, disabled
+states, and English/Bangla translations. If moving it into shared UI, update the
+catalog consumers too and allow a suitable navigation label for each list.
+Ordinary form input styles stay unchanged. Apply this preference as components
+are updated; a bulk restyle of existing screens is not required.
+
+### Catalog pagination checks
+
+`npm test` includes catalog form, role-boundary, navigation, and pagination
+regressions. Real PostgreSQL query-parity tests are opt-in: start an **empty,
+throwaway PostgreSQL instance** on port `55439` with its Unix socket inside a
+`/tmp/ims-catalog-*` directory, then run:
+
+```bash
+CATALOG_TEST_SOCKET=/tmp/ims-catalog-test npm test -- tests/catalog-postgres.test.ts
+```
+
+This suite recreates the disposable instance's `public` schema from the current
+Prisma schema and inserts its own fixtures. Do not point it at a shared database.
+It checks source-level filtering, sorting, counts, page boundaries, and unit links
+against the JSON adapter's behavior. No database migration is needed for catalog
+pagination.

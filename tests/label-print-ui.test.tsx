@@ -58,6 +58,34 @@ beforeEach(() => {
 afterEach(async () => { await act(async () => root.unmount()); container.remove(); vi.unstubAllGlobals(); });
 
 describe('label selection and printing interactions', () => {
+  it.each([phone, bulk])('steps label counts for $name within the job limit', async product => {
+    await mount({ product, initialUnitIds: product === phone ? [units[0].id, units[1].id] : [] });
+    const copies = query<HTMLInputElement>('[name="copies"]');
+    const decrease = query<HTMLButtonElement>('[aria-label="Decrease label count"]');
+    const increase = query<HTMLButtonElement>('[aria-label="Increase label count"]');
+    expect(decrease.disabled).toBe(true);
+    await click(increase); expect(copies.value).toBe('2');
+    await click(decrease); expect(copies.value).toBe('1');
+    const maximum = product === phone ? 250 : 500;
+    await change(copies, String(maximum - 1));
+    await click(increase); expect(copies.value).toBe(String(maximum));
+    expect(increase.disabled).toBe(true);
+    await click(increase); expect(copies.value).toBe(String(maximum));
+    await change(copies, ''); expect(copies.value).toBe('');
+    expect(increase.disabled).toBe(true);
+    await click(printButton()); expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+  it('focuses the scanner on entry without stealing focus after refreshing or changing product', async () => {
+    await mount();
+    const scanner = query<HTMLInputElement>('input[maxlength="120"]');
+    expect(document.activeElement).toBe(scanner);
+    expect(document.querySelector('[placeholder="Enter a device number or IMEI"]')).not.toBeNull();
+    await act(async () => query<HTMLInputElement>('[name="copies"]').focus());
+    await rerender({ resultVersion: 'refresh' }); await nextFrame();
+    expect(document.activeElement).not.toBe(scanner);
+    await rerender({ product: bulk, units: [], selectionContext: 'bulk' }); await nextFrame();
+    expect(document.activeElement).not.toBe(scanner);
+  });
   it('keeps preview-only labels unprintable until acceptance, then prints the server snapshot once', async () => {
     await mount({ initialUnitIds: [units[0].id] });
     expect(document.querySelector('.label-print-area')).toBeNull(); expect(query<HTMLElement>('.label-print-notice').hidden).toBe(true); expect(query('.label-print-notice').textContent).toContain('Print labels button');

@@ -315,14 +315,14 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(workspace.match(/className="flex justify-between text-charcoal"/g)).toHaveLength(2);
   });
 
-  it('keeps high-frequency checkout controls visible and scanner feedback recoverable', () => {
+  it('keeps checkout controls and scan feedback without an undo action', () => {
     const workspace = source('src/components/checkout/CheckoutWorkspace.tsx');
     const items = source('src/components/checkout/CheckoutItemCombobox.tsx');
     const customers = source('src/components/checkout/CustomerCombobox.tsx');
 
     expect(workspace).toContain('setHighlightedLineId(lineId)');
     expect(workspace).toContain('scrollIntoView({ behavior: "smooth", block: "nearest" })');
-    expect(workspace).toContain('t("checkout.undoLastScan")');
+    expect(workspace).not.toContain('undoLastScan');
     expect(workspace).toContain('const playScanTone = useCallback');
     expect(workspace).not.toContain('scanSoundEnabled');
     expect(workspace).toContain('<details className="mt-4');

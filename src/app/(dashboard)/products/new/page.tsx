@@ -1,10 +1,9 @@
-import Link from 'next/link';
 import { db } from '@/repositories';
 import { getSession, requirePageRole } from '@/lib/session';
 import { createTranslator } from '@/lib/i18n/messages';
 import { createProduct } from '@/actions/catalog';
 import { ProductForm } from '@/components/catalog/ProductForm';
-import { PageHeader, EmptyState, Card, Button } from '@/components/ui';
+import { PageHeader, EmptyState, Card, ButtonLink } from '@/components/ui';
 
 export const dynamic = 'force-dynamic';
 
@@ -26,9 +25,7 @@ export default async function NewProductPage() {
           <EmptyState
             title={t('products.categoryRequired')}
             action={
-              <Link href="/categories">
-                <Button>{t('products.goCategories')}</Button>
-              </Link>
+              <ButtonLink href="/categories">{t('products.goCategories')}</ButtonLink>
             }
           />
         </Card>

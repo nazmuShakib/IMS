@@ -271,7 +271,7 @@ export function InvoiceView({
             <div>
               <span>{t("invoice.date")}</span>
               <strong>{dateTime(saleOccurredAt(sale))}</strong>
-              {saleOccurredAt(sale) !== sale.completedAt && <p>{t("invoice.recordedOn")}: {dateTime(sale.completedAt)}</p>}
+              {saleOccurredAt(sale) !== sale.completedAt && <p className="print:hidden">{t("invoice.recordedOn")}: {dateTime(sale.completedAt)}</p>}
               <p className="invoice-served-by-standard">Served by {sale.actorName}</p>
               {sale.reference && <p>Ref: {sale.reference}</p>}
             </div>

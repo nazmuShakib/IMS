@@ -1,6 +1,12 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const bnMessages: Record<string, string> = {
+  'Enter a product code.': 'পণ্যের কোড লিখুন।',
+  'Enter a product name.': 'পণ্যের নাম লিখুন।',
+  'Choose a category.': 'একটি ক্যাটাগরি বেছে নিন।',
+  'Enter a valid amount with at most two decimal places.': 'সর্বোচ্চ দুই দশমিক ঘরসহ সঠিক পরিমাণ লিখুন।',
+  'Enter a whole number of zero or more.': 'শূন্য বা তার বেশি একটি পূর্ণসংখ্যা লিখুন।',
+
   'Enter a valid actual sale date and time.': 'প্রকৃত বিক্রয়ের সঠিক তারিখ ও সময় লিখুন।',
   'Only Admins and Managers can record an earlier sale.': 'শুধু অ্যাডমিন ও ম্যানেজার আগে সম্পন্ন হওয়া বিক্রয় রেকর্ড করতে পারবেন।',
   'The actual sale time cannot be in the future.': 'প্রকৃত বিক্রয়ের সময় ভবিষ্যতে হতে পারবে না।',

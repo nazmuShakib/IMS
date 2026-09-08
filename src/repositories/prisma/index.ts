@@ -1,3 +1,4 @@
+import { findProductsPage, findUnitsPage } from './catalog-pages';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
 import type {
@@ -443,6 +444,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     products: {
+      findPage: (query) => findProductsPage(client, query),
       async findAll(filters) {
         const rows = await client.product.findMany({
           where: {
@@ -523,6 +525,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     units: {
+      findPage: (query) => findUnitsPage(client, query),
       async findById(id) {
         const row = await client.productUnit.findUnique({ where: { id } });
         return row ? unit(row) : null;

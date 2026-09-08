@@ -468,14 +468,16 @@ export async function getDashboard(
   const operations = new Map(dayKeys.map((date) => [date, { stockIn: 0, stockOut: 0 }]));
   const financials = new Map(financialDayKeys.map((date) => [date, { revenue: 0, margin: 0, refunds: 0 }]));
 
+  // Attribute physical stock changes to their event date, including late sales
+  // and incoming trade-ins. Recording timestamps remain in the audit history.
   for (const movement of movements) {
-    const key = dhakaDateKey(new Date(movement.createdAt));
+    const key = dhakaDateKey(new Date(movementOccurredAt(movement)));
     const operation = operations.get(key);
     if (operation && isEffectiveOperation(movement)) {
       if (movement.quantity > 0) operation.stockIn += movement.quantity;
       if (movement.quantity < 0) operation.stockOut += Math.abs(movement.quantity);
     }
-    const financial = financials.get(dhakaDateKey(new Date(movementOccurredAt(movement))));
+    const financial = financials.get(key);
     // Performance charts show only sales that remain valid. Corrections and the
     // original movements they reverse stay in the ledger, but neither is drawn
     // as a new sale or as negative sales performance.
@@ -616,13 +618,13 @@ export async function getDashboard(
   const refurbishmentExpenses = await repositories.refurbishmentExpenses.findAll();
   const stockValueDeltaByDay = new Map(financialDayKeys.map((date) => [date, 0]));
   let runningStockValue = movements
-    .filter((movement) => new Date(movement.createdAt) < rangeStart)
+    .filter((movement) => new Date(movementOccurredAt(movement)) < rangeStart)
     .reduce((sum, movement) => sum + movement.quantity * movement.unitCost, 0);
   runningStockValue += refurbishmentExpenses
     .filter((expense) => new Date(expense.createdAt) < rangeStart)
     .reduce((sum, expense) => sum + expense.amount, 0);
   for (const movement of movements) {
-    const key = dhakaDateKey(new Date(movement.createdAt));
+    const key = dhakaDateKey(new Date(movementOccurredAt(movement)));
     if (stockValueDeltaByDay.has(key)) {
       stockValueDeltaByDay.set(
         key,

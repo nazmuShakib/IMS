@@ -3,12 +3,14 @@ import { notFound } from 'next/navigation';
 import { db } from '@/repositories';
 import { canSeeCosts, getSession } from '@/lib/session';
 import { toProductDTO, toProductUnitDTO } from '@/lib/dto';
-import { getOnHand } from '@/services/stock';
-import { archiveProduct, restoreProduct } from '@/actions/catalog';
+import { unitQuery, type RawParams } from '@/lib/catalog-query';
+import { ArchiveProductControl } from '@/components/catalog/ArchiveProductControl';
+import { restoreProduct } from '@/actions/catalog';
 import { SerializedUnitRegister } from '@/components/catalog/SerializedUnitRegister';
 import {
   Badge,
   Button,
+  ButtonLink,
   Card,
   Money,
   PageHeader,
@@ -19,7 +21,7 @@ import { formatBDT } from '@/lib/money';
 
 export const dynamic = 'force-dynamic';
 
-export default async function ProductPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ProductPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<RawParams> }) {
   const { id } = await params;
   const { role, locale } = await getSession();
   const t = createTranslator(locale);
@@ -29,64 +31,33 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
   if (!raw) notFound();
 
   const product = toProductDTO(raw, role);
-  const [category, brand, onHand, rawUnits] = await Promise.all([
+  const query = unitQuery(await searchParams, id, showCosts);
+  const { page: requestedPage, pageSize, productId, unit, ...confirmedFilters } = query;
+  const [category, brand, result] = await Promise.all([
     db.categories.findById(raw.categoryId),
     raw.brandId ? db.brands.findById(raw.brandId) : Promise.resolve(null),
-    getOnHand(raw),
-    raw.trackingType === 'SERIAL'
-      ? db.units.findByProduct(raw.id)
-      : Promise.resolve([]),
+    raw.trackingType === 'SERIAL' ? db.units.findPage(query) : Promise.resolve(null),
   ]);
-
-  const units = rawUnits
-    .map((u) => toProductUnitDTO(u, role))
-    .sort((a, b) => {
-      // In-stock first — that's what someone at the counter is looking for.
-      if (a.status === 'IN_STOCK' && b.status !== 'IN_STOCK') return -1;
-      if (b.status === 'IN_STOCK' && a.status !== 'IN_STOCK') return 1;
-      return b.receivedAt.localeCompare(a.receivedAt);
-    });
-
-  const inStock = units.filter((u) => u.status === 'IN_STOCK');
-  const usedRows = showCosts
-    ? await Promise.all(rawUnits.filter((unit) => unit.usedGrade).map(async (unit) => ({
-        unit,
-        acquisition: await db.usedDeviceAcquisitions.findByUnit(unit.id),
-        expenses: await db.refurbishmentExpenses.findByUnit(unit.id),
-      })))
-    : [];
-
-  // Valuation is only meaningful if you can see costs.
-  const stockValue = showCosts
-    ? raw.trackingType === 'SERIAL'
-      ? inStock.reduce((sum, u) => sum + (u.costPrice ?? 0), 0)
-      : onHand * raw.avgCostPrice
-    : null;
+  const units = result?.rows.map(u => toProductUnitDTO(u, role)) ?? [];
+  const onHand = result?.inStock ?? raw.quantityOnHand;
+  const stockValue = showCosts ? (result?.stockValue ?? onHand * raw.avgCostPrice) : null;
 
   return (
     <>
+      <Link href="/products" className="mb-3 inline-block text-[13px] text-signal hover:underline">← {t('products.back')}</Link>
       <PageHeader
         title={product.name}
         count={product.sku}
         action={
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {product.isActive && (
-              <Link href={`/stock/in?product=${product.id}`}>
-                <Button>{t('stock.receiveTitle')}</Button>
-              </Link>
+              <ButtonLink href={`/stock/in?product=${product.id}`}>{t('stock.receiveTitle')}</ButtonLink>
             )}
             {role !== 'STAFF' && (
-              <Link href={`/products/${product.id}/edit`}>
-                <Button variant="ghost">{t('common.edit')}</Button>
-              </Link>
+              <ButtonLink href={`/products/${product.id}/edit`} variant="ghost">{t('common.edit')}</ButtonLink>
             )}
             {role === 'ADMIN' && (product.isActive ? (
-              <form action={archiveProduct}>
-                <input type="hidden" name="id" value={product.id} />
-                <Button variant="danger" type="submit">
-                  {t('products.archive')}
-                </Button>
-              </form>
+              <ArchiveProductControl productId={product.id} />
             ) : (
               <form action={restoreProduct}>
                 <input type="hidden" name="id" value={product.id} />
@@ -119,7 +90,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
           </div>
 
           <div className="p-4">
-            <dt className="eyebrow">{t('products.sellingPrice')}</dt>
+            <dt className="eyebrow">{t('products.defaultPrice')}</dt>
             <dd className="mt-1">
               <Money value={product.defaultSalePrice} />
             </dd>
@@ -127,7 +98,7 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
 
           {showCosts && (
             <div className="p-4">
-              <dt className="eyebrow">{t('products.costPrice')}</dt>
+              <dt className="eyebrow">{t('products.defaultCost')}</dt>
               <dd className="mt-1">
                 <Money value={product.defaultCostPrice ?? null} muted />
               </dd>
@@ -192,26 +163,22 @@ export default async function ProductPage({ params }: { params: Promise<{ id: st
       </div>
 
       {/* --- The unit ledger: every physical device, individually ---------- */}
-      {raw.trackingType === 'SERIAL' && (
+      {result && (
         <SerializedUnitRegister
           units={units}
           productId={product.id}
           showCosts={showCosts}
           locale={locale}
           canManageUsedDevices={role !== 'STAFF'}
-          usedDetails={usedRows.map(({ unit, acquisition, expenses }) => ({
-            unitId: unit.id,
-            acquisitionType: acquisition?.type ?? null,
-            sellerName: acquisition?.sellerName ?? null,
-            sellerPhone: acquisition?.sellerPhone ?? null,
-            identificationType: acquisition?.identificationType ?? null,
-            identificationNumber: acquisition?.identificationNumber ?? null,
-            acquisitionValue: acquisition?.acquisitionValue ?? null,
-            reference: acquisition?.reference ?? null,
-            note: acquisition?.note ?? null,
-            acquiredAt: acquisition?.acquiredAt ?? null,
-            refurbishmentTotal: expenses.reduce((sum, expense) => sum + expense.amount, 0),
-          }))}
+          usedDetails={showCosts ? result.usedDetails : []}
+          productActive={product.isActive}
+          confirmedFilters={confirmedFilters}
+          meta={{ page: result.page, pageSize, pageCount: result.pageCount, totalCount: result.totalCount }}
+          unitCount={result.unitCount}
+          inStock={result.inStock}
+          targetStatus={result.targetStatus}
+          targetUnit={unit}
+          resultVersion={crypto.randomUUID()}
         />
       )}
     </>

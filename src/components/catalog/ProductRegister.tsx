@@ -1,44 +1,12 @@
 'use client';
 
-import { useEffect, useState, useTransition, type FormEvent, type ReactNode } from 'react';
-import { useRouter } from 'next/navigation';
-
+import type { FormEvent, ReactNode } from 'react';
 import { useI18n } from '@/components/i18n/I18nProvider';
-import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Button, Card, Field, Input, Select } from '@/components/ui';
-
-export interface ProductFilterValues {
-  q: string;
-  tracking: string;
-  stock: string;
-  category: string;
-  brand: string;
-  status: string;
-  order: string;
-}
-
-const EMPTY_FILTERS: ProductFilterValues = {
-  q: '',
-  tracking: '',
-  stock: '',
-  category: '',
-  brand: '',
-  status: 'active',
-  order: 'name-asc',
-};
-
-function filterUrl(values: ProductFilterValues): string {
-  const params = new URLSearchParams();
-  for (const [key, value] of Object.entries(values)) {
-    const normalized = value.trim();
-    if (!normalized) continue;
-    if (key === 'status' && normalized === 'active') continue;
-    if (key === 'order' && normalized === 'name-asc') continue;
-    params.set(key, normalized);
-  }
-  const query = params.toString();
-  return query ? `/products?${query}` : '/products';
-}
+import { PRODUCT_DEFAULTS, type ProductFilterValues } from '@/lib/catalog-query';
+import { CatalogPagination, CatalogResults, type PageMeta } from './CatalogPagination';
+import { useCatalogNavigation } from './useCatalogNavigation';
+export type { ProductFilterValues } from '@/lib/catalog-query';
 
 export function ProductRegister({
   confirmedFilters,
@@ -47,6 +15,7 @@ export function ProductRegister({
   showCosts,
   resultVersion,
   children,
+  meta,
 }: {
   confirmedFilters: ProductFilterValues;
   categories: Array<{ id: string; name: string }>;
@@ -54,40 +23,18 @@ export function ProductRegister({
   showCosts: boolean;
   resultVersion: string;
   children: ReactNode;
+  meta: PageMeta;
 }) {
-  const router = useRouter();
   const { t } = useI18n();
-  const [values, setValues] = useState(confirmedFilters);
-  const [filtering, setFiltering] = useState(false);
-  const [refreshPending, startRefreshing] = useTransition();
-  const pending = filtering || refreshPending;
-
-  useEffect(() => {
-    setValues(confirmedFilters);
-    setFiltering(false);
-  }, [confirmedFilters, resultVersion]);
-
-  function update(key: keyof ProductFilterValues, value: string) {
-    setValues((current) => ({ ...current, [key]: value }));
-  }
-
-  function navigate(next: ProductFilterValues) {
-    if (pending) return;
-    setValues(next);
-    setFiltering(true);
-    window.history.pushState(null, '', filterUrl(next));
-    startRefreshing(() => router.refresh());
-  }
-
-  function apply(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    navigate(values);
-  }
+  const { values, setValues, pending, navigate } = useCatalogNavigation('/products', confirmedFilters, resultVersion);
+  function update(key: keyof ProductFilterValues, value: string) { setValues(current => ({ ...current, [key]: value })); }
+  function apply(event: FormEvent<HTMLFormElement>) { event.preventDefault(); navigate(values, { page: 1, pageSize: meta.pageSize }); }
+  const activeCount = Object.entries(confirmedFilters).filter(([key, value]) => value !== PRODUCT_DEFAULTS[key as keyof ProductFilterValues]).length;
 
   return (
     <>
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={apply}>
+        <form onSubmit={apply}><fieldset disabled={pending} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div className="sm:col-span-2">
             <Field label={t('common.search')}>
               <Input
@@ -130,7 +77,7 @@ export function ProductRegister({
             <Select value={values.status} onChange={(event) => update('status', event.target.value)}>
               <option value="active">{t('products.activeOnly')}</option>
               <option value="archived">{t('products.archivedOnly')}</option>
-              <option value="all">{t('catalog.allStatuses')}</option>
+              <option value="all">{t('products.allStatuses')}</option>
             </Select>
           </Field>
           <Field label={t('catalog.orderBy')}>
@@ -149,15 +96,17 @@ export function ProductRegister({
           </Field>
           <div className="flex items-end gap-2 sm:col-span-2 lg:col-span-4">
             <Button type="submit" disabled={pending}>{t('common.applyFilters')}</Button>
-            <Button type="button" variant="ghost" disabled={pending} onClick={() => navigate(EMPTY_FILTERS)}>{t('common.reset')}</Button>
+            <Button type="button" variant="ghost" disabled={pending} onClick={() => { setValues(PRODUCT_DEFAULTS); navigate(PRODUCT_DEFAULTS, { page: 1, pageSize: meta.pageSize }); }}>{t('common.reset')}</Button>
           </div>
-        </form>
-        <p className="mt-3 text-[11px] text-graphite">{t('products.deadStockHelp')}</p>
+        </fieldset></form>
+        <p className="mt-3 text-[12px] text-graphite">{t('catalog.appliedFilters', { count: activeCount })}</p>
+        <p className="mt-2 text-[11px] text-graphite">{t('products.deadStockHelp')}</p>
       </Card>
 
-      {pending ? (
-        <Card><LoadingScreen compact label={t('loading.filterProducts')} /></Card>
-      ) : children}
+      <Card>
+        <CatalogResults pending={pending} version={resultVersion}>{children}</CatalogResults>
+        <CatalogPagination meta={meta} pending={pending} onChange={page => navigate(confirmedFilters, page)} />
+      </Card>
     </>
   );
 }

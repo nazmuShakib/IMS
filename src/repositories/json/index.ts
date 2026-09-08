@@ -1,3 +1,4 @@
+import { productPageFromRows, unitPageFromRows } from '@/lib/catalog-query';
 import { saleOccurredAt } from '@/lib/sale-timing';
 import type {
   Brand,
@@ -188,6 +189,12 @@ const productDefaults = (value: Product): Product => ({
 });
 
 const products: ProductRepository = {
+  async findPage(query) {
+    return withLock(async () => {
+      const [products, units, movements] = await Promise.all([readAll<Product>('products'), readAll<ProductUnit>('product-units'), readAll<StockMovement>('stock-movements')]);
+      return productPageFromRows(products, units, movements, query);
+    });
+  },
   async findAll(filters) {
     const rows = await readAll<Product>('products');
     return rows.filter(
@@ -286,6 +293,12 @@ const products: ProductRepository = {
 };
 
 const units: ProductUnitRepository = {
+  async findPage(query) {
+    return withLock(async () => {
+      const [units, acquisitions, expenses] = await Promise.all([readAll<ProductUnit>('product-units'), readAll<UsedDeviceAcquisition>('used-device-acquisitions'), readAll<RefurbishmentExpense>('refurbishment-expenses')]);
+      return unitPageFromRows(units, acquisitions, expenses, query);
+    });
+  },
   async findById(id) {
     return (await readAll<ProductUnit>('product-units')).find((u) => u.id === id) ?? null;
   },

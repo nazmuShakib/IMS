@@ -1,19 +1,19 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
+import { redirect, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
 
 import { db } from '@/repositories';
 import { uuidv7 } from '@/lib/ids';
 import { parseBDT } from '@/lib/money';
+import { productFormSchema } from '@/lib/product-form';
 import { normalizeBangladeshMobile } from '@/lib/phone';
 import { requireCapability } from '@/lib/session';
 import { writeAudit } from '@/lib/audit';
 import {
   createBrandSchema,
   createCategorySchema,
-  createProductSchema,
   createSupplierSchema,
 } from '@/schemas';
 
@@ -95,7 +95,7 @@ export async function createProduct(
 
   let input;
   try {
-    input = createProductSchema.parse({
+    input = productFormSchema.parse({
       sku: str(fd, 'sku') ?? '',
       barcode: str(fd, 'barcode'),
       name: str(fd, 'name') ?? '',
@@ -104,11 +104,11 @@ export async function createProduct(
       trackingType: str(fd, 'trackingType') ?? 'SERIAL',
       categoryId: str(fd, 'categoryId') ?? '',
       brandId: str(fd, 'brandId'),
-      defaultCostPrice: money(fd, 'defaultCostPrice'),
-      defaultSalePrice: money(fd, 'defaultSalePrice'),
-      staffMaxDiscount: actor.role === 'ADMIN' ? money(fd, 'staffMaxDiscount') : 0,
+      defaultCostPrice: str(fd, 'defaultCostPrice') ?? '',
+      defaultSalePrice: str(fd, 'defaultSalePrice') ?? '',
+      staffMaxDiscount: actor.role === 'ADMIN' ? (str(fd, 'staffMaxDiscount') ?? '') : 0,
       taxRate: 0,
-      reorderPoint: int(fd, 'reorderPoint', 5),
+      reorderPoint: str(fd, 'reorderPoint') ?? '5',
       imageUrl: null,
     });
   } catch (err) {
@@ -184,7 +184,7 @@ export async function updateProduct(
 
   let input;
   try {
-    input = createProductSchema.parse({
+    input = productFormSchema.parse({
       sku: str(fd, 'sku') ?? '',
       barcode: str(fd, 'barcode'),
       name: str(fd, 'name') ?? '',
@@ -194,13 +194,13 @@ export async function updateProduct(
       trackingType: existing.trackingType,
       categoryId: str(fd, 'categoryId') ?? '',
       brandId: str(fd, 'brandId'),
-      defaultCostPrice: money(fd, 'defaultCostPrice'),
-      defaultSalePrice: money(fd, 'defaultSalePrice'),
+      defaultCostPrice: str(fd, 'defaultCostPrice') ?? '',
+      defaultSalePrice: str(fd, 'defaultSalePrice') ?? '',
       staffMaxDiscount: actor.role === 'ADMIN'
-        ? money(fd, 'staffMaxDiscount')
+        ? (str(fd, 'staffMaxDiscount') ?? '')
         : existing.staffMaxDiscount,
       taxRate: existing.taxRate,
-      reorderPoint: int(fd, 'reorderPoint', existing.reorderPoint),
+      reorderPoint: str(fd, 'reorderPoint') ?? String(existing.reorderPoint),
       imageUrl: existing.imageUrl,
     });
   } catch (err) {
@@ -264,6 +264,7 @@ export async function archiveProduct(fd: FormData): Promise<void> {
   if (typeof id !== 'string') throw new Error('Missing product id');
 
   const before = await db.products.findById(id);
+  if (!before) throw new Error('Product not found');
   await db.products.softDelete(id);
   await writeAudit({
     actorId: actor.id,
@@ -275,6 +276,11 @@ export async function archiveProduct(fd: FormData): Promise<void> {
   });
   revalidatePath('/products');
   redirect('/products');
+}
+
+export async function archiveProductWithFeedback(_prev: ActionState, fd: FormData): Promise<ActionState> {
+  try { await archiveProduct(fd); return {}; }
+  catch (error) { unstable_rethrow(error); return { error: 'Could not archive this product.' }; }
 }
 
 export async function restoreProduct(fd: FormData): Promise<void> {

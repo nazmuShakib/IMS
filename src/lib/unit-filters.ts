@@ -36,7 +36,7 @@ function dhakaDate(iso: string): string {
   return `${value('year')}-${value('month')}-${value('day')}`;
 }
 
-export function unitProfit(unit: ProductUnitDTO): Paisa | null {
+export function unitProfit(unit: Pick<ProductUnitDTO, 'salePrice' | 'costPrice'>): Paisa | null {
   return unit.salePrice !== null && unit.costPrice !== undefined
     ? unit.salePrice - unit.costPrice
     : null;
@@ -56,10 +56,10 @@ function deviceNumberAscending(left: string, right: string): number {
   }) || left.localeCompare(right, 'en');
 }
 
-export function filterAndOrderUnits(
-  units: readonly ProductUnitDTO[],
+export function filterAndOrderUnits<T extends Pick<ProductUnitDTO, 'id' | 'serialNo' | 'status' | 'receivedAt' | 'location' | 'costPrice' | 'salePrice'>>(
+  units: readonly T[],
   filters: UnitFilters,
-): ProductUnitDTO[] {
+): T[] {
   const query = filters.query.trim().toLocaleLowerCase();
   const location = filters.location.trim().toLocaleLowerCase();
 

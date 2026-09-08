@@ -1,7 +1,7 @@
 'use client';
 
 import { cosmeticSummary } from '@/lib/cosmetic-condition';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { createPortal } from 'react-dom';
 import { Info, X } from 'lucide-react';
@@ -25,28 +25,17 @@ import {
   TableViewport,
 } from '@/components/ui';
 import {
-  filterAndOrderUnits,
   unitProfit,
-  type UnitOrder,
-  type UnitStatusFilter,
 } from '@/lib/unit-filters';
 import { RefurbishmentExpenseForm } from '@/components/stock/RefurbishmentExpenseForm';
 import { UsedDeviceDetailsForm } from '@/components/stock/UsedDeviceDetailsForm';
 import { usedDeviceInspectionGroups } from '@/lib/used-device-inspection';
 
-export interface UsedUnitDetail {
-  unitId: string;
-  acquisitionType: 'DIRECT_PURCHASE' | 'TRADE_IN' | null;
-  sellerName: string | null;
-  sellerPhone: string | null;
-  identificationType: string | null;
-  identificationNumber: string | null;
-  acquisitionValue: number | null;
-  reference: string | null;
-  note: string | null;
-  acquiredAt: string | null;
-  refurbishmentTotal: number;
-}
+import { UNIT_DEFAULTS, catalogUrl, unitRangeErrors, type UnitFilterValues, type UsedUnitDetail, type UnitPageResult } from '@/lib/catalog-query';
+import { CatalogPagination, CatalogResults, type PageMeta } from './CatalogPagination';
+import { useCatalogNavigation } from './useCatalogNavigation';
+import { useModalDialog } from '@/components/ui/useModalDialog';
+export type { UsedUnitDetail } from '@/lib/catalog-query';
 
 const STATUS_TONE: Record<UnitStatus, 'ok' | 'neutral' | 'out' | 'low'> = {
   IN_STOCK: 'ok',
@@ -76,11 +65,6 @@ const dhaka = (iso: string, _locale: Locale) =>
     year: 'numeric',
   });
 
-const paisa = (value: string): number | null => {
-  if (value.trim() === '') return null;
-  const amount = Number(value);
-  return Number.isFinite(amount) ? Math.round(amount * 100) : null;
-};
 
 export function SerializedUnitRegister({
   units,
@@ -89,6 +73,7 @@ export function SerializedUnitRegister({
   locale,
   usedDetails = [],
   canManageUsedDevices = false,
+  productActive, confirmedFilters, meta, unitCount, inStock, targetStatus, targetUnit, resultVersion,
 }: {
   units: ProductUnitDTO[];
   productId: string;
@@ -96,110 +81,87 @@ export function SerializedUnitRegister({
   locale: Locale;
   usedDetails?: UsedUnitDetail[];
   canManageUsedDevices?: boolean;
+  productActive: boolean;
+  confirmedFilters: UnitFilterValues;
+  meta: PageMeta;
+  unitCount: number;
+  inStock: number;
+  targetStatus: UnitPageResult['targetStatus'];
+  targetUnit: string;
+  resultVersion: string;
 }) {
   const { t } = useI18n();
-  const [query, setQuery] = useState('');
-  const [location, setLocation] = useState('');
-  const [status, setStatus] = useState<UnitStatusFilter>('all');
-  const [receivedFrom, setReceivedFrom] = useState('');
-  const [receivedTo, setReceivedTo] = useState('');
-  const [minCost, setMinCost] = useState('');
-  const [maxCost, setMaxCost] = useState('');
-  const [order, setOrder] = useState<UnitOrder>('in-stock-first');
-  const [grade, setGrade] = useState('all');
-  const [acquisitionType, setAcquisitionType] = useState('all');
+  const path = `/products/${productId}`;
+  const { values, setValues, pending, navigate } = useCatalogNavigation(path, confirmedFilters, resultVersion);
+  const [errors, setErrors] = useState<Record<string, string>>(() => unitRangeErrors(confirmedFilters));
+  const { query, location, status, receivedFrom, receivedTo, minCost, maxCost, order, grade, acquisitionType } = values;
+  function update(key: keyof UnitFilterValues, value: string) { setValues(current => ({ ...current, [key]: value })); }
+  function apply(event: React.FormEvent) {
+    event.preventDefault();
+    const nextErrors = unitRangeErrors(values); setErrors(nextErrors);
+    if (!Object.keys(nextErrors).length) navigate(values, { page: 1, pageSize: meta.pageSize });
+  }
+  const handledTarget = useRef('');
+  useEffect(() => {
+    setErrors(unitRangeErrors(confirmedFilters));
+    const hash = window.location.hash;
+    const target = targetUnit || (hash.startsWith('#unit-') ? hash.slice(6) : '');
+    if (!target) return;
+    const row = document.getElementById(`unit-${target}`);
+    if (targetUnit) {
+      handledTarget.current = target;
+      window.history.replaceState(null, '', catalogUrl(path, confirmedFilters, meta) + `#unit-${target}`);
+    }
+    if (row) {
+      handledTarget.current = target;
+      const frame = requestAnimationFrame(() => {
+        const viewport = row.closest<HTMLElement>('.contextual-scroll-area');
+        if (viewport) viewport.scrollTop += row.getBoundingClientRect().top - viewport.getBoundingClientRect().top - 48;
+        row.focus({ preventScroll: true });
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+    if (!targetUnit && handledTarget.current !== target) {
+      handledTarget.current = target;
+      navigate(confirmedFilters, meta, target, true);
+    }
+  }, [resultVersion]);
   const [detailsUnitId, setDetailsUnitId] = useState<string | null>(null);
   const usedByUnit = useMemo(() => new Map(usedDetails.map((detail) => [detail.unitId, detail])), [usedDetails]);
   const detailsUnit = detailsUnitId ? units.find((unit) => unit.id === detailsUnitId) ?? null : null;
   const detailsAcquisition = detailsUnit ? usedByUnit.get(detailsUnit.id) : undefined;
 
-  useEffect(() => {
-    if (!detailsUnitId) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    const bodyPaddingRight = Number.parseFloat(window.getComputedStyle(document.body).paddingRight) || 0;
-    if (scrollbarWidth > 0) document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
-    document.body.style.overflow = 'hidden';
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') setDetailsUnitId(null);
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
-      window.removeEventListener('keydown', closeOnEscape);
-    };
-  }, [detailsUnitId]);
-
-  const filtered = useMemo(
-    () => filterAndOrderUnits(units, {
-      query,
-      location,
-      status,
-      receivedFrom,
-      receivedTo,
-      minCost: showCosts ? paisa(minCost) : null,
-      maxCost: showCosts ? paisa(maxCost) : null,
-      order,
-    }).filter((unit) => (
-      (grade === 'all' || (grade === 'NEW' ? !unit.usedGrade : unit.usedGrade === grade))
-      && (acquisitionType === 'all' || usedByUnit.get(unit.id)?.acquisitionType === acquisitionType)
-    )),
-    [units, query, location, status, receivedFrom, receivedTo, minCost, maxCost, order, showCosts, grade, acquisitionType, usedByUnit],
-  );
-  const inStock = units.filter((unit) => unit.status === 'IN_STOCK').length;
-
-  const reset = () => {
-    setQuery('');
-    setLocation('');
-    setStatus('all');
-    setReceivedFrom('');
-    setReceivedTo('');
-    setMinCost('');
-    setMaxCost('');
-    setOrder('in-stock-first');
-    setGrade('all');
-    setAcquisitionType('all');
-  };
+  const dialogRef = useModalDialog(Boolean(detailsUnit), () => setDetailsUnitId(null));
+  const filtered = units;
+  const reset = () => { setValues(UNIT_DEFAULTS); setErrors({}); navigate(UNIT_DEFAULTS, { page: 1, pageSize: meta.pageSize }, targetStatus === 'filtered' ? targetUnit : undefined); };
+  const activeCount = Object.entries(confirmedFilters).filter(([key, value]) => value !== UNIT_DEFAULTS[key as keyof UnitFilterValues]).length;
 
   return (
     <Card>
       <div className="border-b border-rule px-4 py-3">
         <p className="text-[13px] font-medium">{t('stock.units')}</p>
         <p className="tnum mt-0.5 text-[11px] text-graphite">
-          {t('products.unitsSummary', { stock: inStock, total: units.length })}
+          {t('products.unitsSummary', { stock: inStock, total: unitCount })}
         </p>
       </div>
 
-      {units.length === 0 ? (
-        <EmptyState
-          title={t('products.noUnits')}
-          action={
-            <Link href={`/stock/in?product=${productId}`}>
-              <Button variant="ghost">{t('stock.receiveTitle')}</Button>
-            </Link>
-          }
-        />
-      ) : (
-        <>
           <div className="border-b border-rule bg-plate/20 p-4">
-            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <form onSubmit={apply}><fieldset disabled={pending} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
               <Field label={t('products.unitSearch')}>
                 <MonoInput
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(event) => update('query', event.target.value)}
                   placeholder={t('products.unitSearchPlaceholder')}
                 />
               </Field>
               <Field label={t('common.status')}>
-                <Select value={status} onChange={(event) => setStatus(event.target.value as UnitStatusFilter)}>
+                <Select value={status} onChange={(event) => update('status', event.target.value)}>
                   <option value="all">{t('products.allUnitStatuses')}</option>
                   {STATUSES.map((value) => <option key={value} value={value}>{domainLabel(t, value)}</option>)}
                 </Select>
               </Field>
               <Field label={t('used.grade')}>
-                <Select value={grade} onChange={(event) => setGrade(event.target.value)}>
+                <Select value={grade} onChange={(event) => update('grade', event.target.value)}>
                   <option value="all">{t('common.all')}</option>
                   <option value="NEW">{t('used.newStock')}</option>
                   <option value="GRADE_A">{t('used.gradeA')}</option>
@@ -209,37 +171,37 @@ export function SerializedUnitRegister({
                 </Select>
               </Field>
               {showCosts && <Field label={t('used.acquisitionType')}>
-                <Select value={acquisitionType} onChange={(event) => setAcquisitionType(event.target.value)}>
+                <Select value={acquisitionType} onChange={(event) => update('acquisitionType', event.target.value)}>
                   <option value="all">{t('common.all')}</option>
                   <option value="DIRECT_PURCHASE">{t('used.directPurchase')}</option>
                   <option value="TRADE_IN">{t('used.tradeIn')}</option>
                 </Select>
               </Field>}
-              <Field label={t('products.receivedFrom')}>
-                <Input type="date" value={receivedFrom} onChange={(event) => setReceivedFrom(event.target.value)} />
+              <Field label={t('products.receivedFrom')} error={errors.receivedFrom ? t(errors.receivedFrom as import('@/lib/i18n/messages').MessageKey) : undefined} errorId="unit-receivedFrom-error">
+                <Input type="date" aria-invalid={Boolean(errors.receivedFrom)} aria-describedby={errors.receivedFrom ? 'unit-receivedFrom-error' : undefined} value={receivedFrom} onChange={(event) => update('receivedFrom', event.target.value)} />
               </Field>
-              <Field label={t('products.receivedTo')}>
-                <Input type="date" value={receivedTo} onChange={(event) => setReceivedTo(event.target.value)} />
+              <Field label={t('products.receivedTo')} error={errors.receivedTo ? t(errors.receivedTo as import('@/lib/i18n/messages').MessageKey) : undefined} errorId="unit-receivedTo-error">
+                <Input type="date" aria-invalid={Boolean(errors.receivedTo)} aria-describedby={errors.receivedTo ? 'unit-receivedTo-error' : undefined} value={receivedTo} onChange={(event) => update('receivedTo', event.target.value)} />
               </Field>
               <Field label={t('stock.location')}>
                 <Input
                   value={location}
-                  onChange={(event) => setLocation(event.target.value)}
+                  onChange={(event) => update('location', event.target.value)}
                   placeholder={t('products.locationPlaceholder')}
                 />
               </Field>
               {showCosts && (
-                <Field label={t('products.minimumCost')}>
-                  <MonoInput inputMode="decimal" value={minCost} onChange={(event) => setMinCost(event.target.value)} placeholder="0.00" />
+                <Field label={t('products.minimumCost')} error={errors.minCost ? t(errors.minCost as import('@/lib/i18n/messages').MessageKey) : undefined} errorId="unit-minCost-error">
+                  <MonoInput inputMode="decimal" aria-invalid={Boolean(errors.minCost)} aria-describedby={errors.minCost ? 'unit-minCost-error' : undefined} value={minCost} onChange={(event) => update('minCost', event.target.value)} placeholder="0.00" />
                 </Field>
               )}
               {showCosts && (
-                <Field label={t('products.maximumCost')}>
-                  <MonoInput inputMode="decimal" value={maxCost} onChange={(event) => setMaxCost(event.target.value)} placeholder={t('products.noMaximum')} />
+                <Field label={t('products.maximumCost')} error={errors.maxCost ? t(errors.maxCost as import('@/lib/i18n/messages').MessageKey) : undefined} errorId="unit-maxCost-error">
+                  <MonoInput inputMode="decimal" aria-invalid={Boolean(errors.maxCost)} aria-describedby={errors.maxCost ? 'unit-maxCost-error' : undefined} value={maxCost} onChange={(event) => update('maxCost', event.target.value)} placeholder={t('products.noMaximum')} />
                 </Field>
               )}
               <Field label={t('catalog.orderBy')}>
-                <Select value={order} onChange={(event) => setOrder(event.target.value as UnitOrder)}>
+                <Select value={order} onChange={(event) => update('order', event.target.value)}>
                   <option value="in-stock-first">{t('products.orderInStock')}</option>
                   <option value="newest">{t('products.orderNewest')}</option>
                   <option value="oldest">{t('products.orderOldest')}</option>
@@ -250,17 +212,20 @@ export function SerializedUnitRegister({
                   <option value="serial-asc">{t('products.orderDeviceNumber')}</option>
                 </Select>
               </Field>
-            </div>
+            </fieldset>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
               <p className="tnum text-[12px] text-graphite">
-                {t('products.filteredUnits', { shown: filtered.length, total: units.length })}
+                {t('catalog.appliedFilters', { count: activeCount })}
               </p>
-              <Button type="button" variant="ghost" onClick={reset}>{t('common.reset')}</Button>
-            </div>
+              <div className="flex gap-2"><Button type="submit" disabled={pending}>{t('common.applyFilters')}</Button><Button type="button" variant="ghost" disabled={pending} onClick={reset}>{t('common.reset')}</Button></div>
+            </div></form>
           </div>
 
+          {targetStatus && targetStatus !== 'found' && <p role="status" className="px-4 py-3 text-[13px] text-low">{t(targetStatus === 'filtered' ? 'catalog.targetFiltered' : 'catalog.targetMissing')}</p>}
+          <CatalogResults pending={pending} version={resultVersion}>
           {filtered.length === 0 ? (
-            <EmptyState title={t('products.noUnitMatches')} />
+            <EmptyState title={t(unitCount === 0 ? 'products.noUnits' : 'products.noUnitMatches')}
+              action={unitCount === 0 && productActive ? <Link className="inline-flex h-9 items-center rounded-[3px] border border-rule bg-card px-3.5 text-[13px] hover:bg-plate" href={`/stock/in?product=${productId}`}>{t('stock.receiveTitle')}</Link> : undefined} />
           ) : (
             <TableViewport>
               <table className="w-full min-w-[64rem] table-auto">
@@ -279,11 +244,11 @@ export function SerializedUnitRegister({
                   {filtered.map((unit) => {
                     const profit = showCosts ? unitProfit(unit) : null;
                     return (
-                      <tr id={`unit-${unit.id}`} key={unit.id} className="scroll-mt-4 border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/50 target:bg-signal-wash">
+                      <tr id={`unit-${unit.id}`} tabIndex={-1} key={unit.id} className="scroll-mt-4 border-b border-rule-soft transition-colors last:border-0 hover:bg-plate/50 target:bg-signal-wash">
                         <td className="px-4 py-2.5">
                           <SerialChip serial={unit.serialNo} dim={unit.status !== 'IN_STOCK'} />
                           {unit.usedGrade && <Badge tone="signal">{unit.usedGrade === 'REFURBISHED' ? t('used.refurbished') : unit.usedGrade.replace('GRADE_', `${t('used.grade')} `)}</Badge>}
-                          {unit.status === 'IN_STOCK' && (
+                          {unit.status === 'IN_STOCK' && productActive && (
                             <>
                               {unit.location && <span className="ml-2 text-[11px] text-graphite">{unit.location}</span>}
                               <Link href={`/checkout?serial=${encodeURIComponent(unit.serialNo)}`} className="ml-2 text-[11px] text-signal underline underline-offset-2">
@@ -319,14 +284,14 @@ export function SerializedUnitRegister({
               </table>
             </TableViewport>
           )}
-        </>
-      )}
+          </CatalogResults>
+      <CatalogPagination meta={meta} pending={pending} onChange={page => navigate(confirmedFilters, page)} />
       {detailsUnit && createPortal(
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-ink/45 p-3" onMouseDown={(event) => event.target === event.currentTarget && setDetailsUnitId(null)}>
-          <div role="dialog" aria-modal="true" className="flex max-h-[92dvh] w-full max-w-6xl flex-col rounded-[3px] border border-rule bg-card shadow-xl">
+          <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="unit-inspection-title" className="flex max-h-[92dvh] w-full max-w-6xl flex-col rounded-[3px] border border-rule bg-card shadow-xl">
             <div className="flex shrink-0 items-start justify-between gap-3 border-b border-rule p-4 sm:p-5">
               <div>
-                <h2 className="text-[18px] font-semibold">{detailsUnit.usedGrade === 'REFURBISHED' ? t('used.refurbished') : t('used.usedPhone')}</h2>
+                <h2 id="unit-inspection-title" className="text-[18px] font-semibold">{detailsUnit.usedGrade === 'REFURBISHED' ? t('used.refurbished') : t('used.usedPhone')}</h2>
                 <div className="mt-2 flex flex-wrap items-center gap-2"><SerialChip serial={detailsUnit.serialNo} /><Badge tone="signal">{detailsUnit.usedGrade === 'REFURBISHED' ? t('used.refurbished') : detailsUnit.usedGrade?.replace('GRADE_', `${t('used.grade')} `)}</Badge><Badge tone={STATUS_TONE[detailsUnit.status]}>{domainLabel(t, detailsUnit.status)}</Badge></div>
               </div>
               <button type="button" aria-label={t('common.close')} onClick={() => setDetailsUnitId(null)} className="flex size-9 shrink-0 items-center justify-center rounded-[3px] border border-rule hover:bg-plate"><X size={18} /></button>

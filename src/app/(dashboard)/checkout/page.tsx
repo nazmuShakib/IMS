@@ -1,3 +1,4 @@
+import { canSeeCosts } from '@/lib/permissions';
 import { CheckoutWorkspace } from '@/components/checkout/CheckoutWorkspace';
 import { PageHeader } from '@/components/ui';
 import { getSession, requirePageCapability } from '@/lib/session';
@@ -54,6 +55,7 @@ export default async function CheckoutPage({
             : product.quantityOnHand,
           barcode: product.barcode,
           listUnitPrice: product.defaultSalePrice,
+          ...(canSeeCosts(actor.role) && product.trackingType === 'QUANTITY' ? { costPrice: product.avgCostPrice } : {}),
           staffMaxDiscount: product.staffMaxDiscount,
         }))}
         units={units.flatMap((unit) => {
@@ -65,6 +67,7 @@ export default async function CheckoutPage({
             sku: product.sku,
             serialNo: unit.serialNo,
             usedGrade: unit.usedGrade ?? null,
+            ...(canSeeCosts(actor.role) ? { costPrice: unit.costPrice } : {}),
             listUnitPrice: unit.askingPrice ?? (unit.usedGrade === 'REFURBISHED' ? unit.costPrice : product.defaultSalePrice),
             staffMaxDiscount: product.staffMaxDiscount,
             knownDefects: unit.knownDefects ?? null,

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import type {
   ReactNode,
   ButtonHTMLAttributes,
@@ -35,23 +36,28 @@ export function Field({
   label,
   hint,
   error,
+  errorId,
+  inputId,
   children,
 }: {
   label: ReactNode;
   hint?: string;
   error?: ReactNode;
+  errorId?: string;
+  inputId?: string;
   children: ReactNode;
 }) {
+  const Container = inputId ? 'div' : 'label';
   return (
-    <label className="block">
-      <span className="eyebrow mb-1.5 block">{label}</span>
+    <Container className="block">
+      {inputId ? <label htmlFor={inputId} className="eyebrow mb-1.5 block">{label}</label> : <span className="eyebrow mb-1.5 block">{label}</span>}
       {children}
       {error ? (
-        <span className="mt-1 block text-[12px] text-out">{error}</span>
+        <span id={errorId} className="mt-1 block text-[12px] text-out">{error}</span>
       ) : hint ? (
         <span className="mt-1 block text-[12px] text-graphite">{hint}</span>
       ) : null}
-    </label>
+    </Container>
   );
 }
 
@@ -193,30 +199,8 @@ export function SerialChip({ serial, dim = false }: { serial: string; dim?: bool
 
 /* --- Stock status --------------------------------------------------------- */
 
-export type StockLevel = 'ok' | 'low' | 'out';
-
-export function stockLevel(onHand: number, reorderPoint: number): StockLevel {
-  if (onHand <= 0) return 'out';
-  if (onHand <= reorderPoint) return 'low';
-  return 'ok';
-}
-
-export function StockCount({ onHand, reorderPoint }: { onHand: number; reorderPoint: number }) {
-  const level = stockLevel(onHand, reorderPoint);
-  const tone = {
-    ok: 'text-ink',
-    low: 'text-low',
-    out: 'text-out',
-  }[level];
-  const note = { ok: '', low: 'low', out: 'out of stock' }[level];
-
-  return (
-    <span className="inline-flex items-baseline gap-1.5">
-      <span className={`tnum text-[13px] font-medium ${tone}`}>{onHand}</span>
-      {note && <span className={`text-[11px] ${tone}`}>{note}</span>}
-    </span>
-  );
-}
+export { stockLevel, type StockLevel } from '@/lib/stock-level';
+export { StockCount } from './StockCount';
 
 export function Badge({
   children,
@@ -240,4 +224,9 @@ export function Badge({
       {children}
     </span>
   );
+}
+
+/** Navigation has one interactive element, with the same visual treatment as buttons. */
+export function ButtonLink({ href, children, variant = 'primary', className = '' }: { href: string; children: ReactNode; variant?: 'primary' | 'ghost'; className?: string }) {
+  return <Link href={href} className={`inline-flex h-9 items-center justify-center rounded-[3px] border px-3.5 text-[13px] font-medium transition-colors ${variant === 'primary' ? 'bg-signal text-white hover:bg-signal/90 border-signal' : 'bg-card text-ink hover:bg-plate border-rule'} ${className}`}>{children}</Link>;
 }

@@ -95,7 +95,7 @@ export function CommandPalette() {
             (unit) => unit.serialNo.toLowerCase() === scanned.toLowerCase(),
           );
           if (exactUnit) {
-            go(`/products/${exactUnit.productId}#unit-${exactUnit.id}`);
+            go(`/products/${exactUnit.productId}?unit=${encodeURIComponent(exactUnit.id)}#unit-${exactUnit.id}`);
             return;
           }
           const exactProduct = nextResults.products.find((product) =>
@@ -210,7 +210,7 @@ export function CommandPalette() {
                     <Command.Item
                       key={unit.id}
                       value={`unit-${unit.id}`}
-                      onSelect={() => go(`/products/${unit.productId}#unit-${unit.id}`)}
+                      onSelect={() => go(`/products/${unit.productId}?unit=${encodeURIComponent(unit.id)}#unit-${unit.id}`)}
                       className="flex min-w-0 cursor-pointer flex-col items-start gap-2 rounded-[3px] px-3 py-3 text-[13px] data-[selected=true]:bg-signal-wash data-[selected=true]:text-signal sm:flex-row sm:justify-between sm:gap-4"
                     >
                       <span className="min-w-0 max-w-full">

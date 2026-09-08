@@ -39,19 +39,6 @@ describe('pre-Phase 10 catalog and ledger UX', () => {
     expect(page).toContain('name="to"');
   });
 
-  it('supports product identity, tracking, stock, catalog and price ordering filters', () => {
-    const register = source('src/components/catalog/ProductRegister.tsx');
-    const page = source('src/app/(dashboard)/products/page.tsx');
-    for (const field of ['q', 'tracking', 'stock', 'category', 'brand', 'status', 'order']) {
-      expect(register).toContain(`${field}:`);
-    }
-    for (const value of ['SERIAL', 'QUANTITY', 'on-hand', 'low', 'out', 'dead', 'newest', 'oldest', 'cost-desc', 'price-desc', 'name-desc']) {
-      expect(register).toContain(`value="${value}"`);
-    }
-    expect(register).toContain("t('loading.filterProducts')");
-    expect(page).toContain('60 * DAY_MS');
-    expect(page).toContain("movement.reason === 'CORRECTION'");
-    expect(page).toContain('product.model');
-    expect(page).toContain('product.barcode');
-  });
+  // Product filters and dead-stock behavior are covered by catalog-pagination.test.ts
+  // and real SQL parity checks in catalog-postgres.test.ts.
 });

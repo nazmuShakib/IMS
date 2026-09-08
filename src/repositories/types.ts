@@ -1,3 +1,5 @@
+import type { ProductQuery, ProductPageResult, UnitQuery, UnitPageResult } from '@/lib/catalog-query';
+export type { PageRequest, PageResult } from '@/lib/catalog-query';
 import type {
   Brand,
   Category,
@@ -87,6 +89,7 @@ export interface UserRepository {
 }
 
 export interface ProductRepository {
+  findPage(query: ProductQuery): Promise<ProductPageResult>;
   findAll(filters?: { categoryId?: string; brandId?: string; activeOnly?: boolean }): Promise<Product[]>;
   findById(id: string): Promise<Product | null>;
   findBySku(sku: string): Promise<Product | null>;
@@ -112,6 +115,7 @@ export interface ProductRepository {
 }
 
 export interface ProductUnitRepository {
+  findPage(query: UnitQuery): Promise<UnitPageResult>;
   findById(id: string): Promise<ProductUnit | null>;
   findBySerial(serialNo: string): Promise<ProductUnit | null>;
   findBySerials(serialNos: readonly string[]): Promise<ProductUnit[]>;

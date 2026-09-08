@@ -64,6 +64,10 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
   const busy = locked || pending || Boolean(accepted?.job);
 
   useEffect(() => {
+    scannerRef.current?.focus();
+  }, []);
+
+  useEffect(() => {
     // A refresh updates availability, not the operator's selection or print settings.
     const routeUpdated = resultRef.current !== resultVersion || contextRef.current !== selectionContext;
     if (resultRef.current !== resultVersion) { resultRef.current = resultVersion; setScannedUnits([]); }
@@ -73,7 +77,6 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
       setStatusFilter(canReprint && initialUnitIds.length ? 'ALL' : 'IN_STOCK');
       setCopies(receiptId ? String(initialCopies) : '1');
       setErrors({}); setFormError(''); setScanError('');
-      setTimeout(() => scannerRef.current?.focus(), 0);
     }
     if (routeUpdated) { setSelectedProductId(product?.id ?? ''); setNavigating(false); }
   }, [product?.id, selectionContext, resultVersion, initialUnitIds, initialCopies, receiptId, canReprint]);
@@ -127,6 +130,13 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
   const hiddenCount = selected.size - visibleUnits.filter(unit => selected.has(unit.id)).length;
   const nonStockCount = selectedUnits.filter(unit => unit.status !== 'IN_STOCK').length;
   const parsedCopies = labelCopiesSchema.safeParse(copies);
+  const maximumCopies = product?.trackingType === 'SERIAL' && selected.size ? Math.floor(500 / selected.size) : 500;
+  function stepCopies(change: -1 | 1) {
+    if (!parsedCopies.success) return;
+    const next = parsedCopies.data + change;
+    if (next < 1 || (change > 0 && next > maximumCopies)) return;
+    setCopies(String(next)); edited();
+  }
   const count = parsedCopies.success ? parsedCopies.data * (product?.trackingType === 'SERIAL' ? selected.size : 1) : 0;
   const copiesError = !parsedCopies.success ? 'labels.invalidCopies' : count > 500 ? 'labels.maxError' : errors.copies;
   const missingBarcode = product?.trackingType === 'QUANTITY' && !product.barcode;
@@ -169,7 +179,6 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
     } catch { setScanError('labels.scanFailed'); }
     finally {
       scanFlight.current = false; setSearching(false); setScanValue('');
-      setTimeout(() => scannerRef.current?.focus(), 0);
     }
   }
   function submitPrint(event: FormEvent<HTMLFormElement>) {
@@ -211,7 +220,7 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
             {missingBarcode && hasPermission(role, 'MANAGE_CATALOG') && <Link href={`/products/${product.id}/edit`} className="mt-2 inline-block text-[13px] text-signal underline">{t('labels.editProduct')}</Link>}
             {product.trackingType === 'SERIAL' ? <div data-unit-selection tabIndex={-1} aria-invalid={Boolean(unitsError)} aria-describedby={unitsError ? `${id}-unitIds-error` : undefined} className="mt-4">
               <div className="grid items-start gap-4 lg:grid-cols-3">
-                <Field label={t('labels.searchDevices')}><Input value={unitQuery} onChange={event => setUnitQuery(event.target.value)} /></Field>
+                <Field label={t('labels.searchDevices')}><Input placeholder={t('labels.searchDevicesPlaceholder')} value={unitQuery} onChange={event => setUnitQuery(event.target.value)} /></Field>
                 <Field label={t('labels.unitStatus')}><Select value={statusFilter} onChange={event => setStatusFilter(event.target.value as UnitStatus | 'ALL')}><option value="IN_STOCK">{t('common.inStock')}</option>{canReprint && <option value="ALL">{t('labels.allStatuses')}</option>}{canReprint && [...new Set(allUnits.map(unit => unit.status))].filter(status => status !== 'IN_STOCK').map(status => <option key={status} value={status}>{domainLabel(t, status)}</option>)}</Select></Field>
                 <div className="text-[12px]"><p role="status">{t('labels.selectionCount', { count: selected.size, hidden: hiddenCount })}</p>{nonStockCount > 0 && <p className="mt-1 text-out">{t('labels.nonStockCount', { count: nonStockCount })}</p>}<label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={onlySelected} onChange={event => { setOnlySelected(event.target.checked); if (event.target.checked) { setUnitQuery(''); setStatusFilter(canReprint ? 'ALL' : 'IN_STOCK'); } }} />{t('labels.showSelected')}</label></div>
               </div>
@@ -220,7 +229,13 @@ export function StockLabelStudio({ products, product, units, initialUnitIds, ini
               {inlineError('unitIds', unitsError)}
             </div> : !missingBarcode && <p className="mt-3 text-[12px] text-graphite">{t('labels.bulkHelp', { identifier: t('labels.productBarcode') })}</p>}
             <div className="mt-5 grid gap-4 sm:grid-cols-3">
-              <div><Field label={product.trackingType === 'SERIAL' ? t('labels.copies') : t('labels.number')}><Input name="copies" type="number" min={1} max={500} step={1} value={copies} onChange={event => { setCopies(event.target.value); edited(); }} aria-invalid={Boolean(copiesError)} aria-describedby={copiesError ? `${id}-copies-error ${id}-copies-help` : `${id}-copies-help`} /></Field>{inlineError('copies', copiesError)}<p id={`${id}-copies-help`} className="mt-1 text-[11px] text-graphite">{product.trackingType === 'SERIAL' && selected.size ? t('labels.maxCopies', { count: Math.floor(500 / selected.size) }) : t('labels.rangeHelp')}</p></div>
+              <div><Field label={product.trackingType === 'SERIAL' ? t('labels.copies') : t('labels.number')}><div className="grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem]">
+                <button type="button" aria-label={t('labels.decreaseCount')} onClick={() => stepCopies(-1)} disabled={!parsedCopies.success || parsedCopies.data <= 1}
+                  className="inline-flex h-9 items-center justify-center rounded-l-[3px] border border-r-0 border-rule bg-plate/50 text-[18px] leading-none text-ink transition-colors hover:bg-signal-wash hover:text-signal focus-visible:z-10 disabled:cursor-not-allowed disabled:opacity-40">−</button>
+                <Input name="copies" inputMode="numeric" className="relative rounded-none px-1 text-center focus:z-10" value={copies} onChange={event => { setCopies(event.target.value); edited(); }} aria-invalid={Boolean(copiesError)} aria-describedby={copiesError ? `${id}-copies-error ${id}-copies-help` : `${id}-copies-help`} />
+                <button type="button" aria-label={t('labels.increaseCount')} onClick={() => stepCopies(1)} disabled={!parsedCopies.success || parsedCopies.data >= maximumCopies}
+                  className="inline-flex h-9 items-center justify-center rounded-r-[3px] border border-l-0 border-rule bg-plate/50 text-[18px] leading-none text-signal transition-colors hover:bg-signal-wash focus-visible:z-10 disabled:cursor-not-allowed disabled:opacity-40">+</button>
+              </div></Field>{inlineError('copies', copiesError)}<p id={`${id}-copies-help`} className="mt-1 text-[11px] text-graphite">{product.trackingType === 'SERIAL' && selected.size ? t('labels.maxCopies', { count: Math.floor(500 / selected.size) }) : t('labels.rangeHelp')}</p></div>
               <div><Field label={t('labels.layout')}><Select name="layout" value={layout} onChange={event => { setLayout(event.target.value as 'thermal' | 'a4'); edited(); }} aria-invalid={Boolean(errors.layout)} aria-describedby={errors.layout ? `${id}-layout-error` : undefined}><option value="thermal">{t('labels.thermal')}</option><option value="a4">{t('labels.a4')}</option></Select></Field>{inlineError('layout', errors.layout)}</div>
               <div><div className="grid w-max"><p className="eyebrow mb-1.5">{t('labels.total')}</p><p role="status" className="border border-rule bg-card px-2.5 py-1 text-center text-[16px] font-semibold">{t('labels.count', { count, kind: t(count === 1 ? 'labels.label' : 'labels.labels') })}</p></div>{product.trackingType === 'SERIAL' && parsedCopies.success && <p className="mt-1 text-[12px] text-graphite">{t('labels.calculation', { devices: selected.size, copies: parsedCopies.data, count })}</p>}</div>
             </div>

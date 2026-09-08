@@ -13,17 +13,9 @@ describe('Phase 10 controlled selling', () => {
     expect(productStaffDiscountFieldsSchema.safeParse({ staffMaxDiscount: '-1' }).success).toBe(false);
     expect(productStaffDiscountFieldsSchema.safeParse({ staffMaxDiscount: '1.234' }).success).toBe(false);
 
-    const form = source('src/components/catalog/ProductForm.tsx');
     const details = source('src/app/(dashboard)/products/[id]/page.tsx');
-    const action = source('src/actions/catalog.ts');
-    expect(form).toContain('productStaffDiscountFieldsSchema.safeParse');
-    expect(form).toContain('onSubmit={(event) =>');
-    expect(form).toContain('noValidate');
-    expect(form).toContain('onInputCapture={(event) => receiveBrowserValue(event.target)}');
-    expect(form).toContain('onChangeCapture={(event) => receiveBrowserValue(event.target)}');
-    expect(form).toContain('clearedServerErrors.has(key)');
-    expect(action).toContain("actor.role === 'ADMIN' ? money(fd, 'staffMaxDiscount') : 0");
-    expect(action).toContain(': existing.staffMaxDiscount');
+    // Controlled field preservation and the shared form schema are tested through
+    // actual submissions in catalog-ui.test.tsx.
     expect(details).toContain('<Money value={raw.staffMaxDiscount} />');
     expect(details).toContain("t('products.staffMinimumPrice')");
   });

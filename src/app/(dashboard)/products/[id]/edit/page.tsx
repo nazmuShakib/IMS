@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { db } from '@/repositories';
 import { getSession, requirePageRole } from '@/lib/session';
@@ -34,6 +35,7 @@ export default async function EditProductPage({
 
   return (
     <>
+      <Link href="/products" className="mb-3 inline-block text-[13px] text-signal hover:underline">← {t('products.back')}</Link>
       <PageHeader title={t('products.edit')} count={product.sku} />
       <ProductForm
         action={updateProduct}
