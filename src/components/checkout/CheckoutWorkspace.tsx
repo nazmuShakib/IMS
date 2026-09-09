@@ -1859,6 +1859,7 @@ export function CheckoutWorkspace({
             </Button>
           </div>
           <CreateCustomerForm
+            submitLabel={t('checkout.createSelect')}
             onCreated={(customerId) => {
               chooseCustomer(customerId);
               setCreatingCustomer(false);

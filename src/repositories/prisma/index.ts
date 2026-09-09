@@ -1,3 +1,4 @@
+import { customerSearchTerms } from '@/lib/customer-query';
 import { withCatalogLock, guardTaxonomyWrite, guardProductTaxonomy } from './taxonomy-guards';
 import { findTaxonomyPage } from './taxonomy-pages';
 import { findProductsPage, findUnitsPage } from './catalog-pages';
@@ -733,6 +734,20 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     customers: {
+      async findPage(query) {
+        const { term, digits, normalized } = customerSearchTerms(query.q);
+        const where: Prisma.CustomerWhereInput = term ? { OR: [
+          { name: { contains: term, mode: 'insensitive' } }, { phone: { contains: term } },
+          ...(digits ? [{ phoneNormalized: { contains: digits } }] : []),
+          ...(normalized ? [{ phoneNormalized: normalized }] : []),
+        ] } : {};
+        const totalCount = await client.customer.count({ where });
+        const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize));
+        const page = Math.min(query.page, pageCount);
+        const rows = await client.customer.findMany({ where, select: { id: true, name: true, phone: true, isActive: true },
+          orderBy: [{ name: 'asc' }, { createdAt: 'desc' }, { id: 'asc' }], take: query.pageSize, skip: (page - 1) * query.pageSize });
+        return { rows, totalCount, pageCount, page, pageSize: query.pageSize };
+      },
       async findAll(activeOnly = false) {
         return (await client.customer.findMany({
           where: activeOnly ? { isActive: true } : undefined,
@@ -857,6 +872,19 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     sales: {
+      async findCustomerHistoryPage(customerId, request) {
+        const where = { customerId };
+        const [totalCount, summary] = await Promise.all([
+          client.sale.count({ where }),
+          client.sale.aggregate({ where: { ...where, status: 'COMPLETED' }, _count: true, _sum: { total: true } }),
+        ]);
+        const pageCount = Math.max(1, Math.ceil(totalCount / request.pageSize));
+        const page = Math.min(request.page, pageCount);
+        const rows = (await client.sale.findMany({ where, orderBy: [{ occurredAt: 'desc' }, { id: 'asc' }],
+          take: request.pageSize, skip: (page - 1) * request.pageSize })).map(sale);
+        return { rows, totalCount, pageCount, page, pageSize: request.pageSize,
+          completedPurchases: summary._count, lifetimeSales: summary._sum.total ?? 0 };
+      },
       async nextInvoiceNumber(now) {
         const year = dhakaYear(now);
         const sequence = await client.documentSequence.upsert({

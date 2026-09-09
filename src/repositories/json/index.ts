@@ -1,3 +1,4 @@
+import { customerPageFromRows, customerHistoryFromRows } from '@/lib/customer-query';
 import { taxonomySlug } from '@/lib/taxonomy-form';
 import { taxonomyPageFromRows } from '@/lib/catalog-taxonomy';
 import { productPageFromRows, unitPageFromRows } from '@/lib/catalog-query';
@@ -532,6 +533,7 @@ const warranties: WarrantyRepository = {
 };
 
 const customers: CustomerRepository = {
+  async findPage(query) { return customerPageFromRows(await readAll<Customer>('customers'), query); },
   async findAll(activeOnly = false) {
     return (await readAll<Customer>('customers'))
       .filter((item) => !activeOnly || item.isActive)
@@ -667,6 +669,7 @@ async function matchingSales(filters: SaleFilters): Promise<Sale[]> {
 }
 
 const sales: SaleRepository = {
+  async findCustomerHistoryPage(customerId, request) { return customerHistoryFromRows(await readAll<Sale>('sales'), customerId, request); },
   async nextInvoiceNumber(now) {
     const year = dhakaYear(now);
     const prefix = `INV-${year}-`;

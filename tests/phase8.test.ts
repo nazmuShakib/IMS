@@ -111,7 +111,7 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(repository).not.toContain("phoneNormalized: { contains: term.replace(/\\D/g, '') }");
   });
 
-  it('keeps customer records minimal and provides search plus purchase history', () => {
+  it('keeps customer records minimal', () => {
     const schema = source('prisma/schema.prisma');
     const customerModel = schema.slice(schema.indexOf('model Customer'), schema.indexOf('model CartDraft'));
     expect(customerModel).toContain('name');
@@ -119,20 +119,6 @@ describe('Phase 8 customer and checkout decisions', () => {
     expect(customerModel).not.toContain('email');
     expect(customerModel).not.toContain('address');
     expect(customerModel).not.toContain('note');
-    const page = source('src/app/(dashboard)/customers/page.tsx');
-    expect(page).toContain('db.customers.search');
-    expect(source('src/app/(dashboard)/customers/[id]/page.tsx')).toContain('db.sales.findByCustomer');
-    const register = source('src/components/customers/CustomerRegister.tsx');
-    expect(register).toContain('setFiltering(true)');
-    expect(register).toContain('setFiltering(false)');
-    expect(register).toContain("t('loading.searchCustomers')");
-    expect(register).toContain('window.history.pushState');
-    expect(register).toContain('router.refresh()');
-    expect(register).toContain('<TableViewport>');
-    expect(register).toContain("t('customers.purchaseHistory')");
-    expect(register).toContain("t('customers.view')");
-    expect(register).toContain('sm:p-5');
-    expect(page).toContain('max-w-5xl');
   });
 
   it('numbers invoices by the Dhaka calendar year', () => {

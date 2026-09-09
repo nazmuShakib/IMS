@@ -1,3 +1,5 @@
+import type { CustomerQuery, CustomerListRow, CustomerHistoryPage } from '@/lib/customer-query';
+import type { PageRequest, PageResult } from '@/lib/catalog-query';
 import type { TaxonomyQuery, TaxonomyPageResult } from '@/lib/catalog-taxonomy';
 import type { ProductQuery, ProductPageResult, UnitQuery, UnitPageResult } from '@/lib/catalog-query';
 export type { PageRequest, PageResult } from '@/lib/catalog-query';
@@ -148,6 +150,7 @@ export interface ProductUnitRepository {
 }
 
 export interface CustomerRepository {
+  findPage(query: CustomerQuery): Promise<PageResult<CustomerListRow>>;
   findAll(activeOnly?: boolean): Promise<Customer[]>;
   findById(id: string): Promise<Customer | null>;
   findByNormalizedPhone(phoneNormalized: string): Promise<Customer | null>;
@@ -238,6 +241,7 @@ export interface OperatingExpenseRepository {
 }
 
 export interface SaleRepository {
+  findCustomerHistoryPage(customerId: string, request: PageRequest): Promise<CustomerHistoryPage>;
   nextInvoiceNumber(now: Date): Promise<string>;
   findAll(limit?: number): Promise<Sale[]>;
   findVoidedByDateRange(from: Date, to: Date): Promise<Sale[]>;
