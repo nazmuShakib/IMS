@@ -1,5 +1,7 @@
 'use server';
 
+import { taxonomySlug } from '@/lib/taxonomy-form';
+
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { z } from 'zod';
@@ -29,10 +31,9 @@ export interface ActionState {
   error?: string;
   fieldErrors?: Record<string, string>;
   ok?: string;
+  savedName?: string;
+  existing?: { id: string; name: string; isActive: boolean };
 }
-
-const slugify = (s: string) =>
-  s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
 const now = () => new Date().toISOString();
 
@@ -304,6 +305,18 @@ export async function restoreProduct(fd: FormData): Promise<void> {
 
 /* --- Categories, brands, suppliers ---------------------------------------- */
 
+function taxonomyActionError(error: unknown, fallback: string): ActionState {
+  const value = error instanceof Error ? error.message : fallback;
+  return value === 'This name already exists.' || value === 'This name belongs to a removed record. Restore it instead.'
+    ? { fieldErrors: { name: value } } : { error: value };
+}
+
+async function taxonomyNameConflict(kind: 'category' | 'brand', name: string, id?: string): Promise<ActionState | null> {
+  const rows = await (kind === 'category' ? db.categories.findAll() : db.brands.findAll());
+  const existing = rows.find(row => row.id !== id && row.name.toLowerCase() === name.toLowerCase());
+  return existing ? { fieldErrors: { name: existing.isActive ? 'This name already exists.' : 'This name belongs to a removed record. Restore it instead.' }, existing: { id: existing.id, name: existing.name, isActive: existing.isActive } } : null;
+}
+
 export async function createCategory(
   _prev: ActionState,
   fd: FormData,
@@ -316,11 +329,15 @@ export async function createCategory(
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
+  const conflict = await taxonomyNameConflict('category', parsed.data.name);
+  if (conflict) return conflict;
+  const id = uuidv7();
+  const occupied = new Set((await db.categories.findAll()).map(row => row.slug));
   try {
     const created = await db.categories.create({
-      id: uuidv7(),
+      id,
       name: parsed.data.name,
-      slug: slugify(parsed.data.name),
+      slug: taxonomySlug(parsed.data.name, id, occupied),
       parentId: parsed.data.parentId ?? null,
       isActive: true,
     });
@@ -332,11 +349,11 @@ export async function createCategory(
       after: created,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Could not save the category' };
+    return taxonomyActionError(err, 'Could not save the category');
   }
 
   revalidatePath('/categories');
-  return {};
+  return { ok: 'Category created.', savedName: parsed.data.name };
 }
 
 export async function updateCategory(
@@ -356,10 +373,12 @@ export async function updateCategory(
   });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
+  const conflict = await taxonomyNameConflict('category', parsed.data.name, id);
+  if (conflict) return conflict;
   try {
     const updated = await db.categories.update(id, {
       name: parsed.data.name,
-      slug: slugify(parsed.data.name) || before.slug,
+      // Preserve the existing identifier when renaming.
     });
     await writeAudit({
       actorId: actor.id,
@@ -370,13 +389,13 @@ export async function updateCategory(
       after: updated,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Could not update the category' };
+    return taxonomyActionError(err, 'Could not update the category');
   }
 
   revalidatePath('/categories');
   revalidatePath('/products');
   revalidatePath('/reports');
-  return { ok: 'Category updated.' };
+  return { ok: 'Category updated.', savedName: parsed.data.name };
 }
 
 export async function setCategoryActive(
@@ -394,18 +413,7 @@ export async function setCategoryActive(
   if (!before) return { error: 'Category not found' };
   if (before.isActive === active) return { ok: active ? 'Category restored.' : 'Category removed.' };
 
-  if (!active) {
-    const [products, categories] = await Promise.all([
-      db.products.findAll({ categoryId: id, activeOnly: true }),
-      db.categories.findAll({ activeOnly: true }),
-    ]);
-    if (products.length > 0) {
-      return { error: 'Move or archive active products before removing this category.' };
-    }
-    if (categories.some((category) => category.parentId === id)) {
-      return { error: 'Move or remove active child categories before removing this category.' };
-    }
-  }
+  // Dependency checks and the status change share the repository write lock.
 
   try {
     const updated = await db.categories.update(id, { isActive: active });
@@ -432,11 +440,15 @@ export async function createBrand(_prev: ActionState, fd: FormData): Promise<Act
   const parsed = createBrandSchema.safeParse({ name: str(fd, 'name') ?? '' });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
+  const conflict = await taxonomyNameConflict('brand', parsed.data.name);
+  if (conflict) return conflict;
+  const id = uuidv7();
+  const occupied = new Set((await db.brands.findAll()).map(row => row.slug));
   try {
     const created = await db.brands.create({
-      id: uuidv7(),
+      id,
       name: parsed.data.name,
-      slug: slugify(parsed.data.name),
+      slug: taxonomySlug(parsed.data.name, id, occupied),
       isActive: true,
     });
     await writeAudit({
@@ -447,11 +459,11 @@ export async function createBrand(_prev: ActionState, fd: FormData): Promise<Act
       after: created,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Could not save the brand' };
+    return taxonomyActionError(err, 'Could not save the brand');
   }
 
   revalidatePath('/brands');
-  return {};
+  return { ok: 'Brand created.', savedName: parsed.data.name };
 }
 
 export async function updateBrand(_prev: ActionState, fd: FormData): Promise<ActionState> {
@@ -465,10 +477,12 @@ export async function updateBrand(_prev: ActionState, fd: FormData): Promise<Act
   const parsed = createBrandSchema.safeParse({ name: str(fd, 'name') ?? '' });
   if (!parsed.success) return { fieldErrors: fieldErrors(parsed.error) };
 
+  const conflict = await taxonomyNameConflict('brand', parsed.data.name, id);
+  if (conflict) return conflict;
   try {
     const updated = await db.brands.update(id, {
       name: parsed.data.name,
-      slug: slugify(parsed.data.name) || before.slug,
+      // Preserve the existing identifier when renaming.
     });
     await writeAudit({
       actorId: actor.id,
@@ -479,13 +493,13 @@ export async function updateBrand(_prev: ActionState, fd: FormData): Promise<Act
       after: updated,
     });
   } catch (err) {
-    return { error: err instanceof Error ? err.message : 'Could not update the brand' };
+    return taxonomyActionError(err, 'Could not update the brand');
   }
 
   revalidatePath('/brands');
   revalidatePath('/products');
   revalidatePath('/reports');
-  return { ok: 'Brand updated.' };
+  return { ok: 'Brand updated.', savedName: parsed.data.name };
 }
 
 export async function setBrandActive(
@@ -503,12 +517,7 @@ export async function setBrandActive(
   if (!before) return { error: 'Brand not found' };
   if (before.isActive === active) return { ok: active ? 'Brand restored.' : 'Brand removed.' };
 
-  if (!active) {
-    const products = await db.products.findAll({ brandId: id, activeOnly: true });
-    if (products.length > 0) {
-      return { error: 'Move or archive active products before removing this brand.' };
-    }
-  }
+  // Dependency checks and the status change share the repository write lock.
 
   try {
     const updated = await db.brands.update(id, { isActive: active });

@@ -3,9 +3,10 @@
 import { saleOccurredAt } from '@/lib/sale-timing';
 
 import Link from 'next/link';
-import { useEffect, useState, useTransition, type FormEvent } from 'react';
+import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 
+import { RoutePagination } from '@/components/ui/RoutePagination';
 import { LoadingScreen } from '@/components/shell/LoadingScreen';
 import { Badge, Button, Card, EmptyState, Input, Select, TableViewport } from '@/components/ui';
 import { PAYMENT_METHODS, PAYMENT_STATUSES, type PaymentStatus, type Sale } from '@/domain/types';
@@ -48,12 +49,13 @@ const EMPTY_FILTERS: InvoiceFilterValues = {
   maxTotal: '',
 };
 
-function filterUrl(values: InvoiceFilterValues, page = 1): string {
+function filterUrl(values: InvoiceFilterValues, page = 1, pageSize = 25): string {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
     if (value.trim()) params.set(key, value.trim());
   }
   if (page > 1) params.set('page', String(page));
+  params.set('pageSize', String(pageSize));
   const query = params.toString();
   return query ? `/invoices?${query}` : '/invoices';
 }
@@ -69,6 +71,7 @@ export function InvoiceRegister({
   resultVersion,
   page,
   pageCount,
+  pageSize,
   totalCount,
 }: {
   confirmedFilters: InvoiceFilterValues;
@@ -81,6 +84,7 @@ export function InvoiceRegister({
   resultVersion: string;
   page: number;
   pageCount: number;
+  pageSize: number;
   totalCount: number;
 }) {
   const router = useRouter();
@@ -90,10 +94,13 @@ export function InvoiceRegister({
   const [refreshPending, startRefreshing] = useTransition();
   const pending = filtering || refreshPending;
 
+  const appliedKey = JSON.stringify(confirmedFilters);
+  const previousAppliedKey = useRef(appliedKey);
   useEffect(() => {
-    setValues(confirmedFilters);
+    if (previousAppliedKey.current !== appliedKey) setValues(confirmedFilters);
+    previousAppliedKey.current = appliedKey;
     setFiltering(false);
-  }, [confirmedFilters, resultVersion]);
+  }, [confirmedFilters, resultVersion, appliedKey]);
 
   function update(key: keyof InvoiceFilterValues, value: string) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -102,8 +109,8 @@ export function InvoiceRegister({
   function navigate(next: InvoiceFilterValues) {
     setValues(next);
     setFiltering(true);
-    window.history.pushState(null, '', filterUrl(next));
     startRefreshing(() => {
+      router.push(filterUrl(next, 1, pageSize), { scroll: false });
       router.refresh();
     });
   }
@@ -130,17 +137,13 @@ export function InvoiceRegister({
   const dateFormatter = new Intl.DateTimeFormat(locale === 'bn' ? 'bn-BD' : 'en-BD', {
     timeZone: 'Asia/Dhaka', dateStyle: 'medium', timeStyle: 'short', hour12: true,
   });
-  const advancedFiltersActive = Boolean(
-    values.from || values.to || values.customerType || values.sellerId
-    || values.paymentMethod || values.minTotal || values.maxTotal,
-  );
   const anyDraftFilters = Object.values(values).some(Boolean);
 
   return (
     <>
       <Card className="mb-4 p-4">
-        <form className="grid gap-3 md:grid-cols-6" onSubmit={applyFilters}>
-          <label className="md:col-span-3">
+        <form className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" onSubmit={applyFilters}>
+          <label className="sm:col-span-2">
             <span className="eyebrow mb-1.5 block">{t('common.search')}</span>
             <Input
               type="search"
@@ -151,7 +154,7 @@ export function InvoiceRegister({
               placeholder={t('invoices.searchPlaceholder')}
             />
           </label>
-          <label className="md:col-span-3 lg:col-span-2">
+          <label className="">
             <span className="eyebrow mb-1.5 block">{t('invoices.invoiceStatus')}</span>
             <Select
               name="status"
@@ -164,7 +167,7 @@ export function InvoiceRegister({
               <option value="VOIDED">{t('invoices.voidedOnly')}</option>
             </Select>
           </label>
-          <label className="md:col-span-3 lg:col-span-1">
+          <label className="">
             <span className="eyebrow mb-1.5 block">{t('checkout.paymentStatus')}</span>
             <Select
               name="paymentStatus"
@@ -176,12 +179,6 @@ export function InvoiceRegister({
               {PAYMENT_STATUSES.map((value) => <option key={value} value={value}>{domainLabel(t, value)}</option>)}
             </Select>
           </label>
-          <details className="group md:col-span-6" open={advancedFiltersActive || undefined}>
-            <summary className="cursor-pointer list-none text-[12px] font-medium text-signal marker:hidden">
-              <span aria-hidden="true" className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
-              {t('invoices.moreFilters')}
-            </summary>
-            <div className="mt-3 grid gap-3 rounded-[3px] bg-plate/50 p-3 sm:grid-cols-2 lg:grid-cols-4">
               <label>
                 <span className="eyebrow mb-1.5 block">{t('invoices.fromDate')}</span>
                 <Input type="date" name="from" value={values.from} onChange={(event) => update('from', event.target.value)} disabled={pending} />
@@ -220,9 +217,7 @@ export function InvoiceRegister({
                 <span className="eyebrow mb-1.5 block">{t('invoices.maxTotal')}</span>
                 <Input type="number" name="maxTotal" min="0" step="0.01" value={values.maxTotal} onChange={(event) => update('maxTotal', event.target.value)} disabled={pending} placeholder={t('invoices.setMaximumPrice')} />
               </label>
-            </div>
-          </details>
-          <div className="flex items-center gap-2 md:col-span-6">
+          <div className="flex items-center gap-2 sm:col-span-2 lg:col-span-4">
             <Button type="submit" disabled={pending}>{pending ? t('invoices.filtering') : t('common.applyFilters')}</Button>
             {anyDraftFilters && (
               <Button variant="ghost" type="button" disabled={pending} onClick={() => navigate(EMPTY_FILTERS)}>{t('common.reset')}</Button>
@@ -326,21 +321,10 @@ export function InvoiceRegister({
                 </tbody>
               </table>
               </TableViewport>
-              <nav className="flex flex-col gap-2 border-t border-rule px-4 py-3 text-[12px] sm:flex-row sm:items-center sm:justify-between" aria-label={t('invoices.pagination')}>
-                <p className="tnum text-graphite">{t('invoices.showing', {
-                  from: (page - 1) * 50 + 1,
-                  to: Math.min(page * 50, totalCount),
-                  total: totalCount,
-                })}</p>
-                {pageCount > 1 && (
-                  <div className="flex gap-2">
-                    {page > 1 && <Link className="rounded-[3px] border border-rule px-3 py-1.5 hover:bg-plate" href={filterUrl(confirmedFilters, page - 1)}>{t('invoices.previous')}</Link>}
-                    {page < pageCount && <Link className="rounded-[3px] border border-rule px-3 py-1.5 hover:bg-plate" href={filterUrl(confirmedFilters, page + 1)}>{t('invoices.next')}</Link>}
-                  </div>
-                )}
-              </nav>
+
             </>
           )}
+          <RoutePagination pathname="/invoices" filters={confirmedFilters} meta={{ page, pageSize, pageCount, totalCount }} label={t('invoices.pagination')} />
         </Card>
       )}
     </>

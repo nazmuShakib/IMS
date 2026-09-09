@@ -61,8 +61,7 @@ describe('sign-out confirmation', () => {
     expect(control).toContain('createPortal');
     expect(control).toContain('document.body');
     expect(control).toContain('z-[100]');
-    expect(control).toContain('window.innerWidth - document.documentElement.clientWidth');
-    expect(control).toContain('document.body.style.paddingRight');
+    // Scroll-lock geometry and cleanup are covered behaviorally in body-scroll-lock.test.ts.
     expect(control).toContain('setSigningOut(true)');
     expect(control).toContain('aria-busy={signingOut}');
     expect(control).toContain('animate-spin');

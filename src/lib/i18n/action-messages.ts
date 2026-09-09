@@ -1,6 +1,15 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const bnMessages: Record<string, string> = {
+  "The selected parent category is unavailable.": "নির্বাচিত মূল ক্যাটাগরিটি উপলভ্য নয়।",
+  "Enter a name.": "একটি নাম লিখুন।",
+  "Use 100 characters or fewer.": "সর্বোচ্চ ১০০ অক্ষর ব্যবহার করুন।",
+  "Include at least one letter or number.": "অন্তত একটি বর্ণ বা সংখ্যা লিখুন।",
+  "This name already exists.": "এই নামটি আগে থেকেই আছে।",
+  "This name belongs to a removed record. Restore it instead.": "এই নামের রেকর্ডটি সরানো হয়েছে। সেটি পুনরুদ্ধার করুন।",
+  "Category created.": "ক্যাটাগরি তৈরি হয়েছে।",
+  "Brand created.": "ব্র্যান্ড তৈরি হয়েছে।",
+
   'Enter a product code.': 'পণ্যের কোড লিখুন।',
   'Enter a product name.': 'পণ্যের নাম লিখুন।',
   'Choose a category.': 'একটি ক্যাটাগরি বেছে নিন।',

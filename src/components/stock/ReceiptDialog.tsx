@@ -1,5 +1,7 @@
 'use client';
 
+import { lockBodyScroll } from '@/lib/body-scroll-lock';
+
 import { useEffect, useId, useRef, type ReactNode } from 'react';
 
 /** Native modality keeps the background inert and traps keyboard focus. */
@@ -19,10 +21,9 @@ export function ReceiptDialog({ title, description, headerAside, headerActions, 
   useEffect(() => {
     const dialog = ref.current!;
     const previousFocus = returnFocus ?? document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
     dialog.showModal();
-    document.body.style.overflow = 'hidden';
-    return () => { dialog.close(); document.body.style.overflow = overflow; previousFocus?.focus(); };
+    const unlockScroll = lockBodyScroll();
+    return () => { dialog.close(); unlockScroll(); previousFocus?.focus(); };
   }, [returnFocus]);
 
   return <dialog ref={ref} role="dialog" aria-modal="true" aria-busy={busy} aria-labelledby={`${id}-title`} aria-describedby={description ? `${id}-description` : undefined}

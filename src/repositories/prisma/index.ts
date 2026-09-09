@@ -1,3 +1,5 @@
+import { withCatalogLock, guardTaxonomyWrite, guardProductTaxonomy } from './taxonomy-guards';
+import { findTaxonomyPage } from './taxonomy-pages';
 import { findProductsPage, findUnitsPage } from './catalog-pages';
 import { Prisma, type PrismaClient } from '@prisma/client';
 
@@ -339,6 +341,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
 
   repositories = {
     categories: {
+      findPage: query => findTaxonomyPage(client, 'category', query),
       async findAll(filters) {
         return (await client.category.findMany({
           where: filters?.activeOnly ? { isActive: true } : undefined,
@@ -351,16 +354,23 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async create(data) {
         try {
-          return category(await client.category.create({ data }));
+          return await withCatalogLock(client, async tx => {
+            const guarded = { ...data }; await guardTaxonomyWrite(tx, 'category', guarded, data.id, true);
+            return category(await tx.category.create({ data: guarded }));
+          });
         } catch (error) { return friendlyDatabaseError(error); }
       },
       async update(id, data) {
         try {
-          return category(await client.category.update({ where: { id }, data }));
+          return await withCatalogLock(client, async tx => {
+            await guardTaxonomyWrite(tx, 'category', data, id);
+            return category(await tx.category.update({ where: { id }, data }));
+          });
         } catch (error) { return friendlyDatabaseError(error); }
       },
     },
     brands: {
+      findPage: query => findTaxonomyPage(client, 'brand', query),
       async findAll(filters) {
         return (await client.brand.findMany({
           where: filters?.activeOnly ? { isActive: true } : undefined,
@@ -373,12 +383,18 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async create(data) {
         try {
-          return brand(await client.brand.create({ data }));
+          return await withCatalogLock(client, async tx => {
+            const guarded = { ...data }; await guardTaxonomyWrite(tx, 'brand', guarded, data.id, true);
+            return brand(await tx.brand.create({ data: guarded }));
+          });
         } catch (error) { return friendlyDatabaseError(error); }
       },
       async update(id, data) {
         try {
-          return brand(await client.brand.update({ where: { id }, data }));
+          return await withCatalogLock(client, async tx => {
+            await guardTaxonomyWrite(tx, 'brand', data, id);
+            return brand(await tx.brand.update({ where: { id }, data }));
+          });
         } catch (error) { return friendlyDatabaseError(error); }
       },
     },
@@ -492,11 +508,19 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
       async create(data) {
         try {
-          return product(await client.product.create({ data: productData(data) }));
+          return await withCatalogLock(client, async tx => {
+            await guardProductTaxonomy(tx, data);
+            return product(await tx.product.create({ data: productData(data) }));
+          });
         } catch (error) { return friendlyDatabaseError(error); }
       },
       async update(id, data) {
         try {
+          if (data.categoryId !== undefined || data.brandId !== undefined || data.isActive === true) return await withCatalogLock(client, async tx => {
+            const before = await tx.product.findUniqueOrThrow({ where: { id } });
+            await guardProductTaxonomy(tx, { categoryId: data.categoryId ?? before.categoryId, brandId: data.brandId === undefined ? before.brandId : data.brandId, isActive: data.isActive ?? before.isActive }, before);
+            return product(await tx.product.update({ where: { id }, data: productPatch(data) }));
+          });
           return product(await client.product.update({ where: { id }, data: productPatch(data) }));
         } catch (error) { return friendlyDatabaseError(error); }
       },

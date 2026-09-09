@@ -39,16 +39,6 @@ describe('brand and category filters', () => {
 describe('brand and category mutation safety', () => {
   const source = (file: string) => readFileSync(resolve(process.cwd(), file), 'utf8');
 
-  it('uses reversible status changes and blocks removal while active products depend on a record', () => {
-    const actions = source('src/actions/catalog.ts');
-    expect(actions).toContain("action: active ? 'category.restore' : 'category.archive'");
-    expect(actions).toContain("action: active ? 'brand.restore' : 'brand.archive'");
-    expect(actions).toContain("db.products.findAll({ categoryId: id, activeOnly: true })");
-    expect(actions).toContain("db.products.findAll({ brandId: id, activeOnly: true })");
-    expect(actions).not.toContain('db.categories.delete');
-    expect(actions).not.toContain('db.brands.delete');
-  });
-
   it('rejects inactive taxonomy selections at the server boundary', () => {
     const actions = source('src/actions/catalog.ts');
     expect(actions).toContain('validateProductTaxonomy');

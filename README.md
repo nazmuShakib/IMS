@@ -239,3 +239,22 @@ Prisma schema and inserts its own fixtures. Do not point it at a shared database
 It checks source-level filtering, sorting, counts, page boundaries, and unit links
 against the JSON adapter's behavior. No database migration is needed for catalog
 pagination.
+
+### Categories and brands
+
+Categories and brands use the compact pagination style above, with URL-backed
+filters, bounded scrolling, and 25/50/100 rows per page. Product usage includes
+archived products; active-product and child-category counts explain removal
+blockers. Counts link to the corresponding product or category filters.
+
+Name forms retain rejected input, share browser/server validation, and support
+Unicode slugs. Renaming preserves existing slugs. Removed duplicate names link
+to restoration. PostgreSQL taxonomy writes and product assignments share a
+transaction-level advisory lock so dependency checks remain valid through the
+write; the JSON adapter performs the same checks under its process write lock.
+No migration or existing-slug backfill is required.
+
+`tests/taxonomy-*.test.*` cover forms, focus, permissions, repository safeguards,
+and paging. The opt-in `tests/catalog-postgres.test.ts` suite also covers taxonomy
+query parity and concurrent assignment/removal using the disposable database
+described above.

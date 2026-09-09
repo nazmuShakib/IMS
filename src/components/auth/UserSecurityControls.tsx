@@ -1,5 +1,7 @@
 'use client';
 
+import { lockBodyScroll } from '@/lib/body-scroll-lock';
+
 import { useActionState, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 
@@ -52,14 +54,13 @@ export function AdminPasswordReset({ userId, userName }: { userId: string; userN
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const unlockScroll = lockBodyScroll();
     const close = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', close);
     return () => {
-      document.body.style.overflow = previousOverflow;
+      unlockScroll();
       window.removeEventListener('keydown', close);
     };
   }, [open]);

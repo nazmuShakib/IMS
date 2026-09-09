@@ -1,3 +1,4 @@
+import type { TaxonomyQuery, TaxonomyPageResult } from '@/lib/catalog-taxonomy';
 import type { ProductQuery, ProductPageResult, UnitQuery, UnitPageResult } from '@/lib/catalog-query';
 export type { PageRequest, PageResult } from '@/lib/catalog-query';
 import type {
@@ -52,6 +53,7 @@ import type { Paisa } from '@/lib/money';
  */
 
 export interface CategoryRepository {
+  findPage(query: TaxonomyQuery): Promise<TaxonomyPageResult>;
   findAll(filters?: { activeOnly?: boolean }): Promise<Category[]>;
   findById(id: string): Promise<Category | null>;
   create(data: Omit<Category, 'createdAt' | 'updatedAt'>): Promise<Category>;
@@ -62,6 +64,7 @@ export interface CategoryRepository {
 }
 
 export interface BrandRepository {
+  findPage(query: TaxonomyQuery): Promise<TaxonomyPageResult>;
   findAll(filters?: { activeOnly?: boolean }): Promise<Brand[]>;
   findById(id: string): Promise<Brand | null>;
   create(data: Omit<Brand, 'createdAt' | 'updatedAt'>): Promise<Brand>;

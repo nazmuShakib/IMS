@@ -1,23 +1,21 @@
 'use client';
+
+import { lockBodyScroll } from '@/lib/body-scroll-lock';
 import { useEffect, useRef } from 'react';
-export function useModalDialog(open: boolean, close: () => void) {
+export function useModalDialog(open: boolean, close: () => void, initialFocus?: string) {
   const ref = useRef<HTMLDivElement>(null);
   const closeRef = useRef(close);
   closeRef.current = close;
   useEffect(() => {
     if (!open) return;
     const trigger = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const overflow = document.body.style.overflow;
-    const padding = document.body.style.paddingRight;
-    const width = window.innerWidth - document.documentElement.clientWidth;
-    if (width > 0) document.body.style.paddingRight = `${(parseFloat(getComputedStyle(document.body).paddingRight) || 0) + width}px`;
-    document.body.style.overflow = 'hidden';
+    const unlockScroll = lockBodyScroll();
     const focusable = () => Array.from(ref.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled), select:not(:disabled), textarea:not(:disabled), summary, [tabindex="0"]') ?? []).filter(el => {
-      if (el.closest('[hidden], [inert]')) return false;
+      if (el.matches('input[type=hidden]') || el.closest('[hidden], [inert]')) return false;
       const closed = el.closest('details:not([open])');
       return !closed || Boolean(closed.querySelector('summary')?.contains(el));
     });
-    (focusable()[0] ?? ref.current)?.focus();
+    ((initialFocus ? ref.current?.querySelector<HTMLElement>(initialFocus) : null) ?? focusable()[0] ?? ref.current)?.focus();
     const keydown = (event: KeyboardEvent) => {
       if (event.key === 'Escape') { event.preventDefault(); closeRef.current(); }
       if (event.key !== 'Tab') return;
@@ -32,9 +30,9 @@ export function useModalDialog(open: boolean, close: () => void) {
     document.addEventListener('focusin', contain);
     return () => {
       document.removeEventListener('keydown', keydown); document.removeEventListener('focusin', contain);
-      document.body.style.overflow = overflow; document.body.style.paddingRight = padding;
+      unlockScroll();
       if (trigger?.isConnected) trigger.focus();
     };
-  }, [open]);
+  }, [open, initialFocus]);
   return ref;
 }

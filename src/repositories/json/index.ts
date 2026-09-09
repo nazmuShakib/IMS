@@ -1,3 +1,5 @@
+import { taxonomySlug } from '@/lib/taxonomy-form';
+import { taxonomyPageFromRows } from '@/lib/catalog-taxonomy';
 import { productPageFromRows, unitPageFromRows } from '@/lib/catalog-query';
 import { saleOccurredAt } from '@/lib/sale-timing';
 import type {
@@ -58,7 +60,34 @@ import type {
 import { nowIso, readAll, withLock, writeAll } from './store';
 import { dhakaYear } from '@/lib/time';
 
+// Called only while the JSON adapter's process-wide write lock is held.
+async function guardTaxonomyWrite(kind: 'category' | 'brand', data: { name?: string; slug?: string; isActive?: boolean; parentId?: string | null }, id: string, creating = false) {
+  const rows = kind === 'category' ? await readAll<Category>('categories') : await readAll<Brand>('brands');
+  const duplicate = rows.find(row => row.id !== id && data.name !== undefined && row.name.toLowerCase() === data.name.toLowerCase());
+  if (duplicate) throw new Error(duplicate.isActive ? 'This name already exists.' : 'This name belongs to a removed record. Restore it instead.');
+  if (creating && rows.some(row => row.slug === data.slug)) data.slug = taxonomySlug(data.name ?? '', id, new Set(rows.map(row => row.slug)));
+  const parentId = data.parentId === undefined && kind === 'category' && data.isActive === true && !creating
+    ? (await readAll<Category>('categories')).find(row => row.id === id)?.parentId : data.parentId;
+  if (kind === 'category' && parentId && !(await readAll<Category>('categories')).some(row => row.id === parentId && row.isActive)) throw new Error('The selected parent category is unavailable.');
+  if (data.isActive === false && !creating) {
+    if ((await readAll<Product>('products')).some(row => row.isActive && (kind === 'category' ? row.categoryId : row.brandId) === id)) throw new Error(`Move or archive active products before removing this ${kind}.`);
+    if (kind === 'category' && (await readAll<Category>('categories')).some(row => row.parentId === id && row.isActive)) throw new Error('Move or remove active child categories before removing this category.');
+  }
+}
+async function guardProductTaxonomy(next: Product, before?: Product) {
+  const restoring = Boolean(before && !before.isActive && next.isActive);
+  const category = (await readAll<Category>('categories')).find(row => row.id === next.categoryId);
+  if (!category || (!category.isActive && (!before || before.categoryId !== next.categoryId || restoring))) throw new Error('The selected category is unavailable.');
+  if (next.brandId) {
+    const brand = (await readAll<Brand>('brands')).find(row => row.id === next.brandId);
+    if (!brand || (!brand.isActive && (!before || before.brandId !== next.brandId || restoring))) throw new Error('The selected brand is unavailable.');
+  }
+}
+
 const categories: CategoryRepository = {
+  async findPage(query) {
+    return withLock(async () => taxonomyPageFromRows(await readAll<Category>('categories'), await readAll<Product>('products'), query, 'category'));
+  },
   async findAll(filters) {
     const rows = await readAll<Category>('categories');
     return filters?.activeOnly ? rows.filter((row) => row.isActive) : rows;
@@ -69,7 +98,8 @@ const categories: CategoryRepository = {
   async create(data) {
     return withLock(async () => {
       const rows = await readAll<Category>('categories');
-      const row: Category = { ...data, createdAt: nowIso(), updatedAt: nowIso() };
+      const guarded = { ...data }; await guardTaxonomyWrite('category', guarded, data.id, true);
+      const row: Category = { ...guarded, createdAt: nowIso(), updatedAt: nowIso() };
       await writeAll('categories', [...rows, row]);
       return row;
     });
@@ -80,6 +110,7 @@ const categories: CategoryRepository = {
       const index = rows.findIndex((item) => item.id === id);
       const existing = rows[index];
       if (!existing) throw new Error('Category not found');
+      await guardTaxonomyWrite('category', data, id);
       const row: Category = { ...existing, ...data, updatedAt: nowIso() };
       const copy = [...rows];
       copy[index] = row;
@@ -90,6 +121,9 @@ const categories: CategoryRepository = {
 };
 
 const brands: BrandRepository = {
+  async findPage(query) {
+    return withLock(async () => taxonomyPageFromRows(await readAll<Brand>('brands'), await readAll<Product>('products'), query, 'brand'));
+  },
   async findAll(filters) {
     const rows = await readAll<Brand>('brands');
     return filters?.activeOnly ? rows.filter((row) => row.isActive) : rows;
@@ -100,7 +134,8 @@ const brands: BrandRepository = {
   async create(data) {
     return withLock(async () => {
       const rows = await readAll<Brand>('brands');
-      const row: Brand = { ...data, createdAt: nowIso(), updatedAt: nowIso() };
+      const guarded = { ...data }; await guardTaxonomyWrite('brand', guarded, data.id, true);
+      const row: Brand = { ...guarded, createdAt: nowIso(), updatedAt: nowIso() };
       await writeAll('brands', [...rows, row]);
       return row;
     });
@@ -111,6 +146,7 @@ const brands: BrandRepository = {
       const index = rows.findIndex((item) => item.id === id);
       const existing = rows[index];
       if (!existing) throw new Error('Brand not found');
+      await guardTaxonomyWrite('brand', data, id);
       const row: Brand = { ...existing, ...data, updatedAt: nowIso() };
       const copy = [...rows];
       copy[index] = row;
@@ -246,6 +282,7 @@ const products: ProductRepository = {
       if (rows.some((p) => p.sku.toLowerCase() === data.sku.toLowerCase())) {
         throw new Error(`Product code (SKU) already exists: ${data.sku}`);
       }
+      await guardProductTaxonomy(data);
       await writeAll('products', [...rows, data]);
       return data;
     });
@@ -256,6 +293,7 @@ const products: ProductRepository = {
       const idx = rows.findIndex((p) => p.id === id);
       if (idx === -1) throw new Error(`Product not found: ${id}`);
       const next: Product = { ...rows[idx]!, ...patch, updatedAt: nowIso() };
+      if (patch.categoryId !== undefined || patch.brandId !== undefined || patch.isActive === true) await guardProductTaxonomy(next, rows[idx]);
       const copy = [...rows];
       copy[idx] = next;
       await writeAll('products', copy);

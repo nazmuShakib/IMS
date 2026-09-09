@@ -1,6 +1,23 @@
 import type { Locale } from '@/lib/i18n/config';
 
 const en = {
+  "taxonomy.showActive": "Show active records",
+  "taxonomy.showRemoved": "Find removed record to restore",
+  "taxonomy.childrenFilter": "Showing child categories",
+  "taxonomy.parent": "Parent: {name}",
+  "taxonomy.activeProducts": "{count} active",
+  "taxonomy.activeChildren": "{count} active child categories",
+  "taxonomy.editNamed": "Edit {name}",
+  "taxonomy.removeNamed": "Remove {name}",
+  "taxonomy.restoreNamed": "Restore {name}",
+  "taxonomy.productBlocker": "Move or archive the {count} active products before removing this record.",
+  "taxonomy.childBlocker": "Move or remove the {count} active child categories first.",
+  "taxonomy.viewProducts": "View active products",
+  "taxonomy.viewChildren": "View child categories",
+  "taxonomy.matchingCount": "{count} matching · {total} total",
+  "taxonomy.categoryExample": "e.g. Mobile Phones",
+  "taxonomy.brandExample": "e.g. Samsung",
+
   "catalog.pagination": "Catalog pages",
   "catalog.pageRange": "Showing {from}–{to} of {total}",
   "catalog.pageNumber": "Page {page} of {total}",
@@ -1694,6 +1711,23 @@ const en = {
 export type MessageKey = keyof typeof en;
 
 const bn: Record<MessageKey, string> = {
+  "taxonomy.showActive": "সক্রিয় রেকর্ড দেখুন",
+  "taxonomy.showRemoved": "পুনরুদ্ধারের জন্য সরানো রেকর্ড দেখুন",
+  "taxonomy.childrenFilter": "উপক্যাটাগরি দেখানো হচ্ছে",
+  "taxonomy.parent": "মূল ক্যাটাগরি: {name}",
+  "taxonomy.activeProducts": "{count}টি সক্রিয়",
+  "taxonomy.activeChildren": "{count}টি সক্রিয় উপক্যাটাগরি",
+  "taxonomy.editNamed": "{name} সম্পাদনা করুন",
+  "taxonomy.removeNamed": "{name} সরান",
+  "taxonomy.restoreNamed": "{name} পুনরুদ্ধার করুন",
+  "taxonomy.productBlocker": "এই রেকর্ড সরানোর আগে {count}টি সক্রিয় পণ্যের ক্যাটাগরি/ব্র্যান্ড পরিবর্তন করুন অথবা পণ্য আর্কাইভ করুন।",
+  "taxonomy.childBlocker": "আগে {count}টি সক্রিয় উপক্যাটাগরি স্থানান্তর করুন অথবা সরান।",
+  "taxonomy.viewProducts": "সক্রিয় পণ্য দেখুন",
+  "taxonomy.viewChildren": "উপক্যাটাগরি দেখুন",
+  "taxonomy.matchingCount": "{count}টি মিলেছে · মোট {total}টি",
+  "taxonomy.categoryExample": "যেমন: মোবাইল ফোন",
+  "taxonomy.brandExample": "যেমন: স্যামসাং",
+
   "catalog.pagination": "ক্যাটালগের পৃষ্ঠা",
   "catalog.pageRange": "{total}টির মধ্যে {from}–{to} দেখানো হচ্ছে",
   "catalog.pageNumber": "{total}টির মধ্যে পৃষ্ঠা {page}",

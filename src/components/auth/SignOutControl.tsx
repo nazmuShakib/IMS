@@ -1,5 +1,7 @@
 'use client';
 
+import { lockBodyScroll } from '@/lib/body-scroll-lock';
+
 import { LoaderCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -15,23 +17,13 @@ export function SignOutControl() {
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    const bodyPaddingRight = Number.parseFloat(
-      window.getComputedStyle(document.body).paddingRight,
-    ) || 0;
-    if (scrollbarWidth > 0) {
-      document.body.style.paddingRight = `${bodyPaddingRight + scrollbarWidth}px`;
-    }
-    document.body.style.overflow = 'hidden';
+    const unlockScroll = lockBodyScroll();
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !signingOut) setOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
+      unlockScroll();
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [open, signingOut]);

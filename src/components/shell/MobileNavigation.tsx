@@ -1,5 +1,7 @@
 'use client';
 
+import { lockBodyScroll } from '@/lib/body-scroll-lock';
+
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -24,24 +26,14 @@ export function MobileNavigation({
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
-    const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    if (scrollbarWidth > 0) {
-      const existingPadding = Number.parseFloat(
-        window.getComputedStyle(document.body).paddingRight,
-      ) || 0;
-      document.body.style.paddingRight = `${existingPadding + scrollbarWidth}px`;
-    }
-    document.body.style.overflow = 'hidden';
+    const unlockScroll = lockBodyScroll();
 
     const closeOnEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') setOpen(false);
     };
     window.addEventListener('keydown', closeOnEscape);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
+      unlockScroll();
       window.removeEventListener('keydown', closeOnEscape);
     };
   }, [open]);

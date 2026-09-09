@@ -67,8 +67,8 @@ export function unitRangeErrors(values: UnitFilterValues): Record<string, string
   if (!errors.minCost && !errors.maxCost && values.minCost && values.maxCost && parseBDT(values.minCost) > parseBDT(values.maxCost)) errors.maxCost = 'catalog.invalidCostRange';
   return errors;
 }
-export function catalogUrl(path: string, values: ProductFilterValues | UnitFilterValues, request: PageRequest, unit?: string): string {
-  const defaults = 'q' in values ? PRODUCT_DEFAULTS : UNIT_DEFAULTS;
+export function catalogUrl(path: string, values: ProductFilterValues | UnitFilterValues | Record<string, string>, request: PageRequest, unit?: string): string {
+  const defaults: Record<string, string> = 'usage' in values ? { query: '', status: 'active', usage: 'all', order: 'newest', parent: '' } : 'q' in values ? PRODUCT_DEFAULTS : UNIT_DEFAULTS;
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
     if (key in defaults && value.trim() && value !== defaults[key as keyof typeof defaults]) params.set(key, value.trim());

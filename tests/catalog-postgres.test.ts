@@ -1,3 +1,8 @@
+import { PrismaClient } from '@prisma/client';
+import { userInfo } from 'node:os';
+import { taxonomyPageSql } from '@/repositories/prisma/taxonomy-pages';
+import { taxonomyQuery, taxonomyPageFromRows } from '@/lib/catalog-taxonomy';
+import { withCatalogLock, guardTaxonomyWrite, guardProductTaxonomy } from '@/repositories/prisma/taxonomy-guards';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import type { Prisma } from '@prisma/client';
@@ -6,6 +11,9 @@ import { productQuery, unitQuery, productPageFromRows, unitPageFromRows } from '
 import { products, units, movements, acquisitions, expenses, now, categoryId, brandId } from './catalog-fixtures';
 
 const socket = process.env.CATALOG_TEST_SOCKET;
+const categoryRows = [{ id: categoryId, name: 'Phones', slug: 'phones', parentId: null, isActive: true, createdAt: now.toISOString(), updatedAt: now.toISOString() }, ...Array.from({ length: 61 }, (_, i) => ({ id: `tc-${i}`, name: ['alpha', 'Beta', 'চার্জার'][i] ?? `Category ${String(i).padStart(2, '0')}`, slug: `tc-${i}`, parentId: i < 5 ? categoryId : null, isActive: i % 3 !== 0, createdAt: now.toISOString(), updatedAt: now.toISOString() }))];
+const brandRows = [{ id: brandId, name: 'Brand', slug: 'brand', isActive: true, createdAt: now.toISOString(), updatedAt: now.toISOString() }, ...Array.from({ length: 61 }, (_, i) => ({ id: `tb-${i}`, name: ['alpha', 'Beta', 'চার্জার'][i] ?? `Brand ${String(i).padStart(2, '0')}`, slug: `tb-${i}`, isActive: i % 3 !== 0, createdAt: now.toISOString(), updatedAt: now.toISOString() }))];
+
 function sql(statement: string) {
   if (!socket?.startsWith('/tmp/ims-catalog-')) throw new Error('Catalog integration tests require a disposable /tmp/ims-catalog-* PostgreSQL socket.');
   return execFileSync('psql', ['-X', '-h', socket, '-p', '55439', '-d', 'postgres', '-A', '-t', '-v', 'ON_ERROR_STOP=1'], { input: statement, encoding: 'utf8', maxBuffer: 5_000_000 }).trim();
@@ -28,8 +36,8 @@ describe.skipIf(!socket)('catalog PostgreSQL source pagination (disposable datab
       encoding: 'utf8', maxBuffer: 5_000_000, env: { ...process.env, DATABASE_URL: 'postgresql://unused:unused@localhost/unused' },
     });
     sql(`SET client_min_messages TO warning; DROP SCHEMA public CASCADE; CREATE SCHEMA public; ${schema}`);
-    sql(insert('categories', [{ id: categoryId, name: 'Phones', slug: 'phones', isActive: true, createdAt: now, updatedAt: now }])
-      + insert('brands', [{ id: brandId, name: 'Brand', slug: 'brand', isActive: true, createdAt: now, updatedAt: now }])
+    sql(insert('categories', categoryRows)
+      + insert('brands', brandRows)
       + insert('users', [{ id: 'actor', name: 'Test', email: 'catalog-test@example.invalid', emailVerified: false, updatedAt: now }])
       + insert('products', products) + insert('product_units', units) + insert('stock_movements', movements)
       + insert('used_device_acquisitions', acquisitions) + insert('refurbishment_expenses', expenses));
@@ -60,4 +68,40 @@ describe.skipIf(!socket)('catalog PostgreSQL source pagination (disposable datab
     expect(actual.rows.map(r => r.id)).toEqual(expected.rows.map(r => r.id));
     expect(actual).toMatchObject({ page: expected.page, pageCount: expected.pageCount, totalCount: expected.totalCount, targetStatus: expected.targetStatus });
   });
+  for (const kind of ['category', 'brand'] as const) {
+    it.each(['newest', 'oldest', 'name-asc', 'name-desc', 'products-asc', 'products-desc'])(`${kind} source pagination matches JSON for %s`, order => {
+      const q = taxonomyQuery({ status: 'all', page: '2', order });
+      const expected = taxonomyPageFromRows(kind === 'category' ? categoryRows : brandRows, products, q, kind);
+      const actual = query<typeof expected>(taxonomyPageSql(kind, q));
+      expect(actual.rows.map(row => row.id)).toEqual(expected.rows.map(row => row.id));
+      expect(actual).toMatchObject({ totalCount: expected.totalCount, page: expected.page, pageCount: expected.pageCount, catalogCount: expected.catalogCount });
+      expect(actual.rows.length).toBeLessThanOrEqual(q.pageSize);
+    });
+    it.each([{ usage: 'used' }, { usage: 'unused', status: 'removed' }, { parent: categoryId }, { query: "%' OR true --" }, { query: '02', page: '999' }])(`${kind} filters before pagination: %j`, raw => {
+      const q = taxonomyQuery(raw); const expected = taxonomyPageFromRows(kind === 'category' ? categoryRows : brandRows, products, q, kind);
+      const actual = query<typeof expected>(taxonomyPageSql(kind, q));
+      expect(actual.rows.map(row => row.id)).toEqual(expected.rows.map(row => row.id));
+      expect(actual).toMatchObject({ totalCount: expected.totalCount, page: expected.page });
+      for (const row of actual.rows) expect(row).toMatchObject({ activeProductCount: expected.rows.find(item => item.id === row.id)!.activeProductCount, activeChildCount: expected.rows.find(item => item.id === row.id)!.activeChildCount });
+    });
+  }
+  it.each([true, false])('serializes PostgreSQL removal and assignment (assignment first=%s)', async assignmentFirst => {
+    const client = new PrismaClient({ datasources: { db: { url: `postgresql://${encodeURIComponent(userInfo().username)}@localhost:55439/postgres?host=${encodeURIComponent(socket!)}` } } });
+    try {
+      const id = `lock-${assignmentFirst}`;
+      await client.category.create({ data: { id, name: id, slug: id } });
+      const data = { ...products[0]!, id: `lock-product-${assignmentFirst}`, sku: `lock-sku-${assignmentFirst}`, barcode: null, categoryId: id, isActive: true };
+      let acquired!: () => void; let release!: () => void;
+      const ready = new Promise<void>(resolve => { acquired = resolve; }); const gate = new Promise<void>(resolve => { release = resolve; });
+      const assign = async (tx: Parameters<Parameters<typeof withCatalogLock>[1]>[0]) => { await guardProductTaxonomy(tx, data); return tx.product.create({ data }); };
+      const remove = async (tx: Parameters<Parameters<typeof withCatalogLock>[1]>[0]) => { await guardTaxonomyWrite(tx, 'category', { isActive: false }, id); return tx.category.update({ where: { id }, data: { isActive: false } }); };
+      const first = withCatalogLock(client, async tx => { acquired(); await gate; return assignmentFirst ? assign(tx) : remove(tx); });
+      await ready;
+      const second = withCatalogLock(client, tx => assignmentFirst ? remove(tx) : assign(tx));
+      release();
+      const results = await Promise.allSettled([first, second]);
+      expect(results.map(result => result.status)).toEqual(['fulfilled', 'rejected']);
+    } finally { await client.$disconnect(); }
+  }, 20000);
+
 });

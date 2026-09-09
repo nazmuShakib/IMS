@@ -1,3 +1,4 @@
+import { taxonomyNameSchema } from '@/lib/taxonomy-form';
 import { z } from 'zod';
 import {
   ROLES,
@@ -76,13 +77,13 @@ export const createProductSchema = z
 export type CreateProductInput = z.input<typeof createProductSchema>;
 
 export const createCategorySchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: taxonomyNameSchema,
   parentId: z.string().uuid().optional().nullable(),
 });
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 
 export const createBrandSchema = z.object({
-  name: z.string().min(1).max(100).trim(),
+  name: taxonomyNameSchema,
 });
 export type CreateBrandInput = z.infer<typeof createBrandSchema>;
 

@@ -1,3 +1,4 @@
+import { pageRequest } from '@/lib/catalog-query';
 import Link from 'next/link';
 
 import {
@@ -59,7 +60,7 @@ export default async function InvoicesPage({
   const paymentMethod = one(raw, 'paymentMethod');
   const minTotal = one(raw, 'minTotal');
   const maxTotal = one(raw, 'maxTotal');
-  const requestedPage = Math.max(1, Number.parseInt(one(raw, 'page'), 10) || 1);
+  const { page: requestedPage, pageSize } = pageRequest(raw);
   const confirmedFilters: InvoiceFilterValues = {
     q: query,
     status,
@@ -97,7 +98,6 @@ export default async function InvoicesPage({
     && filters.maxTotal !== undefined
     && filters.minTotal > filters.maxTotal;
   const invalidDateRange = filters.from && filters.to && filters.from > filters.to;
-  const pageSize = 50;
   const usersPromise = db.users.findAll();
   const totalCount = invalidPriceRange || invalidDateRange
     ? 0
@@ -167,6 +167,7 @@ export default async function InvoicesPage({
         invalidPriceRange={invalidPriceRange}
         resultVersion={crypto.randomUUID()}
         page={page}
+        pageSize={pageSize}
         pageCount={pageCount}
         totalCount={totalCount}
       />

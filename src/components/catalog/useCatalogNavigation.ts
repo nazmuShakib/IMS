@@ -3,7 +3,7 @@ import { useEffect, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { catalogUrl, type PageRequest, type ProductFilterValues, type UnitFilterValues } from '@/lib/catalog-query';
 
-export function useCatalogNavigation<T extends ProductFilterValues | UnitFilterValues>(path: string, confirmed: T, version: string) {
+export function useCatalogNavigation<T extends ProductFilterValues | UnitFilterValues | import('@/lib/catalog-taxonomy').TaxonomyFilters & { parent: string }>(path: string, confirmed: T, version: string) {
   const router = useRouter();
   const [values, setValues] = useState(confirmed);
   const [filtering, setFiltering] = useState(false);
@@ -30,7 +30,7 @@ export function useCatalogNavigation<T extends ProductFilterValues | UnitFilterV
   function navigate(next: T, page: PageRequest, unit?: string, replace = false) {
     if (pending) return;
     setFiltering(true);
-    const url = catalogUrl(path, next, page, unit);
+    const url = catalogUrl(path, { ...next }, page, unit);
     window.history[replace ? 'replaceState' : 'pushState'](null, '', url + (unit ? `#unit-${unit}` : ''));
     startTransition(() => router.refresh());
   }
