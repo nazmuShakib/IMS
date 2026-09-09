@@ -31,7 +31,7 @@
   --color-sidebar-active-text: #2039bd;
   --color-sidebar-active-border: #8798ec;
   --color-sidebar-section-text: #17212a;
-  --color-scrollbar-thumb: rgba(70, 83, 95, 0.2);
+  --color-scrollbar-thumb: rgba(70, 83, 95, 0.4);
   --color-scrollbar-thumb-active: rgba(39, 51, 62, 0.72);
 
   --color-signal: #2e4bd8; /* the one accent. primary actions only. */
@@ -166,9 +166,9 @@ html[lang="bn"] .eyebrow {
   padding-top: 0.4rem;
 }
 
-/* Like YouTube, internal scrollbars reserve a stable 4px hit area without
-   moving content. They are hidden outside the container, draw a 2px thumb while
-   the container is hovered/focused, and draw a 3px thumb on direct hover. */
+/* Internal scrollbars reserve a stable 4px hit area without moving content.
+   A visible 2px thumb advertises overflow even before interaction; hover or
+   keyboard focus strengthens it, and direct thumb hover expands it to 3px. */
 :where(
   .overflow-auto,
   .overflow-y-auto,
@@ -241,17 +241,18 @@ html[lang="bn"] .eyebrow {
   min-height: 28px;
   border: 1px solid transparent;
   border-radius: 999px;
-  background: transparent;
+  background: var(--scrollbar-thumb-color, var(--color-scrollbar-thumb));
   background-clip: padding-box;
 }
 
-/* Long document previews must advertise that more content is available even
-   before the user clicks or hovers them. Keep the normal thumb subtle; the
-   shared hover rule below still strengthens it during interaction. */
+/* Preserve the explicit hint for document previews that use custom overflow
+   styles rather than the shared overflow utilities. */
 .scrollbar-hint::-webkit-scrollbar-thumb {
-  background-color: var(--color-scrollbar-thumb);
+  background-color: var(--scrollbar-thumb-color, var(--color-scrollbar-thumb));
 }
 
+/* Set interaction color on the scroll owner: Chromium can fail to repaint
+   scrollbar pseudo-elements when only an ancestor hover/focus selector changes. */
 :where(
     .overflow-auto,
     .overflow-y-auto,
@@ -260,8 +261,8 @@ html[lang="bn"] .eyebrow {
     .overflow-x-scroll,
     .invoice-preview-viewport,
     .emi-receipt-viewport
-  ):is(:hover, :focus-visible)::-webkit-scrollbar-thumb {
-  background-color: var(--color-scrollbar-thumb-active);
+  ):is(:hover, :focus-visible, :focus-within) {
+  --scrollbar-thumb-color: var(--color-scrollbar-thumb-active);
 }
 
 :where(
