@@ -1,3 +1,4 @@
+import { jsonReports } from './reports';
 import { customerPageFromRows, customerHistoryFromRows } from '@/lib/customer-query';
 import { taxonomySlug } from '@/lib/taxonomy-form';
 import { taxonomyPageFromRows } from '@/lib/catalog-taxonomy';
@@ -1080,6 +1081,7 @@ const emi: EmiRepository = {
 };
 
 export const jsonRepositories: Repositories = {
+  reports: jsonReports,
   categories,
   brands,
   suppliers,

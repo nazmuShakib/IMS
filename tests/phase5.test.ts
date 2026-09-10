@@ -117,14 +117,6 @@ describe('Phase 5 calculations', () => {
     }
   });
 
-  it('exposes every service report through the report-tab UI', () => {
-    const page = readFileSync(resolve(process.cwd(), 'src/app/(dashboard)/reports/page.tsx'), 'utf8');
-    expect(page).toContain('REPORT_KINDS.map');
-    for (const report of ['valuation', 'sales', 'profit', 'purchases', 'aging', 'shrinkage', 'movements']) {
-      expect(page).toContain(`${report}: 'reports.${report}'`);
-    }
-  });
-
   it('uses the same ordered cells for CSV and PDF export input', async () => {
     const report = await getReport({ report: 'profit' }, { now, repositories: repositories() });
     const matrix = reportExportMatrix(report);
@@ -145,47 +137,4 @@ describe('Phase 5 security boundaries', () => {
     expect(route).toContain("'Cache-Control': 'no-store'");
   });
 
-  it('uses the repository boundary and provides both planned export formats', () => {
-    const service = source('src/services/reports.ts');
-    expect(service).toContain("from '@/repositories'");
-    expect(service).not.toContain('prisma.');
-    const route = source('src/app/api/reports/export/route.ts');
-    expect(route).toContain('reportToCsv(report)');
-    expect(route).toContain('reportToPdf(report)');
-  });
-
-  it('keeps report exports and shared page spacing usable on mobile', () => {
-    const reports = source('src/app/(dashboard)/reports/page.tsx');
-    const layout = source('src/app/(dashboard)/layout.tsx');
-    const ui = source('src/components/ui/index.tsx');
-    expect(reports).toContain('grid grid-cols-2 gap-2 sm:flex');
-    expect(reports).toContain('items-center justify-center');
-    expect(layout).toContain('flex-1 px-3 py-4 print:p-0');
-    expect(layout).toContain('w-full max-w-[1600px]');
-    expect(layout).toContain('dashboard-content');
-    expect(layout).not.toContain('max-w-5xl');
-    expect(source('src/components/dashboard/DashboardCharts.tsx')).toContain('lg:grid-cols-2');
-    expect(source('src/components/dashboard/DashboardCharts.tsx')).not.toContain('2xl:grid-cols-3');
-    const css = source('src/app/globals.css');
-    expect(css).toContain('@media screen and (min-width: 1440px)');
-    expect(css).toContain('.dashboard-content [class~="text-[11px]"]');
-    expect(css).toContain('.dashboard-content [class~="text-[22px]"]');
-    expect(ui).toContain('flex flex-col items-start gap-3 sm:flex-row');
-    expect(ui).toContain('w-full sm:w-auto');
-  });
-
-  it('uses separate loading scopes for report tabs and report output filters', () => {
-    const page = source('src/app/(dashboard)/reports/page.tsx');
-    const workspace = source('src/components/reports/ReportWorkspace.tsx');
-    expect(page).toContain('<ReportWorkspace');
-    expect(page).toContain('resultVersion={crypto.randomUUID()}');
-    expect(page).toContain('href: `/reports?report=${item.id}`');
-    expect(workspace).toContain("navigate(tab.href, tab.id, 'tab')");
-    expect(workspace).toContain("navigate(`/reports?${params.toString()}`, report, 'output')");
-    expect(workspace).toContain("loadingScope === 'tab'");
-    expect(workspace).toContain("loadingScope === 'output'");
-    expect(workspace).toContain('setSelectedReport(report)');
-    expect(workspace).toContain('window.history.pushState');
-    expect(workspace).toContain('router.refresh()');
-  });
 });

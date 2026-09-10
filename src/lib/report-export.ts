@@ -1,29 +1,41 @@
 import Papa from 'papaparse';
-
-import { formatBDT } from '@/lib/money';
-import type { ReportCell, ReportColumn, ReportResult } from '@/services/reports';
-
-export function formatReportCell(value: ReportCell, column: ReportColumn): string {
-  if (value === null || value === '') return '';
-  if (column.type === 'money') return formatBDT(Number(value)).replace('৳', 'BDT ');
-  if (column.type === 'date') {
-    return new Date(String(value)).toLocaleString('en-GB', {
-      timeZone: 'Asia/Dhaka', year: 'numeric', month: 'short', day: '2-digit',
-      hour: '2-digit', minute: '2-digit', hour12: true,
-    });
-  }
-  return String(value);
+import type { Locale } from '@/lib/i18n/config';
+import { localizeReport, presentCell } from './report-presentation';
+import type { ReportCell, ReportColumn, ReportResult } from '@/lib/report-query';
+export function formatReportCell(
+  value: ReportCell,
+  column: ReportColumn,
+  locale: Locale = 'en',
+): string {
+  return presentCell(value, column, locale);
 }
-
-/** CSV and PDF both consume this exact matrix, keeping exports in parity. */
-export function reportExportMatrix(report: ReportResult): { headers: string[]; rows: string[][] } {
+export function reportExportMatrix(
+  report: ReportResult,
+  locale: Locale = 'en',
+): { headers: string[]; rows: string[][] } {
+  const localized = localizeReport(report, locale);
   return {
-    headers: report.columns.map((column) => column.label),
-    rows: report.rows.map((row) => report.columns.map((column) => formatReportCell(row.cells[column.key] ?? null, column))),
+    headers: localized.columns.map((c) => c.label),
+    rows: report.rows.map((r) =>
+      localized.columns.map((c) => presentCell(r.cells[c.key] ?? null, c, locale)),
+    ),
   };
 }
-
-export function reportToCsv(report: ReportResult): string {
-  const matrix = reportExportMatrix(report);
-  return Papa.unparse({ fields: matrix.headers, data: matrix.rows });
+export function reportToCsv(report: ReportResult, locale: Locale = 'en'): string {
+  const localized = localizeReport(report, locale);
+  return Papa.unparse(
+    {
+      fields: localized.columns.map((c) => c.label),
+      data: report.rows.map((r) =>
+        localized.columns.map((c) => {
+          const value = r.cells[c.key] ?? null;
+          if (value === null) return '';
+          if (c.type === 'money') return Number(value) / 100;
+          if (c.type === 'number' || c.type === 'percent') return Number(value);
+          return presentCell(value, c, locale);
+        }),
+      ),
+    },
+    { escapeFormulae: true },
+  );
 }

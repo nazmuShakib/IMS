@@ -1,3 +1,4 @@
+import { prismaReports } from './reports';
 import { customerSearchTerms } from '@/lib/customer-query';
 import { withCatalogLock, guardTaxonomyWrite, guardProductTaxonomy } from './taxonomy-guards';
 import { findTaxonomyPage } from './taxonomy-pages';
@@ -341,6 +342,7 @@ function createRepositories(client: Client, transact?: Repositories['transaction
   let repositories: Repositories;
 
   repositories = {
+    reports: prismaReports(client),
     categories: {
       findPage: query => findTaxonomyPage(client, 'category', query),
       async findAll(filters) {

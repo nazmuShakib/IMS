@@ -1,3 +1,4 @@
+import type { ReportFilters, ReportResult } from '@/lib/report-query';
 import type { CustomerQuery, CustomerListRow, CustomerHistoryPage } from '@/lib/customer-query';
 import type { PageRequest, PageResult } from '@/lib/catalog-query';
 import type { TaxonomyQuery, TaxonomyPageResult } from '@/lib/catalog-taxonomy';
@@ -364,7 +365,14 @@ export type Transactor = <T>(
   options?: TransactionOptions,
 ) => Promise<T>;
 
+export interface ReportRepository {
+  findPage(filters: ReportFilters, now: Date): Promise<ReportResult>;
+  export(filters: ReportFilters, now: Date): Promise<ReportResult>;
+  actors(): Promise<Array<{id:string;name:string}>>;
+  products(q: string): Promise<Array<{id:string;name:string;sku:string}>>;
+}
 export interface Repositories {
+  reports: ReportRepository;
   categories: CategoryRepository;
   brands: BrandRepository;
   suppliers: SupplierRepository;
