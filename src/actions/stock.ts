@@ -8,7 +8,7 @@ import { db } from '@/repositories';
 import { parseBDT } from '@/lib/money';
 import { requireCapability, getSession, canSeeCosts } from '@/lib/session';
 import { toProductUnitDTO, type ProductUnitDTO } from '@/lib/dto';
-import { requestAuditIp, writeAudit } from '@/lib/audit';
+import { requestAuditIp } from '@/lib/audit';
 import { receiptFieldsSchema, receiptFormInput, receiptFieldErrors, serialBatchSchema, type StockReceipt } from '@/lib/stock-receipt';
 import { correctMovement, receiveStock } from '@/services/stock';
 import { removeStock } from '@/services/stock-removal';
@@ -203,38 +203,56 @@ export async function stockOutAction(
  * edits or deletes the original. PLAN.md §8.3.
  */
 export async function reverseMovementAction(
-  _prev: StockActionState,
+  _prev: CorrectionActionState,
   fd: FormData,
-): Promise<StockActionState> {
+): Promise<CorrectionActionState> {
   const actor = await requireCapability('CORRECT_STOCK');
 
   const movementId = str(fd, 'movementId');
   const note = str(fd, 'note');
-  if (!movementId) return { error: 'Missing movement' };
-  if (!note) return { fieldErrors: { note: 'Say why this is being reversed — it goes in the audit trail' } };
+  if (!movementId) return { outcome: 'rejected', error: 'ledger.missingMovement' };
+  if (!note) return { outcome: 'rejected', fieldErrors: { note: 'ledger.noteRequired' } };
 
+  let correction: Awaited<ReturnType<typeof correctMovement>>;
   try {
-    const correction = await correctMovement({
+    correction = await correctMovement({
       movementId,
       note,
       actorId: actor.id,
       idempotencyKey: str(fd, 'idempotencyKey') ?? '',
-    });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'stock.correct',
-      entity: 'StockMovement',
-      entityId: correction.id,
-      after: correction,
-    });
+    }, db, await requestAuditIp());
   } catch (err) {
-    if (err instanceof z.ZodError) return { fieldErrors: zodErrors(err) };
-    return { error: message(err) };
+    if (err instanceof z.ZodError) {
+      const fieldErrors = zodErrors(err);
+      return { outcome: 'rejected', fieldErrors, ...(!fieldErrors.note ? { error: 'ledger.missingMovement' } : {}) };
+    }
+    const detail = message(err);
+    if (detail.startsWith('ledger.')) return { outcome: 'rejected', error: detail };
+    const known = [
+      [/^(Void the complete invoice|This trade-in)/, 'ledger.invoiceOwned'],
+      [/^Cancel this return/, 'ledger.supplierOwned'],
+      [/^This movement has already/, 'ledger.alreadyReversed'],
+      [/^This entry is already/, 'ledger.isCorrection'],
+      [/^(Movement|Product|Unit) not found/, 'ledger.missingMovement'],
+      [/^(Insufficient stock|Unit .* (is|status))/, 'ledger.stockChanged'],
+    ] as const;
+    const translated = known.find(([pattern]) => pattern.test(detail));
+    if (translated) return { outcome: 'rejected', error: translated[1] };
+    console.error('Stock correction could not be confirmed:', err);
+    return { outcome: 'unconfirmed', error: 'ledger.unconfirmed' };
   }
 
-  revalidatePath('/products');
-  revalidatePath('/stock/movements');
-  return { ok: 'Reversed. The original entry is still in the ledger, with the correction beneath it.' };
+  try {
+    for (const path of ['/', '/products', `/products/${correction.productId}`, '/stock/movements', '/stock/reconcile', '/suppliers/returns', '/suppliers/analytics', '/reports']) revalidatePath(path);
+  } catch (err) { console.error('Stock correction refresh failed:', err); }
+  return { receipt: { id: correction.id, productId: correction.productId, quantity: correction.quantity, createdAt: correction.createdAt } };
+}
+
+export interface CorrectionActionState {
+  outcome?: 'rejected' | 'unconfirmed';
+  error?: string;
+  fieldErrors?: Record<string, string>;
+  receipt?: { id: string; productId: string; quantity: number; createdAt: string };
 }
 
 /* --- Reconciliation -------------------------------------------------------- */

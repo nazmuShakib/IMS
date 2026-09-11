@@ -85,7 +85,7 @@ export async function cancelSupplierReturn(raw: CancelSupplierReturnInput, repos
       settledAt: now, updatedAt: now,
     });
     return { supplierReturn, correction };
-  });
+  }, { isolationLevel: 'Serializable' });
 }
 
 export async function settleSupplierReturn(

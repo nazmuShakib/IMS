@@ -147,16 +147,8 @@ describe('invoice void safeguards', () => {
     const stock = source('src/services/stock.ts');
     expect(stock).toContain("original.reason === 'TRADE_IN'");
     expect(stock).toContain('acquisition?.tradeInSaleId');
-    const page = source('src/app/(dashboard)/stock/movements/page.tsx');
-    expect(page).toContain('invoiceOwnedTradeIn');
-    expect(page).toContain('Managed by {linkedSale.invoiceNumber}');
-    expect(page).not.toContain('RestoreTradeInButton');
+    // Owning invoice links are exercised in movement-query and movement-repository tests.
   });
 
-  it('links sale movements directly to their invoice detail page', () => {
-    const page = source('src/app/(dashboard)/stock/movements/page.tsx');
-    expect(page).toContain('db.sales.findByInvoiceNumber(movement.reference)');
-    expect(page).toContain('href={`/invoices/${invoiceSale.id}`}');
-    expect(page).not.toContain('href={`/invoices?q=${encodeURIComponent(movement.reference)}`}');
-  });
+
 });

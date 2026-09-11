@@ -345,7 +345,7 @@ export type ProductStaffDiscountFields = z.input<typeof productStaffDiscountFiel
 /** Corrections: never edit a movement, write an opposing one. PLAN.md §8.3. */
 export const correctionSchema = z.object({
   movementId: z.string().uuid(),
-  note: z.string().min(1, 'A correction must say why').max(1000),
+  note: z.string().trim().min(1, 'ledger.noteRequired').max(1000, 'ledger.noteTooLong'),
   actorId: z.string(),
   idempotencyKey: z.string().min(8),
 });

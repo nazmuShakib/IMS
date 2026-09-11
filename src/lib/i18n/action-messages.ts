@@ -1,4 +1,5 @@
 import type { Locale } from '@/lib/i18n/config';
+import { ledgerEnglish, ledgerBengali } from './ledger-messages';
 
 const bnMessages: Record<string, string> = {
   "The selected parent category is unavailable.": "নির্বাচিত মূল ক্যাটাগরিটি উপলভ্য নয়।",
@@ -199,6 +200,9 @@ const bnMessages: Record<string, string> = {
 };
 
 export function translateActionMessage(locale: Locale, value: string): string {
+  if (Object.hasOwn(ledgerEnglish, value)) {
+    return (locale === 'bn' ? ledgerBengali : ledgerEnglish)[value as keyof typeof ledgerEnglish];
+  }
   if (locale === 'en') return value;
   const exact = bnMessages[value];
   if (exact) return exact;

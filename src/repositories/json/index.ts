@@ -1,4 +1,5 @@
 import { expensePageFromRows, expenseRepositoryFilters, orderExpenses } from '@/lib/expense-query';
+import { movementPageFromRows } from '@/lib/movement-query';
 import { jsonReports } from './reports';
 import { customerPageFromRows, customerHistoryFromRows } from '@/lib/customer-query';
 import { taxonomySlug } from '@/lib/taxonomy-form';
@@ -419,6 +420,13 @@ const units: ProductUnitRepository = {
 };
 
 const movements: StockMovementRepository = {
+  async findPage(query) {
+    const [movements, products, units, users, sales, acquisitions, returns] = await Promise.all([
+      readAll<StockMovement>('stock-movements'), readAll<Product>('products'), readAll<ProductUnit>('product-units'), readAll<User>('users'),
+      readAll<Sale>('sales'), readAll<UsedDeviceAcquisition>('used-device-acquisitions'), readAll<SupplierReturn>('supplier-returns'),
+    ]);
+    return movementPageFromRows({ movements, products, units, users, sales, acquisitions, returns }, query);
+  },
   async record(movement) {
     movement = { ...movement, occurredAt: movement.occurredAt ?? movement.createdAt };
     if (movement.quantity === 0) {

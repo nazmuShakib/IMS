@@ -39,6 +39,15 @@ describe('English and Bengali interface', () => {
     expect(migration).toContain("CHECK (\"locale\" IN ('en', 'bn'))");
   });
 
+  it('translates shared ledger failures in invoice and supplier-return notifications', () => {
+    for (const key of ['ledger.laterActivity', 'ledger.inconsistentHistory', 'ledger.warrantyOwned'] as const) {
+      for (const locale of ['en', 'bn'] as const) {
+        expect(translateActionMessage(locale, key)).toBe(translate(locale, key));
+        expect(translateActionMessage(locale, key)).not.toBe(key);
+      }
+    }
+  });
+
   it('offers the switch in Settings and login without changing print data', () => {
     const settings = source('src/app/(dashboard)/settings/page.tsx');
     const login = source('src/app/login/page.tsx');

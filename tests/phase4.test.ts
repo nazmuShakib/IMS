@@ -471,9 +471,6 @@ describe('Phase 4 UI and API boundaries', () => {
     expect(route).toContain('delayMs: 250');
   });
 
-  it('resolves movement actors from Better Auth instead of only legacy JSON users', () => {
-    const ledger = source('src/app/(dashboard)/stock/movements/page.tsx');
-    expect(ledger).toContain('getAuthUserNames(filteredMovements.map((movement) => movement.actorId))');
-    expect(ledger).toContain('actorNameById.get(movement.actorId)');
-  });
+  // Actor labels are covered by movement repository/page behavior tests.
+
 });

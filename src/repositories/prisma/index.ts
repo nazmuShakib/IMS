@@ -1,4 +1,6 @@
 import { expenseWhere, expenseOrder, readExpensePage } from './expenses';
+import { readMovementPage } from './movements';
+import { readSnapshot } from './read-snapshot';
 import { expenseRepositoryFilters } from '@/lib/expense-query';
 import { prismaReports } from './reports';
 import { customerSearchTerms } from '@/lib/customer-query';
@@ -620,6 +622,7 @@ export function createRepositories(client: Client, transact?: Repositories['tran
       },
     },
     movements: {
+      findPage: query => readSnapshot(client, tx => readMovementPage(tx, query, movement)),
       async record(value) {
         if (value.quantity === 0) throw new Error('A zero-quantity movement is meaningless');
         try {
@@ -1163,9 +1166,7 @@ export function createRepositories(client: Client, transact?: Repositories['tran
     operatingExpenses: {
       async findPage(query) {
         // Count, aggregates and page share a consistent database snapshot.
-        return '$transaction' in client
-          ? (client as PrismaClient).$transaction(tx => readExpensePage(tx, query, operatingExpense), { isolationLevel: 'RepeatableRead' })
-          : readExpensePage(client, query, operatingExpense);
+        return readSnapshot(client, tx => readExpensePage(tx, query, operatingExpense));
       },
       async findForExport(query) {
         const filters = expenseRepositoryFilters(query);

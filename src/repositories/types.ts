@@ -327,6 +327,7 @@ export interface MovementFilters {
 }
 
 export interface StockMovementRepository {
+  findPage(query: import('@/lib/movement-query').MovementQuery): Promise<import('@/lib/movement-query').MovementPage>;
   /** Append-only. There is no update() and no delete(). By design. */
   record(movement: StockMovement): Promise<StockMovement>;
   findById(id: string): Promise<StockMovement | null>;

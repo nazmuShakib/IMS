@@ -541,7 +541,7 @@ describe('Phase 8 stock and invoice invariants', () => {
     expect(register).toContain('setFiltering(true)');
     expect(register).toContain('setFiltering(false)');
     expect(page).toContain('resultVersion={crypto.randomUUID()}');
-    expect(register).toContain('window.history.pushState');
+    expect(register).toContain('router.push(filterUrl(next, 1, pageSize), { scroll: false })');
     expect(register).toContain('router.refresh()');
     expect(source('src/app/(dashboard)/invoices/loading.tsx')).toContain('Loading invoices…');
     expect(repositories).toContain('search(filters: SaleFilters');

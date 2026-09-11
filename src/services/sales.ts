@@ -6,6 +6,7 @@ import { uuidv7 } from '@/lib/ids';
 import { db } from '@/repositories';
 import { voidInvoiceFieldsSchema } from '@/schemas';
 import { correctMovementInTransaction } from '@/services/stock';
+import { movementOrder } from '@/lib/movement-correction';
 
 const voidSaleSchema = voidInvoiceFieldsSchema.omit({ confirmed: true }).extend({
   saleId: z.string().uuid(),
@@ -128,7 +129,8 @@ export async function voidSale(raw: VoidSaleInput): Promise<Sale> {
     }
 
     const correctionNote = `Invoice ${sale.invoiceNumber} voided: ${input.reason}`;
-    for (const [index, movement] of saleMovements.entries()) {
+    // Unwind multiple bulk lines of the same product in reverse recording order.
+    for (const [index, movement] of saleMovements.sort((a, b) => movementOrder(b, a)).entries()) {
       await correctMovementInTransaction({
         movementId: movement.id,
         note: correctionNote,

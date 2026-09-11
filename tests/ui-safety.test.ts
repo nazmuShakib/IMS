@@ -18,7 +18,7 @@ describe('bounded data tables', () => {
     'src/app/(dashboard)/audit/page.tsx',
     'src/app/(dashboard)/users/page.tsx',
     'src/app/(dashboard)/products/page.tsx',
-    'src/app/(dashboard)/stock/movements/page.tsx',
+    'src/components/stock/MovementWorkspace.tsx',
     'src/app/(dashboard)/stock/reconcile/page.tsx',
   ])('bounds the growing table in %s', (file) => {
     const page = source(file);

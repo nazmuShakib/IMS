@@ -1,6 +1,8 @@
 import type { Locale } from '@/lib/i18n/config';
+import { ledgerEnglish, ledgerBengali } from './ledger-messages';
 
 const en = {
+  ...ledgerEnglish,
   "taxonomy.showActive": "Show active records",
   "taxonomy.showRemoved": "Find removed record to restore",
   "taxonomy.childrenFilter": "Showing child categories",
@@ -1744,6 +1746,7 @@ const en = {
 export type MessageKey = keyof typeof en;
 
 const bn: Record<MessageKey, string> = {
+  ...ledgerBengali,
   "taxonomy.showActive": "সক্রিয় রেকর্ড দেখুন",
   "taxonomy.showRemoved": "পুনরুদ্ধারের জন্য সরানো রেকর্ড দেখুন",
   "taxonomy.childrenFilter": "উপক্যাটাগরি দেখানো হচ্ছে",

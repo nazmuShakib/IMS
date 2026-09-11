@@ -1,4 +1,5 @@
 import { db } from '@/repositories';
+import { bulkCorrectionState } from '@/lib/movement-correction';
 import { serialKey, type StockReceipt } from '@/lib/stock-receipt';
 import { idempotencyKey as newKey, uuidv7 } from '@/lib/ids';
 import { weightedAvgCost, type Paisa } from '@/lib/money';
@@ -34,9 +35,9 @@ import type { Repositories } from '@/repositories/types';
 export { newKey as generateIdempotencyKey };
 
 /** On-hand, computed the correct way for each tracking type. */
-export async function getOnHand(product: Product): Promise<number> {
+export async function getOnHand(product: Product, repositories: Repositories = db): Promise<number> {
   return product.trackingType === 'SERIAL'
-    ? db.units.countInStock(product.id)
+    ? repositories.units.countInStock(product.id)
     : product.quantityOnHand;
 }
 
@@ -423,8 +424,15 @@ export async function correctMovementInTransaction(
   tx: Repositories,
   options: { allowSale?: boolean; allowAttachedTradeIn?: boolean; allowSupplierReturn?: boolean } = {},
 ): Promise<StockMovement> {
+    const previous = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
+    if (previous) {
+      if (previous.reason !== 'CORRECTION' || previous.reversesId !== input.movementId || previous.actorId !== input.actorId || previous.note !== input.note.trim()) throw new Error('ledger.keyMismatch');
+      return previous;
+    }
     const original = await tx.movements.findById(input.movementId);
     if (!original) throw new Error(`Movement not found: ${input.movementId}`);
+
+    if (original.warrantyClaimId) throw new Error('ledger.warrantyOwned');
 
     if (original.reason === 'SALE' && !options.allowSale) {
       throw new Error('Void the complete invoice instead of reversing an individual sale movement.');
@@ -494,7 +502,8 @@ export async function correctMovementInTransaction(
         });
       }
     } else {
-      await tx.products._applyQuantityDelta(product.id, -original.quantity);
+      const restored = bulkCorrectionState(product, original, siblings);
+      await tx.products._applyQuantityDelta(product.id, -original.quantity, restored.average);
     }
 
     return tx.movements.record({
@@ -504,7 +513,7 @@ export async function correctMovementInTransaction(
       type: 'ADJUST',
       reason: 'CORRECTION',
       quantity: -original.quantity, // the exact opposite
-      note: input.note,
+      note: input.note.trim(),
       actorId: input.actorId,
       idempotencyKey: input.idempotencyKey,
       reversesId: original.id,
@@ -512,11 +521,24 @@ export async function correctMovementInTransaction(
     });
 }
 
-export async function correctMovement(raw: CorrectionInput): Promise<StockMovement> {
+export async function correctMovement(raw: CorrectionInput, repositories: Repositories = db, ip: string | null = null): Promise<StockMovement> {
   const input = correctionSchema.parse(raw);
-  return db.transaction(async (tx) => {
-    return correctMovementInTransaction(input, tx);
-  });
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await repositories.transaction(async (tx) => {
+        const previous = await tx.movements.findByIdempotencyKey(input.idempotencyKey);
+        const correction = await correctMovementInTransaction(input, tx);
+        if (!previous) await tx.auditLogs.create({
+          id: uuidv7(), actorId: input.actorId, action: 'stock.correct', entity: 'StockMovement', entityId: correction.id,
+          before: null, after: correction, ip, createdAt: correction.createdAt,
+        });
+        return correction;
+      }, { isolationLevel: 'Serializable' });
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : null;
+      if (attempt >= 2 || (code !== 'P2034' && code !== 'P2002')) throw error;
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -532,13 +554,13 @@ export interface Drift {
   drift: number;
 }
 
-export async function reconcile(): Promise<Drift[]> {
-  const products = await db.products.findAll();
+export async function reconcile(repositories: Repositories = db): Promise<Drift[]> {
+  const products = await repositories.products.findAll();
   const drifts: Drift[] = [];
 
   for (const product of products) {
-    const onHand = await getOnHand(product);
-    const ledgerSum = await db.movements.sumQuantity(product.id);
+    const onHand = await getOnHand(product, repositories);
+    const ledgerSum = await repositories.movements.sumQuantity(product.id);
     if (onHand !== ledgerSum) {
       drifts.push({
         productId: product.id,

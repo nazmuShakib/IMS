@@ -667,6 +667,19 @@ newAvgCost = ((oldQty * oldAvgCost) + (newQty * newUnitCost)) / (oldQty + newQty
 ### 8.3 Corrections
 Never edit or delete a movement. Write a new one with `reason: CORRECTION`, the opposite sign, and `reversesId` pointing at the original.
 
+Receipt correction policy (revised 11 September 2026): each purchase/stock-in
+can be corrected independently of later receipts for the same product. Do not
+require operators to undo newer receipts first. For bulk stock, replay the
+remaining effective history with integer-paisa weighted-average rounding to
+restore the remaining quantity and cost basis. Exclude cancelled original/
+correction pairs. The remaining history must have nonnegative quantities and
+preserve recorded stock-out costs; otherwise explain the specific stock or cost
+dependency when confirmation is submitted. Do not silently recost past sales.
+For serial stock, the specific unit must still be in stock. Retain permissions,
+owning invoice/warranty/supplier workflows, single-reversal protection, atomic
+audit creation, and idempotent retries. The reverse-order restriction remains
+for bulk outbound corrections only.
+
 ### 8.4 Reconciliation job
 An admin-only page that, per product, compares the cache against the ledger and reports drift:
 

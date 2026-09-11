@@ -21,23 +21,7 @@ describe('pre-Phase 10 catalog and ledger UX', () => {
     expect(actions).not.toContain('db.suppliers.delete');
   });
 
-  it('keeps ledger controls stable while only its output displays loading', () => {
-    const workspace = source('src/components/stock/MovementWorkspace.tsx');
-    const page = source('src/app/(dashboard)/stock/movements/page.tsx');
-    expect(workspace).toContain("window.history.pushState(null, '',");
-    expect(workspace).toContain('router.refresh()');
-    expect(workspace).toContain('startRefreshing(() => {');
-    expect(workspace).toContain('{filterPanel}');
-    expect(workspace).toContain("t('loading.filterMovements')");
-    expect(workspace).toContain("field.type !== 'hidden'");
-    expect(workspace).toContain('field.selectedIndex = 0');
-    expect(page).toContain('data-ledger-reset');
-    expect(page).toContain('name="product"');
-    expect(page).toContain('name="type"');
-    expect(page).toContain('name="actor"');
-    expect(page).toContain('name="from"');
-    expect(page).toContain('name="to"');
-  });
+  // Ledger control stability and navigation are exercised in movement-ui.test.tsx.
 
   // Product filters and dead-stock behavior are covered by catalog-pagination.test.ts
   // and real SQL parity checks in catalog-postgres.test.ts.
