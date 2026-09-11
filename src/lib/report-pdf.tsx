@@ -1,3 +1,4 @@
+import type { TabularExport } from './tabular-export';
 import path from 'node:path';
 import { Document, Font, Page, StyleSheet, Text, View, renderToBuffer } from '@react-pdf/renderer';
 import { reportExportMatrix } from '@/lib/report-export';
@@ -50,8 +51,8 @@ const styles = StyleSheet.create({
   note: { marginTop: 8, color: '#626c76', fontSize: 7 },
   summary: { marginBottom: 10, fontSize: 9 },
 });
-function ReportDocument({ report, locale }: { report: ReportResult; locale: Locale }) {
-  const localized = localizeReport(report, locale),
+function ReportDocument({ report, locale }: { report: ReportResult | TabularExport; locale: Locale }) {
+  const localized = report.kind ? localizeReport(report, locale) : report,
     matrix = reportExportMatrix(report, locale);
   const context = report.filterContext ?? [];
   return (
@@ -64,7 +65,7 @@ function ReportDocument({ report, locale }: { report: ReportResult; locale: Loca
       >
         <Text style={styles.title}>{localized.title}</Text>
         <Text style={styles.subtitle}>{localized.description}</Text>
-        {report.filters && (
+        {(report.filters || report.filterContext) && (
           <Text style={styles.subtitle}>
             {reportText(locale, 'filters')}:{' '}
             {context.length
@@ -85,7 +86,7 @@ function ReportDocument({ report, locale }: { report: ReportResult; locale: Loca
           </Text>
         )}
         <Text style={styles.summary}>
-          {(report.filters ? summaryKeys(report.kind) : Object.keys(report.totals))
+          {!report.kind ? report.summaryItems.map(item => `${item.label}: ${item.value}`).join(' · ') : (report.filters ? summaryKeys(report.kind) : Object.keys(report.totals))
             .map((k) => {
               const c = summaryColumn(k, report, locale);
               return `${c.label}: ${presentCell(summaryValue(report, k), c, locale)}`;
@@ -121,6 +122,6 @@ function ReportDocument({ report, locale }: { report: ReportResult; locale: Loca
     </Document>
   );
 }
-export async function reportToPdf(report: ReportResult, locale: Locale = 'en'): Promise<Buffer> {
+export async function reportToPdf(report: ReportResult | TabularExport, locale: Locale = 'en'): Promise<Buffer> {
   return renderToBuffer(<ReportDocument report={report} locale={locale} />);
 }

@@ -1,3 +1,4 @@
+import { expensePageFromRows, expenseRepositoryFilters, orderExpenses } from '@/lib/expense-query';
 import { jsonReports } from './reports';
 import { customerPageFromRows, customerHistoryFromRows } from '@/lib/customer-query';
 import { taxonomySlug } from '@/lib/taxonomy-form';
@@ -942,6 +943,10 @@ const expenseCategories: ExpenseCategoryRepository = {
 };
 
 const operatingExpenses: OperatingExpenseRepository = {
+  async findPage(query) {
+    return withLock(async () => expensePageFromRows(await operatingExpenses.findForExport(query), await expenseCategories.findAll(), query));
+  },
+  async findForExport(query) { return operatingExpenses.findAll(expenseRepositoryFilters(query), null); },
   async nextExpenseNumber(now) {
     const year = dhakaYear(now);
     const prefix = `EXP-${year}-`;
@@ -965,12 +970,7 @@ const operatingExpenses: OperatingExpenseRepository = {
       && (!query || [item.expenseNumber, item.description, item.paidTo, item.reference]
         .some((value) => value?.toLowerCase().includes(query)))
     ));
-    rows.sort((a, b) => {
-      if (filters?.order === 'oldest') return a.expenseDate.localeCompare(b.expenseDate);
-      if (filters?.order === 'amount-desc') return b.amount - a.amount;
-      if (filters?.order === 'amount-asc') return a.amount - b.amount;
-      return b.expenseDate.localeCompare(a.expenseDate) || b.createdAt.localeCompare(a.createdAt);
-    });
+    rows.sort((a, b) => orderExpenses(a, b, filters?.order));
     return limit === null ? rows : rows.slice(0, Math.max(1, Math.min(limit, 2_000)));
   },
   async findById(id) {

@@ -1,15 +1,7 @@
-import type {
-  ExpenseCategory,
-  OperatingExpense,
-  OperatingExpenseStatus,
-  PaymentMethod,
-} from '@/domain/types';
-import { OPERATING_EXPENSE_STATUSES, PAYMENT_METHODS } from '@/domain/types';
+import type { OperatingExpense } from '@/domain/types';
 import { uuidv7 } from '@/lib/ids';
-import type { Paisa } from '@/lib/money';
-import { parseBDT } from '@/lib/money';
 import { db } from '@/repositories';
-import type { ExpenseOrder, OperatingExpenseFilters, Repositories } from '@/repositories';
+import type { Repositories } from '@/repositories';
 import {
   createExpenseCategorySchema,
   createExpenseSchema,
@@ -17,136 +9,14 @@ import {
   voidExpenseFieldsSchema,
 } from '@/schemas';
 
-export interface ExpenseQuery {
-  query?: string;
-  from?: string;
-  to?: string;
-  categoryId?: string;
-  paymentMethod?: PaymentMethod;
-  recordedById?: string;
-  status?: OperatingExpenseStatus;
-  minAmount?: Paisa;
-  maxAmount?: Paisa;
-  order: ExpenseOrder;
-  groupBy: 'none' | 'category' | 'payment';
+export { parseExpenseQuery, summarizeExpenses, expenseRepositoryFilters } from '@/lib/expense-query';
+export type { ExpenseQuery, ExpenseSummary } from '@/lib/expense-query';
+import type { ExpenseQuery } from '@/lib/expense-query';
+export async function listExpenses(query: ExpenseQuery, repositories: Repositories = db): Promise<OperatingExpense[]> {
+  return repositories.operatingExpenses.findForExport(query);
 }
-
-export interface ExpenseSummary {
-  activeTotal: Paisa;
-  activeCount: number;
-  voidedCount: number;
-  lowest: Paisa;
-  highest: Paisa;
-  byCategory: Array<{ categoryId: string; name: string; amount: Paisa }>;
-  byPaymentMethod: Array<{ paymentMethod: PaymentMethod; amount: Paisa }>;
-}
-
-function dhakaDateKey(value: Date): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Dhaka', year: 'numeric', month: '2-digit', day: '2-digit',
-  }).format(value);
-}
-
-function currentMonthRange(now: Date): { from: string; to: string } {
-  const [year, month] = dhakaDateKey(now).split('-');
-  return { from: `${year}-${month}-01`, to: dhakaDateKey(now) };
-}
-
-function validDate(value: string | undefined): value is string {
-  return Boolean(value && /^\d{4}-\d{2}-\d{2}$/.test(value));
-}
-
-function optionalPaisa(value: string | undefined): Paisa | undefined {
-  if (!value?.trim()) return undefined;
-  try {
-    const amount = parseBDT(value);
-    return amount >= 0 ? amount : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export function parseExpenseQuery(
-  raw: Record<string, string | string[] | undefined>,
-  now = new Date(),
-): ExpenseQuery {
-  const one = (key: string) => {
-    const value = raw[key];
-    return Array.isArray(value) ? value[0] : value;
-  };
-  const defaults = currentMonthRange(now);
-  const hasQueryParameters = Object.values(raw).some((value) => value !== undefined);
-  const payment = one('paymentMethod');
-  const status = one('status');
-  const order = one('order');
-  return {
-    query: one('query')?.trim() || undefined,
-    from: validDate(one('from')) ? one('from')! : hasQueryParameters ? undefined : defaults.from,
-    to: validDate(one('to')) ? one('to')! : hasQueryParameters ? undefined : defaults.to,
-    categoryId: one('categoryId') || undefined,
-    paymentMethod: PAYMENT_METHODS.includes(payment as PaymentMethod) ? payment as PaymentMethod : undefined,
-    recordedById: one('recordedById') || undefined,
-    status: OPERATING_EXPENSE_STATUSES.includes(status as OperatingExpenseStatus)
-      ? status as OperatingExpenseStatus
-      : undefined,
-    minAmount: optionalPaisa(one('minAmount')),
-    maxAmount: optionalPaisa(one('maxAmount')),
-    order: ['oldest', 'amount-desc', 'amount-asc'].includes(order ?? '')
-      ? order as ExpenseOrder
-      : 'newest',
-    groupBy: ['category', 'payment'].includes(one('groupBy') ?? '')
-      ? one('groupBy') as 'category' | 'payment'
-      : 'none',
-  };
-}
-
-export function expenseRepositoryFilters(query: ExpenseQuery): OperatingExpenseFilters {
-  return {
-    query: query.query,
-    from: query.from ? new Date(`${query.from}T00:00:00+06:00`) : undefined,
-    to: query.to ? new Date(`${query.to}T23:59:59.999+06:00`) : undefined,
-    categoryId: query.categoryId,
-    paymentMethod: query.paymentMethod,
-    recordedById: query.recordedById,
-    status: query.status,
-    minAmount: query.minAmount,
-    maxAmount: query.maxAmount,
-    order: query.order,
-  };
-}
-
-export async function listExpenses(
-  query: ExpenseQuery,
-  repositories: Repositories = db,
-): Promise<OperatingExpense[]> {
-  return repositories.operatingExpenses.findAll(expenseRepositoryFilters(query), 2_000);
-}
-
-export function summarizeExpenses(
-  expenses: OperatingExpense[],
-  categories: ExpenseCategory[],
-): ExpenseSummary {
-  const active = expenses.filter((item) => item.status === 'ACTIVE');
-  const categoryNames = new Map(categories.map((item) => [item.id, item.name]));
-  const categoryTotals = new Map<string, Paisa>();
-  const methodTotals = new Map<PaymentMethod, Paisa>();
-  for (const item of active) {
-    categoryTotals.set(item.categoryId, (categoryTotals.get(item.categoryId) ?? 0) + item.amount);
-    methodTotals.set(item.paymentMethod, (methodTotals.get(item.paymentMethod) ?? 0) + item.amount);
-  }
-  const activeTotal = active.reduce((sum, item) => sum + item.amount, 0);
-  return {
-    activeTotal,
-    activeCount: active.length,
-    voidedCount: expenses.length - active.length,
-    lowest: active.reduce((minimum, item) => Math.min(minimum, item.amount), active[0]?.amount ?? 0),
-    highest: active.reduce((maximum, item) => Math.max(maximum, item.amount), 0),
-    byCategory: [...categoryTotals].map(([categoryId, amount]) => ({
-      categoryId, name: categoryNames.get(categoryId) ?? 'Unknown category', amount,
-    })).sort((a, b) => b.amount - a.amount),
-    byPaymentMethod: [...methodTotals].map(([paymentMethod, amount]) => ({ paymentMethod, amount }))
-      .sort((a, b) => b.amount - a.amount),
-  };
+export async function getExpensePage(query: ExpenseQuery, repositories: Repositories = db) {
+  return repositories.operatingExpenses.findPage(query);
 }
 
 function expenseDateIso(value: string): string {
@@ -258,4 +128,20 @@ export async function updateExpenseCategory(
     isActive: raw.isActive,
     updatedAt: new Date().toISOString(),
   });
+}
+
+/** PostgreSQL rolls back mutation and audit together. JSON uses its existing process
+ * lock; its multi-file writes are not crash-safe transactions. */
+export async function withExpenseAudit<T extends { id: string }>(
+  context: { actorId: string; ip: string | null; action: string; entity: 'OperatingExpense' | 'ExpenseCategory'; entityId?: string },
+  mutate: (tx: Repositories) => Promise<T>,
+  repositories: Repositories = db,
+): Promise<T> {
+  return repositories.transaction(async tx => {
+    const repository = context.entity === 'OperatingExpense' ? tx.operatingExpenses : tx.expenseCategories;
+    const before = context.entityId ? await repository.findById(context.entityId) : null;
+    const after = await mutate(tx);
+    await tx.auditLogs.create({ id: uuidv7(), ...context, entityId: after.id, before, after, createdAt: new Date().toISOString() });
+    return after;
+  }, { isolationLevel: 'Serializable' });
 }

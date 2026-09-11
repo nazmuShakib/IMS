@@ -1,3 +1,4 @@
+import type { TabularExport } from './tabular-export';
 import Papa from 'papaparse';
 import type { Locale } from '@/lib/i18n/config';
 import { localizeReport, presentCell } from './report-presentation';
@@ -10,10 +11,10 @@ export function formatReportCell(
   return presentCell(value, column, locale);
 }
 export function reportExportMatrix(
-  report: ReportResult,
+  report: ReportResult | TabularExport,
   locale: Locale = 'en',
 ): { headers: string[]; rows: string[][] } {
-  const localized = localizeReport(report, locale);
+  const localized = report.kind ? localizeReport(report, locale) : report;
   return {
     headers: localized.columns.map((c) => c.label),
     rows: report.rows.map((r) =>
@@ -21,8 +22,8 @@ export function reportExportMatrix(
     ),
   };
 }
-export function reportToCsv(report: ReportResult, locale: Locale = 'en'): string {
-  const localized = localizeReport(report, locale);
+export function reportToCsv(report: ReportResult | TabularExport, locale: Locale = 'en'): string {
+  const localized = report.kind ? localizeReport(report, locale) : report;
   return Papa.unparse(
     {
       fields: localized.columns.map((c) => c.label),

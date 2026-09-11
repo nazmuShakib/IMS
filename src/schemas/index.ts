@@ -1,3 +1,4 @@
+import { parseExpenseAmount, validExpenseDate, MAX_EXPENSE_PAISA } from '@/lib/expense-query';
 import { taxonomyNameSchema } from '@/lib/taxonomy-form';
 import { z } from 'zod';
 import {
@@ -38,16 +39,16 @@ const optionalFormText = (maximum: number) => z.union([
   z.null(),
 ]);
 const expenseAmountInput = z.union([
-  z.string().trim()
-    .min(1, 'Enter the expense amount.')
-    .refine((value) => {
-      if (!/^(?:৳\s*)?\d[\d,]*(?:\.\d{1,2})?$/.test(value)) return false;
-      try { return parseBDT(value) > 0; } catch { return false; }
-    }, 'Enter a valid amount greater than zero.')
-    .transform((value) => parseBDT(value)),
-  paisa.positive('Enter an amount greater than zero.'),
+  z.string().trim().min(1, 'Enter the expense amount.').transform((value, ctx) => {
+    try {
+      const amount = parseExpenseAmount(value);
+      if (amount <= 0) throw new Error('Enter a valid amount greater than zero.');
+      return amount;
+    } catch (error) { ctx.addIssue({ code: 'custom', message: (error as Error).message }); return z.NEVER; }
+  }),
+  paisa.positive('Enter an amount greater than zero.').max(MAX_EXPENSE_PAISA, 'Amount exceeds the supported limit.'),
 ]);
-const expenseDateInput = z.string().trim().regex(/^\d{4}-\d{2}-\d{2}$/, 'Choose a valid expense date.');
+const expenseDateInput = z.string().trim().refine(validExpenseDate, 'Choose a valid expense date.');
 
 export const createProductSchema = z
   .object({

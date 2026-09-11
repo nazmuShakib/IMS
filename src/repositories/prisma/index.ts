@@ -1,3 +1,5 @@
+import { expenseWhere, expenseOrder, readExpensePage } from './expenses';
+import { expenseRepositoryFilters } from '@/lib/expense-query';
 import { prismaReports } from './reports';
 import { customerSearchTerms } from '@/lib/customer-query';
 import { withCatalogLock, guardTaxonomyWrite, guardProductTaxonomy } from './taxonomy-guards';
@@ -338,7 +340,7 @@ function friendlyDatabaseError(error: unknown): never {
   throw error;
 }
 
-function createRepositories(client: Client, transact?: Repositories['transaction']): Repositories {
+export function createRepositories(client: Client, transact?: Repositories['transaction']): Repositories {
   let repositories: Repositories;
 
   repositories = {
@@ -1159,6 +1161,16 @@ function createRepositories(client: Client, transact?: Repositories['transaction
       },
     },
     operatingExpenses: {
+      async findPage(query) {
+        // Count, aggregates and page share a consistent database snapshot.
+        return '$transaction' in client
+          ? (client as PrismaClient).$transaction(tx => readExpensePage(tx, query, operatingExpense), { isolationLevel: 'RepeatableRead' })
+          : readExpensePage(client, query, operatingExpense);
+      },
+      async findForExport(query) {
+        const filters = expenseRepositoryFilters(query);
+        return (await client.operatingExpense.findMany({ where: expenseWhere(filters), orderBy: expenseOrder(filters) })).map(operatingExpense);
+      },
       async nextExpenseNumber(now) {
         const year = dhakaYear(now);
         const sequence = await client.documentSequence.upsert({
@@ -1169,37 +1181,8 @@ function createRepositories(client: Client, transact?: Repositories['transaction
         return `EXP-${year}-${String(sequence.value).padStart(6, '0')}`;
       },
       async findAll(filters, limit = 500) {
-        const query = filters?.query?.trim();
-        const amount = filters?.minAmount !== undefined || filters?.maxAmount !== undefined
-          ? { gte: filters?.minAmount, lte: filters?.maxAmount }
-          : undefined;
-        const orderBy = filters?.order === 'oldest'
-          ? [{ expenseDate: 'asc' as const }, { createdAt: 'asc' as const }]
-          : filters?.order === 'amount-desc'
-            ? [{ amount: 'desc' as const }, { expenseDate: 'desc' as const }]
-            : filters?.order === 'amount-asc'
-              ? [{ amount: 'asc' as const }, { expenseDate: 'desc' as const }]
-              : [{ expenseDate: 'desc' as const }, { createdAt: 'desc' as const }];
         return (await client.operatingExpense.findMany({
-          where: {
-            expenseDate: filters?.from || filters?.to
-              ? { gte: filters?.from, lte: filters?.to }
-              : undefined,
-            categoryId: filters?.categoryId,
-            paymentMethod: filters?.paymentMethod,
-            recordedById: filters?.recordedById,
-            status: filters?.status,
-            amount,
-            ...(query ? {
-              OR: [
-                { expenseNumber: { contains: query, mode: 'insensitive' } },
-                { description: { contains: query, mode: 'insensitive' } },
-                { paidTo: { contains: query, mode: 'insensitive' } },
-                { reference: { contains: query, mode: 'insensitive' } },
-              ],
-            } : {}),
-          },
-          orderBy,
+          where: expenseWhere(filters), orderBy: expenseOrder(filters),
           take: limit === null ? undefined : Math.max(1, Math.min(limit, 2_000)),
         })).map(operatingExpense);
       },

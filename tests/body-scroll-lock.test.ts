@@ -23,3 +23,11 @@ it('keeps scrolling locked until all overlapping overlays close, in either order
   const third = lockBodyScroll(); const fourth = lockBodyScroll();
   fourth(); expect(document.body.style.overflow).toBe('hidden'); third(); expect(document.body.style.overflow).toBe('');
 });
+it('removes the unshaded viewport gutter for nested dialogs and restores it after the final close', () => {
+  document.documentElement.style.scrollbarGutter = 'stable';
+  const first = lockBodyScroll(); const second = lockBodyScroll();
+  expect(document.documentElement.style.scrollbarGutter).toBe('auto');
+  first(); expect(document.documentElement.style.scrollbarGutter).toBe('auto');
+  second(); expect(document.documentElement.style.scrollbarGutter).toBe('stable');
+  document.documentElement.style.scrollbarGutter = '';
+});

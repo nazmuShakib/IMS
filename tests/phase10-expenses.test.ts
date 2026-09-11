@@ -20,10 +20,10 @@ function expense(patch: Partial<OperatingExpense> & Pick<OperatingExpense, 'id' 
 }
 
 describe('Phase 10.1 operating expenses', () => {
-  it('defaults the register to the current Dhaka month but accepts unrestricted dates', () => {
+  it('defaults the register to all dates and accepts explicit ranges', () => {
     const defaults = parseExpenseQuery({}, new Date('2026-08-11T04:00:00.000Z'));
-    expect(defaults.from).toBe('2026-08-01');
-    expect(defaults.to).toBe('2026-08-11');
+    expect(defaults.from).toBeUndefined();
+    expect(defaults.to).toBeUndefined();
     const allDates = parseExpenseQuery({ range: 'all', groupBy: 'category' }, new Date('2026-08-11T04:00:00.000Z'));
     expect(allDates.from).toBeUndefined();
     expect(allDates.to).toBeUndefined();

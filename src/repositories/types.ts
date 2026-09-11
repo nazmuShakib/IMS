@@ -1,3 +1,4 @@
+import type { ExpenseQuery, ExpensePage } from '@/lib/expense-query';
 import type { ReportFilters, ReportResult } from '@/lib/report-query';
 import type { CustomerQuery, CustomerListRow, CustomerHistoryPage } from '@/lib/customer-query';
 import type { PageRequest, PageResult } from '@/lib/catalog-query';
@@ -230,6 +231,8 @@ export interface OperatingExpenseFilters {
 }
 
 export interface OperatingExpenseRepository {
+  findPage(query: ExpenseQuery): Promise<ExpensePage>;
+  findForExport(query: ExpenseQuery): Promise<OperatingExpense[]>;
   nextExpenseNumber(now: Date): Promise<string>;
   findAll(filters?: OperatingExpenseFilters, limit?: number | null): Promise<OperatingExpense[]>;
   findById(id: string): Promise<OperatingExpense | null>;

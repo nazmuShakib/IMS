@@ -3,9 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { writeAudit } from '@/lib/audit';
+import { requestAuditIp } from '@/lib/audit';
 import { requireCapability } from '@/lib/session';
-import { db } from '@/repositories';
 import {
   createExpenseCategorySchema,
   createExpenseSchema,
@@ -18,12 +17,21 @@ import {
   updateExpense,
   updateExpenseCategory,
   voidExpense,
+  withExpenseAudit,
 } from '@/services/expenses';
 
 export interface ExpenseActionState {
   ok?: string;
+  reference?: string;
   error?: string;
   fieldErrors?: Record<string, string>;
+}
+
+function failure(error: unknown, fallback: string): string {
+  if (error && typeof error === 'object' && 'code' in error && error.code === 'P2034') {
+    return 'This record changed while saving. Please try again.';
+  }
+  return error instanceof Error ? error.message : fallback;
 }
 
 function text(data: FormData, key: string): string {
@@ -58,19 +66,12 @@ export async function createExpenseAction(
   const parsed = createExpenseSchema.safeParse({ ...expenseForm(data), actorId: actor.id });
   if (!parsed.success) return { fieldErrors: errors(parsed.error) };
   try {
-    const created = await createExpense(parsed.data);
-    await writeAudit({
-      actorId: actor.id,
-      action: 'operating_expense.create',
-      entity: 'OperatingExpense',
-      entityId: created.id,
-      after: created,
-    });
+    const created = await withExpenseAudit({ actorId: actor.id, ip: await requestAuditIp(), action: 'operating_expense.create', entity: 'OperatingExpense' }, tx => createExpense(parsed.data, tx));
     revalidatePath('/expenses');
     revalidatePath('/');
-    return { ok: `Recorded ${created.expenseNumber}.` };
+    return { ok: `Recorded ${created.expenseNumber}.`, reference: created.expenseNumber };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Could not record the expense.' };
+    return { error: failure(error, 'Could not record the expense.') };
   }
 }
 
@@ -84,21 +85,12 @@ export async function updateExpenseAction(
   });
   if (!parsed.success) return { fieldErrors: errors(parsed.error) };
   try {
-    const before = await db.operatingExpenses.findById(parsed.data.expenseId);
-    const updated = await updateExpense(parsed.data);
-    await writeAudit({
-      actorId: actor.id,
-      action: 'operating_expense.update',
-      entity: 'OperatingExpense',
-      entityId: updated.id,
-      before,
-      after: updated,
-    });
+    const updated = await withExpenseAudit({ actorId: actor.id, ip: await requestAuditIp(), action: 'operating_expense.update', entity: 'OperatingExpense', entityId: parsed.data.expenseId }, tx => updateExpense(parsed.data, tx));
     revalidatePath('/expenses');
     revalidatePath('/');
-    return { ok: `Updated ${updated.expenseNumber}.` };
+    return { ok: `Updated ${updated.expenseNumber}.`, reference: updated.expenseNumber };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Could not update the expense.' };
+    return { error: failure(error, 'Could not update the expense.') };
   }
 }
 
@@ -114,21 +106,12 @@ export async function voidExpenseAction(
   const expenseId = text(data, 'expenseId');
   if (!expenseId) return { fieldErrors: { expenseId: 'Expense is required.' } };
   try {
-    const before = await db.operatingExpenses.findById(expenseId);
-    const updated = await voidExpense({ expenseId, actorId: actor.id, ...fields.data });
-    await writeAudit({
-      actorId: actor.id,
-      action: 'operating_expense.void',
-      entity: 'OperatingExpense',
-      entityId: updated.id,
-      before,
-      after: updated,
-    });
+    const updated = await withExpenseAudit({ actorId: actor.id, ip: await requestAuditIp(), action: 'operating_expense.void', entity: 'OperatingExpense', entityId: expenseId }, tx => voidExpense({ expenseId, actorId: actor.id, ...fields.data }, tx));
     revalidatePath('/expenses');
     revalidatePath('/');
-    return { ok: `Voided ${updated.expenseNumber}.` };
+    return { ok: `Voided ${updated.expenseNumber}.`, reference: updated.expenseNumber };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Could not void the expense.' };
+    return { error: failure(error, 'Could not void the expense.') };
   }
 }
 
@@ -140,12 +123,11 @@ export async function createExpenseCategoryAction(
   const parsed = createExpenseCategorySchema.safeParse({ name: text(data, 'name') });
   if (!parsed.success) return { fieldErrors: errors(parsed.error) };
   try {
-    const category = await createExpenseCategory(parsed.data, actor.id);
-    await writeAudit({ actorId: actor.id, action: 'expense_category.create', entity: 'ExpenseCategory', entityId: category.id, after: category });
+    const category = await withExpenseAudit({ actorId: actor.id, ip: await requestAuditIp(), action: 'expense_category.create', entity: 'ExpenseCategory' }, tx => createExpenseCategory(parsed.data, actor.id, tx));
     revalidatePath('/expenses');
-    return { ok: 'Expense category added.' };
+    return { ok: 'Expense category added.', reference: category.name };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Could not add the category.' };
+    return { error: failure(error, 'Could not add the category.') };
   }
 }
 
@@ -159,14 +141,10 @@ export async function updateExpenseCategoryAction(
   if (!parsed.success) return { fieldErrors: errors(parsed.error) };
   if (!categoryId) return { fieldErrors: { categoryId: 'Category is required.' } };
   try {
-    const before = await db.expenseCategories.findById(categoryId);
-    const category = await updateExpenseCategory({
-      categoryId, name: parsed.data.name, isActive: text(data, 'isActive') === 'true',
-    });
-    await writeAudit({ actorId: actor.id, action: 'expense_category.update', entity: 'ExpenseCategory', entityId: category.id, before, after: category });
+    const category = await withExpenseAudit({ actorId: actor.id, ip: await requestAuditIp(), action: 'expense_category.update', entity: 'ExpenseCategory', entityId: categoryId }, tx => updateExpenseCategory({ categoryId, name: parsed.data.name, isActive: text(data, 'isActive') === 'true' }, tx));
     revalidatePath('/expenses');
-    return { ok: 'Expense category updated.' };
+    return { ok: 'Expense category updated.', reference: category.name };
   } catch (error) {
-    return { error: error instanceof Error ? error.message : 'Could not update the category.' };
+    return { error: failure(error, 'Could not update the category.') };
   }
 }
