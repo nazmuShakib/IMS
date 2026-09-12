@@ -1,3 +1,4 @@
+import { checkStockConsistency } from './reconciliation';
 import { expenseWhere, expenseOrder, readExpensePage } from './expenses';
 import { readMovementPage } from './movements';
 import { readSnapshot } from './read-snapshot';
@@ -346,6 +347,7 @@ export function createRepositories(client: Client, transact?: Repositories['tran
   let repositories: Repositories;
 
   repositories = {
+    reconciliation: { check: () => checkStockConsistency(client) },
     reports: prismaReports(client),
     categories: {
       findPage: query => findTaxonomyPage(client, 'category', query),

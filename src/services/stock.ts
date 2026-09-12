@@ -555,24 +555,7 @@ export interface Drift {
 }
 
 export async function reconcile(repositories: Repositories = db): Promise<Drift[]> {
-  const products = await repositories.products.findAll();
-  const drifts: Drift[] = [];
-
-  for (const product of products) {
-    const onHand = await getOnHand(product, repositories);
-    const ledgerSum = await repositories.movements.sumQuantity(product.id);
-    if (onHand !== ledgerSum) {
-      drifts.push({
-        productId: product.id,
-        sku: product.sku,
-        name: product.name,
-        onHand,
-        ledgerSum,
-        drift: onHand - ledgerSum,
-      });
-    }
-  }
-  return drifts; // empty array == healthy. Anything else means a missed transaction.
+  return (await repositories.reconciliation.check()).rows;
 }
 
 // ---------------------------------------------------------------------------

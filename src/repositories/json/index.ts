@@ -1,3 +1,4 @@
+import { checkJsonStockConsistency } from './reconciliation';
 import { expensePageFromRows, expenseRepositoryFilters, orderExpenses } from '@/lib/expense-query';
 import { movementPageFromRows } from '@/lib/movement-query';
 import { jsonReports } from './reports';
@@ -1089,6 +1090,7 @@ const emi: EmiRepository = {
 };
 
 export const jsonRepositories: Repositories = {
+  reconciliation: { check: () => withLock(checkJsonStockConsistency) },
   reports: jsonReports,
   categories,
   brands,
@@ -1109,7 +1111,7 @@ export const jsonRepositories: Repositories = {
   expenseCategories,
   operatingExpenses,
   emi,
-  transaction: (fn) => withLock(() => fn(jsonRepositories)),
+  transaction: (fn) => withLock(() => fn({ ...jsonRepositories, reconciliation: { check: checkJsonStockConsistency } })),
 };
 
 export type { UnitStatus };

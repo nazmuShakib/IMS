@@ -687,7 +687,26 @@ An admin-only page that, per product, compares the cache against the ledger and 
 SERIAL:   COUNT(units WHERE status='IN_STOCK')  vs  SUM(movements.quantity)
 QUANTITY: products.quantityOnHand               vs  SUM(movements.quantity)
 ```
-If these ever disagree, a transaction boundary was missed somewhere. The ledger wins.
+The page is labelled **Stock consistency** and retains `/stock/reconcile`.
+Admins and Managers can run a read-only check. Group product quantities, in-stock
+unit counts and signed ledger totals in one database snapshot, including inactive
+and zero-stock products. Return the check time, products checked/matching, and
+discrepancies. Show recorded stock, ledger stock and signed difference, with
+search, compact pagination and links to the product and its movement history.
+Rerun failures retain and label the previous successful report. A discrepancy
+requires investigation; do not assume the cause or automatically repair it.
+The page also checks valuation independently of stored cost caches. Bulk value
+is reconstructed from effective movement history using integer-paisa weighted
+averages; serial value uses effective receipt/acquisition costs plus applicable
+refurbishment expenses. Cancelled original/correction pairs are excluded. Use
+recording timestamp and ID order, preserve historical sale costs, and include
+inactive products. Compare recorded and expected values per product and per
+serialized unit so offsetting errors remain visible. Missing or inconsistent
+history is unverified, with no exact expected grand total until resolved.
+Quantity and valuation results remain separate. Neither check changes inventory
+or verifies physical shelf counts. Physical stock counting and audited count
+adjustments are a separate workflow. The command-line check fails on quantity
+or valuation discrepancies, unverified valuation histories, or database errors.
 
 ---
 

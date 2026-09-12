@@ -1,8 +1,12 @@
+import { valuationEnglish, valuationBengali } from './valuation-messages';
+import { consistencyEnglish, consistencyBengali } from './consistency-messages';
 import type { Locale } from '@/lib/i18n/config';
 import { ledgerEnglish, ledgerBengali } from './ledger-messages';
 
 const en = {
   ...ledgerEnglish,
+  ...consistencyEnglish,
+  ...valuationEnglish,
   "taxonomy.showActive": "Show active records",
   "taxonomy.showRemoved": "Find removed record to restore",
   "taxonomy.childrenFilter": "Showing child categories",
@@ -262,7 +266,7 @@ const en = {
   'nav.usedPhoneIntake': 'Receive used phone',
   'nav.removeStock': 'Remove stock',
   'nav.movementLedger': 'Movement ledger',
-  'nav.reconciliation': 'Reconciliation',
+  'nav.reconciliation': 'Stock consistency',
   'nav.reports': 'Reports',
   'nav.warrantyClaims': 'Warranty claims',
   'nav.categories': 'Categories',
@@ -420,7 +424,7 @@ const en = {
   'supplierReturns.differenceHelp': 'Recovery difference used for ordering = amount recovered − returned stock cost. Positive means extra recovery; negative means a deficit.',
   'supplierReturns.filtering': 'Filtering supplier returns…',
   'navHelp.movementLedger': 'Complete history of stock entering and leaving',
-  'navHelp.reconciliation': 'Compare physical stock with recorded stock',
+  'navHelp.reconciliation': 'Compare recorded stock with movement history',
   'navHelp.reports': 'Review inventory value, revenue, profit and stock analysis',
   'navHelp.warrantyClaims': 'Manage warranty claims, inspections and replacements',
   'navHelp.auditLog': 'View important actions performed by users',
@@ -1747,6 +1751,8 @@ export type MessageKey = keyof typeof en;
 
 const bn: Record<MessageKey, string> = {
   ...ledgerBengali,
+  ...consistencyBengali,
+  ...valuationBengali,
   "taxonomy.showActive": "সক্রিয় রেকর্ড দেখুন",
   "taxonomy.showRemoved": "পুনরুদ্ধারের জন্য সরানো রেকর্ড দেখুন",
   "taxonomy.childrenFilter": "উপক্যাটাগরি দেখানো হচ্ছে",
@@ -2090,7 +2096,7 @@ const bn: Record<MessageKey, string> = {
   'nav.printLabels': 'লেবেল প্রিন্ট',
   'nav.removeStock': 'স্টক অপসারণ',
   'nav.movementLedger': 'মুভমেন্ট লেজার',
-  'nav.reconciliation': 'রিকনসিলিয়েশন',
+  'nav.reconciliation': 'স্টকের সামঞ্জস্য',
   'nav.reports': 'রিপোর্ট',
   'nav.warrantyClaims': 'ওয়ারেন্টি দাবি',
   'nav.categories': 'ক্যাটাগরি',
@@ -2160,7 +2166,7 @@ const bn: Record<MessageKey, string> = {
   'supplierReturns.differenceHelp': 'ক্রম নির্ধারণে উদ্ধার পার্থক্য = উদ্ধারকৃত অর্থ − ফেরত স্টকের ক্রয়মূল্য। ধনাত্মক মান অতিরিক্ত উদ্ধার এবং ঋণাত্মক মান ঘাটতি বোঝায়।',
   'supplierReturns.filtering': 'সরবরাহকারী ফেরত ফিল্টার হচ্ছে…',
   'navHelp.movementLedger': 'স্টকে পণ্য প্রবেশ ও বের হওয়ার সম্পূর্ণ ইতিহাস',
-  'navHelp.reconciliation': 'গুদামের বাস্তব স্টকের সঙ্গে সিস্টেমের হিসাব মিলিয়ে দেখুন',
+  'navHelp.reconciliation': 'রেকর্ড করা স্টক মুভমেন্টের ইতিহাসের সঙ্গে মিলিয়ে দেখুন',
   'navHelp.reports': 'স্টকের মূল্য, আয়, লাভ ও স্টক বিশ্লেষণ দেখুন',
   'navHelp.warrantyClaims': 'ওয়ারেন্টি দাবি, পরিদর্শন ও প্রতিস্থাপন পরিচালনা করুন',
   'navHelp.auditLog': 'ব্যবহারকারীদের গুরুত্বপূর্ণ কার্যক্রম দেখুন',

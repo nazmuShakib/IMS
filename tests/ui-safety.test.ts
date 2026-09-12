@@ -19,7 +19,7 @@ describe('bounded data tables', () => {
     'src/app/(dashboard)/users/page.tsx',
     'src/app/(dashboard)/products/page.tsx',
     'src/components/stock/MovementWorkspace.tsx',
-    'src/app/(dashboard)/stock/reconcile/page.tsx',
+    'src/components/stock/StockConsistencyWorkspace.tsx',
   ])('bounds the growing table in %s', (file) => {
     const page = source(file);
     expect(page).toContain('<TableViewport>');

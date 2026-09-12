@@ -376,6 +376,7 @@ export interface ReportRepository {
   products(q: string): Promise<Array<{id:string;name:string;sku:string}>>;
 }
 export interface Repositories {
+  reconciliation: { check(): Promise<import('@/lib/reconciliation').StockConsistencyReport> };
   reports: ReportRepository;
   categories: CategoryRepository;
   brands: BrandRepository;
