@@ -167,11 +167,15 @@ requires the operator to choose the destination in the print dialog.
 
 5. Confirm the preview shows only the receipt, then print.
 
-The 80 mm invoice keeps an 80 mm paper form but limits its printed layout to
-72 mm, starting at the driver's print origin. This applies to both the browser
-Print button and the downloaded thermal invoice PDF. The application preview
-keeps its existing width for readability. Use 100%/Actual size; do not enlarge
-the receipt to fill the roll. A nominal 80 mm roll measuring 79.5 mm is normal.
+The 80 mm invoice keeps an 80 mm paper form and a 72 mm layout, with a 4 mm
+safety inset inside each side. The resulting text area is 64 mm wide, from
+4 mm to 68 mm on the document. This conservative inset was added after the
+client's Rongta RP335 still clipped the right edge of the full 72 mm layout.
+It needs a physical print to confirm compatibility with the installed driver.
+This applies to both the browser Print button and the downloaded thermal
+invoice PDF. The application preview keeps its existing width for readability.
+Use 100%/Actual size; do not enlarge the receipt to fill the roll. A nominal
+80 mm roll measuring 79.5 mm is normal.
 
 ### Label job
 

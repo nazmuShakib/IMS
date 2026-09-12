@@ -1524,11 +1524,13 @@ html[lang="bn"] .eyebrow {
     break-after: avoid-page;
   }
 
-  /* The 80 mm roll has a 72 mm printable area. Keep the receipt at the
-     driver's print origin rather than centering it in the physical roll. */
+  /* Reserve 4 mm inside each edge of the 72 mm printable area. The full-width
+     layout still clipped on the client's RP335, so keep text off its boundary. */
   .invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-document {
     width: 72mm;
     max-width: 72mm;
+    padding: 0 4mm 4mm;
+    overflow-wrap: anywhere;
   }
 
 }

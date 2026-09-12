@@ -62,8 +62,8 @@ const styles = StyleSheet.create({
 const thermalStyles = StyleSheet.create({
   page: { paddingTop: 9, paddingBottom: 7, fontFamily: 'Helvetica', fontSize: 7.2, color: '#000000' },
   page58: { paddingHorizontal: 5 },
-  // Keep the 80 mm paper form, with content inside the first 72 mm.
-  page80: { paddingLeft: 0, paddingRight: 8 * 72 / 25.4 },
+  // Match browser printing: a 72 mm area with 4 mm safety insets, on 80 mm paper.
+  page80: { paddingLeft: 4 * 72 / 25.4, paddingRight: 12 * 72 / 25.4 },
   logo: { objectFit: 'contain', objectPosition: 'center', alignSelf: 'center' },
   logo58: { width: 110, height: 61 },
   logo80: { width: 140, height: 77 },
@@ -129,7 +129,7 @@ function thermalInvoiceHeightMm(sale: Sale, items: InvoiceItem[], emi: { install
   // points taller than this value. Keep a deliberate safety allowance so a
   // receipt remains one continuous roll page instead of moving its totals to a
   // second sheet. The narrower layout also wraps metadata more frequently.
-  const chars = widthMm === 58 ? 29 : 41;
+  const chars = widthMm === 58 ? 29 : 36;
   let height = widthMm === 58 ? 115 : 103;
   for (const item of items) {
     const identity = `Code (SKU) ${item.sku}${item.serialNo ? ` / Device no. ${item.serialNo}` : ''}`;
