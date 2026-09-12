@@ -1524,13 +1524,26 @@ html[lang="bn"] .eyebrow {
     break-after: avoid-page;
   }
 
-  /* Reserve 4 mm inside each edge of the 72 mm printable area. The full-width
-     layout still clipped on the client's RP335, so keep text off its boundary. */
+  /* Keep the proven right edge at 68 mm without adding a left inset on top
+     of the printer's own margin. */
   .invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-document {
     width: 72mm;
     max-width: 72mm;
-    padding: 0 4mm 4mm;
+    padding: 0 4mm 4mm 0;
     overflow-wrap: anywhere;
+  }
+
+  /* Reserve each numeric column's natural width; product details take the
+     remaining space and may wrap, including long SKUs and device numbers. */
+  .invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-items {
+    table-layout: auto;
+  }
+
+  .invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-items :is(th, td):not(:first-child) {
+    width: 1%;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
   }
 
 }
