@@ -1524,6 +1524,13 @@ html[lang="bn"] .eyebrow {
     break-after: avoid-page;
   }
 
+  /* The 80 mm roll has a 72 mm printable area. Keep the receipt at the
+     driver's print origin rather than centering it in the physical roll. */
+  .invoice-root[data-layout="thermal"][data-thermal-width="80"] .invoice-document {
+    width: 72mm;
+    max-width: 72mm;
+  }
+
 }
 
 /* Intake uses the same control sizes and available width as other stock forms. */
